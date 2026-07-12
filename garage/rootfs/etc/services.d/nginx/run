@@ -1,13 +1,5 @@
 #!/command/with-contenv bashio
 set -euo pipefail
 
-bashio::log.info "Waiting for web UI"
-for _ in $(seq 1 90); do
-  if curl -sf "http://127.0.0.1:3000" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-bashio::log.info "Starting nginx (Ingress :8099)"
+bashio::log.info "Starting nginx on :3080 (web + /api reverse proxy)"
 exec nginx -g 'daemon off;'

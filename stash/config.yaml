@@ -1,6 +1,6 @@
 ---
 name: Stash
-version: "0.3.1"
+version: "0.3.1.1"
 slug: stash
 description: Self-hosted home inventory & barcode manager (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/stash
@@ -10,16 +10,14 @@ arch:
 startup: application
 boot: auto
 init: false
-ingress: true
-ingress_port: 8099
-ingress_stream: true
+# Next.js uses absolute /_next and /api paths, so HA Ingress (subpath) breaks the UI.
+# Open the app on the host port instead — same as the upstream docker-compose stack.
+webui: http://[HOST]:[PORT:3080]/
 panel_icon: mdi:package-variant-closed
-panel_title: Stash
-panel_admin: false
 ports:
-  3080/tcp: null
+  3080/tcp: 3080
 ports_description:
-  3080/tcp: Direct UI access (optional; Ingress preferred)
+  3080/tcp: Stash UI (nginx → web + /api)
 map:
   - addon_config:rw
 options: {}

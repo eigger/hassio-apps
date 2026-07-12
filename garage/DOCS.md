@@ -1,11 +1,11 @@
 # Garage
 
-Self-hosted car management (maintenance, fuel, OBD/GPS) as a Home Assistant app.
+Self-hosted car management as a Home Assistant app.
 
 ## How to use
 
-1. Start the app and open it via **Ingress** (sidebar: Garage).
-2. On first launch, create the admin account at the login screen.
-3. Register vehicles and configure API keys in the Garage settings / integrations UI.
+1. Start the app.
+2. Open **Open Web UI** or go to `http://<ha-ip>:3081`.
+3. Create the first admin account, then configure vehicles and API keys in the UI.
 
-Persistent data lives in the app `/data` folder (Postgres, uploads, secrets).
+Data persists under `/data`. Ingress is not used (Next.js absolute paths break under HA’s subpath proxy).

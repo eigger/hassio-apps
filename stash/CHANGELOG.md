@@ -1,6 +1,10 @@
 # Changelog
 
+## 0.3.1.1
+
+- Drop Ingress; expose host port 3080 with Open Web UI (fixes broken Next.js assets)
+- Keep upstream images pinned to 0.3.1
+
 ## 0.3.1
 
-- Pin upstream images to `ghcr.io/eigger/stash-api:0.3.1` / `stash-web:0.3.1`
-- All-in-one app (Postgres + API + Web + Nginx Ingress)
+- Initial all-in-one app packaging

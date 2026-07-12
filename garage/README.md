@@ -1,26 +1,21 @@
 # Garage (Home Assistant App)
 
-Runs [garage](https://github.com/eigger/garage) (car management) **all-in-one inside one app**, similar to an LXC:
-
-- PostgreSQL 16
-- Garage API (`ghcr.io/eigger/garage-api:0.2.14`)
-- Garage Web (`ghcr.io/eigger/garage-web:0.2.14`)
-- Nginx (Ingress `:8099`, routes `/api`, `/health`, and the UI)
+Runs [garage](https://github.com/eigger/garage) **all-in-one** (Postgres + API + Web), with nginx routing like the upstream Caddyfile.
 
 ## Install
 
-1. HA → **Settings → Apps → ⋮ → Repositories**
-2. Add this repository URL
-3. Install **Garage** and start it
-4. Open **Garage** from the sidebar (Ingress)
+1. **Settings → Apps → ⋮ → Repositories** → add this repo
+2. Install **Garage**, start it
+3. Open **http://&lt;home-assistant-ip&gt;:3081** (or use **Open Web UI**)
 
-On first launch, create an admin account via **Create first admin** on `/login`.
+First launch: create an admin on `/login`.
 
-API keys (Opinet, maps, VAPID, …) are configured in the Garage web UI.  
-`JWT_SECRET` and Postgres credentials are auto-generated and stored under `/data`.
+API keys are configured in the Garage web UI. JWT/DB secrets are auto-generated under `/data`.
 
-## Ingress notes
+## Why not Ingress?
 
-Ingress is proxied under a Supervisor subpath. Absolute root paths in the web app can break under Ingress. If that happens, map host port `3080/tcp` for direct access.
+Garage’s Next.js UI uses absolute `/_next` and `/api` paths. HA Ingress serves under a subpath, so you get a blank/broken page. Host-port access matches the original docker-compose setup (same origin).
 
-Upstream: [eigger/garage](https://github.com/eigger/garage)
+Default host port is **3081** so it does not collide with Stash (**3080**).
+
+Upstream images: `ghcr.io/eigger/garage-api:0.2.14`, `garage-web:0.2.14`

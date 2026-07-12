@@ -1,26 +1,19 @@
 # Stash (Home Assistant App)
 
-Runs [stash](https://github.com/eigger/stash) (home inventory & barcode manager) **all-in-one inside one app**, similar to an LXC:
-
-- PostgreSQL 16
-- Stash API (`ghcr.io/eigger/stash-api:0.3.1`)
-- Stash Web (`ghcr.io/eigger/stash-web:0.3.1`)
-- Nginx (Ingress `:8099`, routes `/api`, `/health`, and the UI)
+Runs [stash](https://github.com/eigger/stash) **all-in-one** (Postgres + API + Web), with nginx routing like the upstream Caddyfile.
 
 ## Install
 
-1. HA → **Settings → Apps → ⋮ → Repositories**
-2. Add this repository URL
-3. Install **Stash** and start it
-4. Open **Stash** from the sidebar (Ingress)
+1. **Settings → Apps → ⋮ → Repositories** → add this repo
+2. Install **Stash**, start it
+3. Open **http://&lt;home-assistant-ip&gt;:3080** (or use **Open Web UI**)
 
-On first launch, create an admin account via **Create first admin** on `/login`.
+First launch: create an admin on `/login`.
 
-Integrations (webhook, barcode lookup, public URL, push, …) are configured in the Stash web UI.  
-`JWT_SECRET` and Postgres credentials are auto-generated and stored under `/data`.
+Integrations are configured in the Stash web UI. JWT/DB secrets are auto-generated under `/data`.
 
-## Ingress notes
+## Why not Ingress?
 
-Ingress is proxied under a Supervisor subpath. Absolute root paths (e.g. `/api`) in the web app can break under Ingress. If that happens, map host port `3080/tcp` for direct access, or adapt the app to relative paths / `basePath`.
+Stash’s Next.js UI uses absolute `/_next` and `/api` paths. HA Ingress serves under a subpath, so CSS/JS and API calls break. Host-port access matches the original docker-compose setup (same origin).
 
-Upstream: [eigger/stash](https://github.com/eigger/stash)
+Upstream images: `ghcr.io/eigger/stash-api:0.3.1`, `stash-web:0.3.1`
