@@ -3,8 +3,8 @@
 Runs [stash](https://github.com/eigger/stash) (home inventory & barcode manager) **all-in-one inside one app**, similar to an LXC:
 
 - PostgreSQL 16
-- Stash API (`ghcr.io/eigger/stash-api`)
-- Stash Web (`ghcr.io/eigger/stash-web`)
+- Stash API (`ghcr.io/eigger/stash-api:0.3.1`)
+- Stash Web (`ghcr.io/eigger/stash-web:0.3.1`)
 - Nginx (Ingress `:8099`, routes `/api`, `/health`, and the UI)
 
 ## Install
@@ -16,16 +16,8 @@ Runs [stash](https://github.com/eigger/stash) (home inventory & barcode manager)
 
 On first launch, create an admin account via **Create first admin** on `/login`.
 
-## Options
-
-| Option | Description |
-|--------|-------------|
-| `jwt_secret` | Auto-generated and stored under `/data` if left empty |
-| `app_public_url` | Public URL for self-issued QR deep-links |
-| `upcitemdb_api_key` | Optional |
-| `inventory_webhook_url` | Optional (e.g. Home Assistant automations) |
-
-Data, uploads, and secrets persist in the app `/data` directory.
+Integrations (webhook, barcode lookup, public URL, push, …) are configured in the Stash web UI.  
+`JWT_SECRET` and Postgres credentials are auto-generated and stored under `/data`.
 
 ## Ingress notes
 

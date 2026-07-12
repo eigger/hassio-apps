@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.2.14
 
-- Initial all-in-one app (Postgres + API + Web + Nginx Ingress)
-- Pulls `ghcr.io/eigger/garage-api` / `garage-web` at build time
+- Pin upstream images to `ghcr.io/eigger/garage-api:0.2.14` / `garage-web:0.2.14`
+- All-in-one app (Postgres + API + Web + Nginx Ingress)

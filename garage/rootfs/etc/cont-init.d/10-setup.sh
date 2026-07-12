@@ -19,32 +19,17 @@ if [[ ! -f "${SECRETS_FILE}" ]]; then
     echo "POSTGRES_USER=garage"
     echo "POSTGRES_DB=garage"
     echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+    echo "JWT_SECRET=$(openssl rand -hex 32)"
   } > "${SECRETS_FILE}"
 fi
 
 # shellcheck disable=SC1090
 source "${SECRETS_FILE}"
 
-JWT_SECRET="$(bashio::config 'jwt_secret')"
-if [[ -z "${JWT_SECRET}" ]]; then
-  if ! grep -q '^JWT_SECRET=' "${SECRETS_FILE}"; then
-    echo "JWT_SECRET=$(openssl rand -hex 32)" >> "${SECRETS_FILE}"
-  fi
-else
-  if grep -q '^JWT_SECRET=' "${SECRETS_FILE}"; then
-    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "${SECRETS_FILE}"
-  else
-    echo "JWT_SECRET=${JWT_SECRET}" >> "${SECRETS_FILE}"
-  fi
+if [[ -z "${JWT_SECRET:-}" ]]; then
+  JWT_SECRET="$(openssl rand -hex 32)"
+  echo "JWT_SECRET=${JWT_SECRET}" >> "${SECRETS_FILE}"
 fi
-
-# shellcheck disable=SC1090
-source "${SECRETS_FILE}"
-
-OPINET_API_KEY="$(bashio::config 'opinet_api_key')"
-VAPID_PUBLIC_KEY="$(bashio::config 'vapid_public_key')"
-VAPID_PRIVATE_KEY="$(bashio::config 'vapid_private_key')"
-VAPID_SUBJECT="$(bashio::config 'vapid_subject')"
 
 RUNTIME_ENV=/data/secrets/runtime.env
 umask 077
@@ -54,10 +39,6 @@ POSTGRES_DB=${POSTGRES_DB}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}
-OPINET_API_KEY=${OPINET_API_KEY}
-VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
-VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
-VAPID_SUBJECT=${VAPID_SUBJECT}
 NODE_ENV=production
 PORT=8080
 EOF

@@ -38,8 +38,7 @@ SQL
 mkdir -p /data/uploads
 ln -sfn /data/uploads /opt/app/api/uploads
 
-export DATABASE_URL JWT_SECRET NODE_ENV PORT APP_PUBLIC_URL
-export UPCITEMDB_API_KEY INVENTORY_WEBHOOK_URL
+export DATABASE_URL JWT_SECRET NODE_ENV PORT
 
 cd /opt/app/api
 bashio::log.info "Running Prisma migrations"

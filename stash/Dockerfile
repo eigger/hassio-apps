@@ -1,6 +1,6 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.0
-ARG APP_API_IMAGE=ghcr.io/eigger/stash-api:latest
-ARG APP_WEB_IMAGE=ghcr.io/eigger/stash-web:latest
+ARG APP_API_IMAGE=ghcr.io/eigger/stash-api:0.3.1
+ARG APP_WEB_IMAGE=ghcr.io/eigger/stash-web:0.3.1
 
 # hadolint ignore=DL3006
 FROM ${APP_API_IMAGE} AS app-api

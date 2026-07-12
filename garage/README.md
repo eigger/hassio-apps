@@ -3,8 +3,8 @@
 Runs [garage](https://github.com/eigger/garage) (car management) **all-in-one inside one app**, similar to an LXC:
 
 - PostgreSQL 16
-- Garage API (`ghcr.io/eigger/garage-api`)
-- Garage Web (`ghcr.io/eigger/garage-web`)
+- Garage API (`ghcr.io/eigger/garage-api:0.2.14`)
+- Garage Web (`ghcr.io/eigger/garage-web:0.2.14`)
 - Nginx (Ingress `:8099`, routes `/api`, `/health`, and the UI)
 
 ## Install
@@ -16,15 +16,8 @@ Runs [garage](https://github.com/eigger/garage) (car management) **all-in-one in
 
 On first launch, create an admin account via **Create first admin** on `/login`.
 
-## Options
-
-| Option | Description |
-|--------|-------------|
-| `jwt_secret` | Auto-generated and stored under `/data` if left empty |
-| `opinet_api_key` | Optional (fuel stations) |
-| `vapid_*` | Optional (Web Push) |
-
-Data, uploads, and secrets persist in the app `/data` directory.
+API keys (Opinet, maps, VAPID, …) are configured in the Garage web UI.  
+`JWT_SECRET` and Postgres credentials are auto-generated and stored under `/data`.
 
 ## Ingress notes
 

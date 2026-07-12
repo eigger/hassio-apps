@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.3.1
 
-- Initial all-in-one app (Postgres + API + Web + Nginx Ingress)
-- Pulls `ghcr.io/eigger/stash-api` / `stash-web` at build time
+- Pin upstream images to `ghcr.io/eigger/stash-api:0.3.1` / `stash-web:0.3.1`
+- All-in-one app (Postgres + API + Web + Nginx Ingress)
