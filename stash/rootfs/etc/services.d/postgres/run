@@ -1,0 +1,14 @@
+#!/command/with-contenv bashio
+# ==============================================================================
+# PostgreSQL
+# ==============================================================================
+set -euo pipefail
+
+# shellcheck disable=SC1091
+source /data/secrets/runtime.env
+
+mkdir -p /run/postgresql
+chown postgres:postgres /run/postgresql
+
+bashio::log.info "Starting PostgreSQL"
+exec su-exec postgres postgres -D /data/postgres

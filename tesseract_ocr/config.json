@@ -3,7 +3,7 @@
   "version": "1.1.10",
   "slug": "tesseract_ocr",
   "description": "Tesseract OCR for Homeassistant",
-  "url": "https://github.com/eigger/hassio-addons/tree/master/tesseract_ocr",
+  "url": "https://github.com/eigger/hassio-apps/tree/master/tesseract_ocr",
   "map": ["config:rw"],
   "arch": [
     "armhf",

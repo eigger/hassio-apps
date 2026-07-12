@@ -1,0 +1,36 @@
+---
+name: Stash
+version: "0.1.0"
+slug: stash
+description: Self-hosted home inventory & barcode manager (all-in-one)
+url: https://github.com/eigger/hassio-apps/tree/master/stash
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+panel_icon: mdi:package-variant-closed
+panel_title: Stash
+panel_admin: false
+ports:
+  3080/tcp: null
+ports_description:
+  3080/tcp: Direct UI access (optional; Ingress preferred)
+map:
+  - addon_config:rw
+options:
+  log_level: info
+  jwt_secret: ""
+  app_public_url: ""
+  upcitemdb_api_key: ""
+  inventory_webhook_url: ""
+schema:
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
+  jwt_secret: password
+  app_public_url: str?
+  upcitemdb_api_key: password?
+  inventory_webhook_url: url?

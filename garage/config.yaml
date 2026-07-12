@@ -1,0 +1,38 @@
+---
+name: Garage
+version: "0.1.0"
+slug: garage
+description: Self-hosted car management — maintenance, fuel, OBD/GPS (all-in-one)
+url: https://github.com/eigger/hassio-apps/tree/master/garage
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+panel_icon: mdi:car
+panel_title: Garage
+panel_admin: false
+ports:
+  3080/tcp: null
+ports_description:
+  3080/tcp: Direct UI access (optional; Ingress preferred)
+map:
+  - addon_config:rw
+options:
+  log_level: info
+  jwt_secret: ""
+  opinet_api_key: ""
+  vapid_public_key: ""
+  vapid_private_key: ""
+  vapid_subject: mailto:admin@example.com
+schema:
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
+  jwt_secret: password
+  opinet_api_key: password?
+  vapid_public_key: str?
+  vapid_private_key: password?
+  vapid_subject: str?

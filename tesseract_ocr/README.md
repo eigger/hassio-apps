@@ -1,4 +1,4 @@
-# hassio-addons : Tesseract OCR
+# hassio-apps : Tesseract OCR
 ```
 sensor:
   - platform: rest
@@ -19,6 +19,7 @@ sensor:
       {% else %}
         Error: {{ value_json.error }}
       {% endif %}
-    scan_interval: 3600  # 센서가 매 시간마다 API를 호출
+    scan_interval: 3600  # Call the API every hour
+
 
 ```

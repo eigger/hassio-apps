@@ -1,0 +1,21 @@
+#!/command/with-contenv bashio
+set -euo pipefail
+
+# shellcheck disable=SC1091
+source /data/secrets/runtime.env
+
+export NODE_ENV=production
+export PORT=3000
+export HOSTNAME=127.0.0.1
+
+bashio::log.info "Waiting for API"
+for _ in $(seq 1 90); do
+  if curl -sf "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+bashio::log.info "Starting Garage Web"
+cd /opt/app/web
+exec node apps/web/server.js
