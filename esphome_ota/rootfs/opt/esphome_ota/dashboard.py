@@ -59,6 +59,19 @@ class DashboardClient:
         ws_url = self.base_url.replace("http://", "ws://").replace("https://", "wss://")
         try:
             self._ws = await self._session.ws_connect(f"{ws_url}/ws", heartbeat=30)
+        except aiohttp.WSServerHandshakeError as err:
+            await self._session.close()
+            if err.status == 403:
+                raise DashboardError(
+                    f"The ESPHome dashboard at {self.base_url} rejected this connection (HTTP 403). "
+                    "Its ingress site only accepts connections from Home Assistant itself or "
+                    "loopback — a sibling add-on must go through the public port instead. In the "
+                    "ESPHome add-on: map port 6052 under Network, and turn on "
+                    "'leave_front_door_open'. See DOCS.md."
+                ) from err
+            raise DashboardError(
+                f"Cannot reach the ESPHome dashboard at {self.base_url}: HTTP {err.status}"
+            ) from err
         except Exception as err:  # noqa: BLE001
             await self._session.close()
             raise DashboardError(f"Cannot reach the ESPHome dashboard at {self.base_url}: {err}") from err
@@ -69,8 +82,8 @@ class DashboardClient:
         if self.server_info.get("requires_auth"):
             if not self.token:
                 raise DashboardError(
-                    "The ESPHome dashboard requires authentication. Set 'dashboard_token' "
-                    "in the add-on options, or reach the dashboard over its ingress port."
+                    "The ESPHome dashboard requires authentication (ESPHOME_USERNAME/PASSWORD is "
+                    "set). Set 'dashboard_token' in this add-on's options to a matching API token."
                 )
             await self.command("auth/login", {"token": self.token})
         return self

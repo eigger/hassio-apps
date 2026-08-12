@@ -1,12 +1,37 @@
 # ESPHome OTA Server — Documentation
 
+## Required ESPHome add-on setting
+
+This add-on needs to reach the ESPHome Device Builder's WebSocket API. Its
+normal access path — the HA sidebar / Ingress — is a dead end for that: the
+ingress site is guarded by `ingress_peer_guard` middleware
+(`esphome_device_builder/helpers/auth.py`) that only admits connections whose
+TCP peer is loopback or the Supervisor container's own fixed address
+(`172.30.32.2`). Ingress exists to let HA's authenticated-browser proxy
+through — not for one add-on to call another. Any other source IP, including
+a sibling add-on reaching the same bound port directly, gets a flat HTTP 403
+on the WebSocket handshake, no matter which address or port it's dialed on.
+
+The only other door in is ESPHome's *public* port, and device-builder only
+binds that when **both** are true (either alone leaves it unbound):
+
+1. Network tab → `6052/tcp` mapped to a host port
+2. Options → `leave_front_door_open` turned on
+
+With both set, that port serves the full dashboard with no authentication at
+all — configs, `secrets.yaml` (Wi-Fi credentials), rebuild/reflash — to
+anything that can reach it. Unlike this add-on's own `/local` publishing,
+this is not scoped to firmware files, and it doesn't ride the external
+cloud-tunnel path — only your LAN sees it, same as this add-on's `/local`
+files today. If your LAN isn't a zone you're comfortable with unauthenticated
+services in, don't enable this; the add-on will just keep logging that it
+can't find the dashboard.
+
 ## How it works
 
-1. The add-on finds the running ESPHome Device Builder add-on through the
-   Supervisor and connects to its WebSocket API. It prefers the add-on's
-   **ingress port**, because device-builder binds that site to `127.0.0.1` and
-   the Supervisor gateway `172.30.32.1` and skips authentication there — so no
-   credentials are needed and the ESPHome dashboard stays closed to the LAN.
+1. Finds the ESPHome add-on's mapped public port through the Supervisor
+   (`GET /addons`, then `/addons/<slug>/info`) and connects its WebSocket API
+   there — see above for why the ingress port doesn't work for this.
 2. On demand it runs `firmware/compile` → `firmware/follow_job` →
    `firmware/download_token` → `GET /api/firmware/download`, which is the same
    sequence the dashboard frontend performs.
@@ -19,8 +44,8 @@
 
 | Option | Default | Meaning |
 |---|---|---|
-| `dashboard_url` | *(auto)* | Override the ESPHome dashboard base URL, e.g. `http://172.30.32.1:6052`. Leave empty to auto-detect. |
-| `dashboard_token` | *(empty)* | Only needed for a dashboard started with `ESPHOME_USERNAME`/`ESPHOME_PASSWORD`. The HA add-on does not use one. |
+| `dashboard_url` | *(auto)* | Override the ESPHome dashboard base URL, e.g. `http://172.30.32.1:6052` (the mapped public port, not the ingress port — see above). Leave empty to auto-detect. |
+| `dashboard_token` | *(empty)* | Only needed for a dashboard started with `ESPHOME_USERNAME`/`ESPHOME_PASSWORD`. |
 | `publish_dir` | `esphome_ota` | Folder under `<config>/www/`, and therefore the path under `/local/`. |
 | `base_url` | *(auto)* | How your devices reach Home Assistant, e.g. `http://192.168.0.10:8123`. Auto-detected from the host's primary LAN address. Only used to fill in the generated packages. |
 | `log_level` | `info` | `debug` prints every dashboard frame. |
@@ -105,17 +130,20 @@ behind an `isdir` check on the `www` folder. If the add-on had to create that
 folder, Home Assistant does not know about it yet.
 
 **"Could not find the ESPHome dashboard."** — the ESPHome add-on must be
-running. If auto-detection still fails, map port 6052 in the ESPHome add-on's
-Network settings, turn on its `leave_front_door_open` option, and set
-`dashboard_url: http://172.30.32.1:6052`.
+running, with port 6052 mapped and `leave_front_door_open` turned on (see
+[Required ESPHome add-on setting](#required-esphome-add-on-setting) above —
+without both, its public port stays unbound, and there's nothing else this
+add-on can reach). Still failing? Set `dashboard_url` directly, e.g.
+`http://172.30.32.1:6052`.
 
-**Devices list returns HTTP 502** — the add-on log now includes the real
-`DashboardError` message for this (a warning logged right where the 502 is
-returned). Common causes: the ESPHome add-on isn't actually reachable at the
-resolved `dashboard_url` (check the add-on log's "Found ESPHome dashboard…"
-line against what's actually running), or the WebSocket connection dropped
-mid-request. Re-check the add-on log after reproducing — the error text there
-is the same one shown in the UI, not a generic proxy failure.
+**Devices list returns HTTP 502 with "HTTP 403" in the message** — this add-on
+tried the ingress port instead of the public one (only possible if
+`dashboard_url` was set by hand). Point it at the mapped public port instead.
+
+**Devices list returns HTTP 502, other reason** — the add-on log now includes
+the real `DashboardError` message for this (a warning logged right where the
+502 is returned). Re-check the log after reproducing — the error text there is
+the same one shown in the UI, not a generic proxy failure.
 
 **The update entity never appears** — check `chipFamily` in the UI. ESPHome
 matches it against `ESPHOME_VARIANT` with an exact string comparison and

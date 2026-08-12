@@ -1,7 +1,8 @@
 # ESPHome OTA Server
 
 Publishes ESPHome firmware so devices can update themselves over plain HTTP
-with the `http_request` OTA platform — no extra ports, no manual file copying.
+with the `http_request` OTA platform — no manual file copying, and this add-on
+itself opens no ports.
 
 It pulls `firmware.ota.bin` from the **ESPHome Device Builder** add-on using the
 same API the dashboard's own frontend uses, then writes the binary, its MD5, and
@@ -15,6 +16,16 @@ ESPHome Device Builder  ──WS API──▶  this add-on  ──▶  <config>/
                                                              ▼
                                                         your devices
 ```
+
+**Required on the ESPHome side:** its dashboard's normal access path (the HA
+sidebar / Ingress) is locked to loopback and the Supervisor by design — a
+sibling add-on can't reach it there. Reaching it instead requires ESPHome's
+*public* port, which means mapping port 6052 and turning on
+`leave_front_door_open` in the **ESPHome** add-on's own settings. That opens
+ESPHome's dashboard — configs, `secrets.yaml`, rebuild/reflash — unauthenticated
+on your LAN (not through any external tunnel, just your local network). See
+[DOCS.md](DOCS.md#required-esphome-add-on-setting) before installing if that
+trade-off matters to you.
 
 ## Why not just read ESPHome's build folder?
 
@@ -38,11 +49,13 @@ Use one or the other — both define `ota:`, so including both is a conflict.
 
 ## Install
 
-1. Add this repository to Home Assistant → Settings → Add-ons → Repositories
-2. Install **ESPHome OTA Server** and start it
-3. If the add-on asks you to restart Home Assistant, do it once (the `/local`
+1. In the **ESPHome Device Builder** add-on: Network tab → map `6052/tcp` to
+   `6052`, then in its options turn on `leave_front_door_open` and restart it
+2. Add this repository to Home Assistant → Settings → Add-ons → Repositories
+3. Install **ESPHome OTA Server** and start it
+4. If the add-on asks you to restart Home Assistant, do it once (the `/local`
    static path is registered at startup)
-4. Open the add-on's panel, hit **Build & publish** on a device, then paste
+5. Open the add-on's panel, hit **Build & publish** on a device, then paste
    the shown snippet into that device's YAML
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.
