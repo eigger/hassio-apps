@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4
+
+- Fixed the sidebar panel icon not rendering: `mdi:home-upload-outline` (set
+  in 0.3.1) isn't a real Material Design Icons name, so the sidebar showed no
+  icon at all. Switched to `mdi:upload-network-outline`, which exists.
+- Fixed `logo.png`'s "ESPHome" text being invisible in dark theme: the 0.3.1
+  refresh drew it as black text on a transparent background, which blends
+  into HA's dark add-on panels. The logo now sits on its own solid `#18BCF2`
+  rounded background with white text/icon, matching this repo's other
+  add-ons, so it's legible in both themes.
+
 ## 0.3.3
 
 - Generated packages (`update.yaml` / `flash_button.yaml`) now use
