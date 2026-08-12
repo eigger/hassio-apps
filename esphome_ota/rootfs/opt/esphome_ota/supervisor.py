@@ -18,9 +18,16 @@ LOG = logging.getLogger("supervisor")
 SUPERVISOR = "http://supervisor"
 TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
-# The Supervisor bridge gateway — i.e. the host. The ESPHome add-on runs with
-# host_network, and device-builder binds its no-auth ingress site to
-# 127.0.0.1 + 172.30.32.1, so this is the address that reaches it from here.
+# The Supervisor bridge gateway — the address that reaches a host-published
+# port (like ESPHome's mapped 6052) from a sibling container.
+#
+# Deliberately NOT used to reach device-builder's "trusted" ingress site.
+# That site's ingress_peer_guard middleware only admits loopback and the
+# Supervisor container's own fixed address (172.30.32.2) — it exists to let
+# HA's authenticated-browser Ingress proxy through, not sibling add-ons.
+# Any other source IP, gateway included, gets HTTP 403 on the WS handshake.
+# The only route in is ESPHome's public port with its explicit
+# "leave_front_door_open" + mapped-port opt-in (see find_dashboard_url).
 HOST_GATEWAY = "172.30.32.1"
 
 _TIMEOUT = ClientTimeout(total=15)
@@ -39,9 +46,13 @@ async def _get(session: ClientSession, path: str) -> Any:
 async def find_dashboard_url(session: ClientSession) -> str | None:
     """Return a base URL for the ESPHome dashboard, or None if not found.
 
-    Prefers the add-on's ingress port: that site skips authentication for
-    connections arriving from the Supervisor gateway, so no credentials are
-    needed. Falls back to a mapped public port (6052) when one exists.
+    Only the mapped public port (6052) is reachable from here — see the
+    HOST_GATEWAY note above for why the ingress port is not an option.
+    Requires the ESPHome add-on to have "leave_front_door_open" enabled
+    *and* port 6052 mapped; without both, device-builder refuses to bind
+    the public port at all (falls back to ingress-only), so a candidate
+    with no mapped port is not a partial match — it means the operator
+    still needs to flip that switch.
     """
     try:
         addons = await _get(session, "/addons")
@@ -57,6 +68,7 @@ async def find_dashboard_url(session: ClientSession) -> str | None:
     # Prefer the stable flavour over -beta / -dev when several are installed.
     candidates.sort(key=lambda slug: (slug.endswith(("-beta", "-dev")), slug))
 
+    found_unmapped = False
     for slug in candidates:
         try:
             info = await _get(session, f"/addons/{slug}/info")
@@ -64,20 +76,21 @@ async def find_dashboard_url(session: ClientSession) -> str | None:
             LOG.warning("Could not read info for add-on %s: %s", slug, err)
             continue
 
-        ingress_port = info.get("ingress_port")
-        if ingress_port:
-            url = f"http://{HOST_GATEWAY}:{ingress_port}"
-            LOG.info("Found ESPHome dashboard (%s) at %s", slug, url)
-            return url
-
-        # No ingress port, but the user may have mapped the public port.
         for container_port, host_port in (info.get("network") or {}).items():
             if container_port.startswith("6052") and host_port:
                 url = f"http://{HOST_GATEWAY}:{host_port}"
                 LOG.info("Found ESPHome dashboard (%s) on public port %s", slug, url)
                 return url
+        found_unmapped = True
 
-    LOG.warning("No running ESPHome add-on found")
+    if found_unmapped:
+        LOG.warning(
+            'Found an ESPHome add-on, but port 6052 isn\'t mapped (or "leave_front_door_open" '
+            "isn't on) — its public port isn't bound, so it can't be reached from here. See "
+            "DOCS.md."
+        )
+    else:
+        LOG.warning("No running ESPHome add-on found")
     return None
 
 
