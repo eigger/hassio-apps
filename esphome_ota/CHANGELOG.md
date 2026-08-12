@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.3.1
+
+- **Manually published devices now show up in the device table**, marked
+  with a "manual" badge, instead of only existing as a one-off success
+  message. `GET /api/devices` merges the ESPHome dashboard's list with
+  `Publisher.list_published()` — a scan of what's actually on disk, so
+  there's no separate tracking state to drift out of sync with reality.
+- **`GET /api/devices` no longer 502s when the ESPHome dashboard is
+  unreachable.** That used to blank the whole table — including manually
+  published devices that never needed the dashboard in the first place. It
+  now renders whatever it has (manual rows still work) with a banner
+  explaining the dashboard is unreachable, instead of an all-or-nothing
+  failure.
+- Delete button added per published row (`DELETE /api/publish/{node}` was
+  already there; nothing in the UI called it until now).
+- Both generated packages now set an explicit `id:` on their entity
+  (`ota_update` / `ota_flash_button`), so the device's own YAML can
+  reference it (e.g. from a lambda or an automation) without redeclaring it.
+- Build/compile output no longer carries raw ANSI escape codes (`\x1b[32m`,
+  `\x1b[K`, …) into the job log — GCC/ninja/ESPHome's own logger all colorize
+  output for a real terminal, which this add-on isn't, so they showed up as
+  literal `[32m` / `[K` noise. Stripped in `Job.log()`.
+- The firmware download after a build now has an explicit timeout (180s,
+  was unbounded beyond aiohttp's default) and logs its own progress
+  checkpoints, and `firmware/follow_job` streaming now polls in 20s slices
+  with a synthetic heartbeat during quiet compile phases — a build that's
+  genuinely still running (a slow, quiet `idf.py` step) now shows something
+  in the job log instead of looking indistinguishable from a stuck job.
+- Fixed a UI row-height inconsistency: the Status column's "no
+  project.version" hint was a second visible line only on some rows, making
+  row heights (and therefore the shared row border) uneven from row to row.
+  It's a tooltip now, not a second line.
+
 ## 0.3.0
 
 **`base_url` no longer defaults to the host's LAN address.** This add-on

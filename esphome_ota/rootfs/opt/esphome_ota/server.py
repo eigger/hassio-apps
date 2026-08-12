@@ -23,6 +23,12 @@ from publisher import Publisher
 LOG = logging.getLogger("server")
 HERE = Path(__file__).parent
 
+# GCC/ninja/esphome's own logger all colorize their output with real ANSI CSI
+# sequences (ESC '[' ... final-byte) when captured non-interactively — this
+# add-on doesn't run a terminal emulator, so they'd otherwise show up as
+# literal "[32m" / "[K" noise in the job log instead of being invisible.
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
 
 def _env(name: str, default: str = "") -> str:
     value = os.environ.get(name, "").strip()
@@ -51,7 +57,7 @@ class Job:
         self.error: str | None = None
 
     def log(self, line: str) -> None:
-        self.lines.append(line)
+        self.lines.append(_ANSI_RE.sub("", line))
         # Keep the tail bounded; a full ESP-IDF build is thousands of lines.
         if len(self.lines) > 400:
             del self.lines[:-400]
@@ -139,30 +145,66 @@ class App:
             )
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
-    async def list_devices(self) -> list[dict[str, Any]]:
-        async with self._client() as client:
-            devices = await client.devices()
-            rows = []
-            for device in devices:
-                configuration = device.get("configuration", "")
-                node = configuration[:-5] if configuration.endswith(".yaml") else configuration
-                config = metadata.read_config(self.settings.esphome_config_dir, configuration)
-                version = metadata.project_version(config)
-                family, _ = metadata.chip_family(device.get("target_platform", ""))
-                rows.append(
-                    {
-                        "node": node,
-                        "configuration": configuration,
-                        "friendly_name": device.get("friendly_name") or node,
-                        "target_platform": device.get("target_platform", ""),
-                        "chip_family": family,
-                        "project_version": version,
-                        "device_version": device.get("current_version", ""),
-                        "has_binary": await client.has_ota_binary(configuration),
-                        "published": self.publisher.published(node),
-                    }
-                )
-            return rows
+    async def list_devices(self) -> tuple[list[dict[str, Any]], str | None]:
+        """Dashboard-known devices merged with whatever is actually published.
+
+        The merge — not just the dashboard's list — is what makes manually
+        published nodes (no ESPHome connection involved at all) show up
+        too, and it's why this never raises: a manual-only user's dashboard
+        is expected to be unreachable, and that must not blank the table.
+        """
+        published = self.publisher.list_published()
+        rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        dashboard_error: str | None = None
+
+        try:
+            async with self._client() as client:
+                devices = await client.devices()
+                for device in devices:
+                    configuration = device.get("configuration", "")
+                    node = configuration[:-5] if configuration.endswith(".yaml") else configuration
+                    seen.add(node)
+                    config = metadata.read_config(self.settings.esphome_config_dir, configuration)
+                    version = metadata.project_version(config)
+                    family, _ = metadata.chip_family(device.get("target_platform", ""))
+                    rows.append(
+                        {
+                            "node": node,
+                            "configuration": configuration,
+                            "friendly_name": device.get("friendly_name") or node,
+                            "target_platform": device.get("target_platform", ""),
+                            "chip_family": family,
+                            "project_version": version,
+                            "device_version": device.get("current_version", ""),
+                            "has_binary": await client.has_ota_binary(configuration),
+                            "published": published.get(node),
+                            "manual": False,
+                        }
+                    )
+        except DashboardError as err:
+            dashboard_error = str(err)
+
+        for node, record in published.items():
+            if node in seen:
+                continue
+            rows.append(
+                {
+                    "node": node,
+                    "configuration": None,
+                    "friendly_name": record.get("title") or node,
+                    "target_platform": "",
+                    "chip_family": record.get("chip_family", ""),
+                    "project_version": None,
+                    "device_version": "",
+                    "has_binary": False,
+                    "published": record,
+                    "manual": True,
+                }
+            )
+
+        rows.sort(key=lambda r: r["friendly_name"].lower())
+        return rows, dashboard_error
 
     # -- jobs --------------------------------------------------------------
 
@@ -181,6 +223,7 @@ class App:
                     if compile_first:
                         job.log(f"Building {configuration} ...")
                         await client.compile(configuration, on_output=job.log)
+                        job.log("Build finished.")
                     elif not await client.has_ota_binary(configuration):
                         raise DashboardError(
                             f"{configuration} has no firmware.ota.bin yet — build it first."
@@ -188,6 +231,7 @@ class App:
 
                     job.log("Downloading firmware.ota.bin ...")
                     blob = await client.download_ota(configuration)
+                    job.log(f"Downloaded {len(blob)} bytes.")
                     esphome_version = client.server_info.get("esphome_version", "")
                     device = next(
                         (d for d in await client.devices() if d.get("configuration") == configuration),
@@ -260,11 +304,10 @@ async def status(request: web.Request) -> web.Response:
 @routes.get("/api/devices")
 async def devices(request: web.Request) -> web.Response:
     app: App = request.app["app"]
-    try:
-        return web.json_response({"devices": await app.list_devices()})
-    except DashboardError as err:
-        LOG.warning("GET /api/devices failed: %s", err)
-        return web.json_response({"error": str(err)}, status=502)
+    rows, dashboard_error = await app.list_devices()
+    if dashboard_error:
+        LOG.warning("Listing dashboard devices failed (showing published-only rows): %s", dashboard_error)
+    return web.json_response({"devices": rows, "dashboard_error": dashboard_error})
 
 
 @routes.post("/api/publish")

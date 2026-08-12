@@ -110,6 +110,7 @@ class Publisher:
         build = (manifest.get("builds") or [{}])[0]
         ota = build.get("ota") or {}
         return {
+            "title": manifest.get("name", node),
             "version": manifest.get("version", ""),
             "md5": ota.get("md5", ""),
             "chip_family": build.get("chipFamily", ""),
@@ -117,6 +118,21 @@ class Publisher:
                 manifest_path.stat().st_mtime, tz=timezone.utc
             ).isoformat(timespec="seconds"),
         }
+
+    def list_published(self) -> dict[str, dict[str, Any]]:
+        """Every published node's manifest, read straight off disk — the same
+        files ``/local`` serves, so this can never drift from what a device
+        actually sees. Keyed by node, since that's how callers merge it
+        against the dashboard's device list.
+        """
+        if not self.dir.is_dir():
+            return {}
+        result = {}
+        for manifest_path in self.dir.glob("*.json"):
+            record = self.published(manifest_path.stem)
+            if record:
+                result[manifest_path.stem] = record
+        return result
 
     def unpublish(self, node: str) -> None:
         for name in (f"{node}.json", f"{node}.ota.bin", f"{node}.ota.bin.md5"):

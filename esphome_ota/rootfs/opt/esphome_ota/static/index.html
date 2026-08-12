@@ -71,6 +71,7 @@
 </div>
 
 <div id="banners"></div>
+<div id="deviceBanner"></div>
 
 <div class="card">
   <table>
@@ -161,6 +162,10 @@ const STRINGS = {
     manualChip: 'Chip family', manualVersion: 'Version', manualTitleField: 'Title (optional)',
     manualFile: 'firmware.ota.bin', manualSubmit: 'Publish', manualUploading: 'Uploading…',
     manualOk: (n) => `Published ${n}.`,
+    manualBadge: 'manual', manualBadgeTitle: 'Published manually — not known to the ESPHome dashboard',
+    deleteBtn: 'Delete', deleteConfirm: (n) => `Delete the published firmware for "${n}"?`,
+    dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
+    dashboardErrorBody: (msg) => `Showing manually published devices only. ${msg}`,
   },
   ko: {
     title: 'ESPHome OTA Server',
@@ -198,6 +203,10 @@ const STRINGS = {
     manualChip: '칩 종류', manualVersion: '버전', manualTitleField: '표시 이름 (선택)',
     manualFile: 'firmware.ota.bin', manualSubmit: '게시', manualUploading: '업로드 중…',
     manualOk: (n) => `${n} 게시 완료.`,
+    manualBadge: '수동', manualBadgeTitle: '수동으로 게시됨 — ESPHome 대시보드에는 없는 기기',
+    deleteBtn: '삭제', deleteConfirm: (n) => `"${n}"의 게시된 펌웨어를 삭제할까요?`,
+    dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
+    dashboardErrorBody: (msg) => `수동으로 게시한 기기만 표시합니다. ${msg}`,
   },
 };
 
@@ -268,48 +277,89 @@ function row(d) {
   const pub = d.published;
   const stale = pub && d.project_version && pub.version !== d.project_version;
 
+  // Kept to one line always (as a title tooltip, not a second <div>) so this
+  // column's height doesn't vary row to row and throw off the row's shared
+  // bottom border against columns that are consistently one line.
+  const noVersionHint = d.project_version ? '' : ` title="${T.noProjectVersion}"`;
   const state = !pub
-    ? `<span class="chip">${T.notPublished}</span>`
+    ? `<span class="chip"${noVersionHint}>${T.notPublished}</span>`
     : stale
-      ? `<span class="chip warn">${T.needsRepublish}</span>`
-      : `<span class="chip ok">${T.published}</span>`;
+      ? `<span class="chip warn"${noVersionHint}>${T.needsRepublish}</span>`
+      : `<span class="chip ok"${noVersionHint}>${T.published}</span>`;
 
   const version = pub
     ? `${pub.version}<div class="tiny muted">${T.md5(pub.md5.slice(0, 8))}</div>`
     : '<span class="muted">—</span>';
 
+  const badge = d.manual
+    ? ` <span class="chip" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`
+    : '';
+  const subtitle = d.configuration
+    ? `<div class="tiny muted">${d.configuration}</div>` : '';
+
   tr.innerHTML = `
-    <td class="name">${d.friendly_name}<div class="tiny muted">${d.configuration}</div></td>
+    <td class="name">${d.friendly_name}${badge}${subtitle}</td>
     <td>${d.chip_family || '<span class="muted">?</span>'}</td>
     <td>${version}</td>
-    <td>${state}${d.project_version ? '' : `<div class="tiny muted">${T.noProjectVersion}</div>`}</td>
+    <td>${state}</td>
     <td class="actions"></td>`;
 
   const actions = tr.querySelector('.actions');
-  const publishBtn = document.createElement('button');
-  publishBtn.className = 'jobctl';
-  publishBtn.textContent = T.publish;
-  publishBtn.disabled = jobRunning || !d.has_binary;
-  publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
-  publishBtn.onclick = () => run(d, false, publishBtn);
 
-  const buildBtn = document.createElement('button');
-  buildBtn.className = 'jobctl primary';
-  buildBtn.textContent = T.buildPublish;
-  buildBtn.disabled = jobRunning;
-  buildBtn.onclick = () => run(d, true, buildBtn);
+  if (d.manual) {
+    // No dashboard configuration to build from — this row exists purely
+    // because a manifest is on disk for it.
+    const yamlBtn = document.createElement('button');
+    yamlBtn.textContent = T.yaml;
+    yamlBtn.onclick = () => showSnippet(d);
+    actions.append(yamlBtn);
+  } else {
+    const publishBtn = document.createElement('button');
+    publishBtn.className = 'jobctl';
+    publishBtn.textContent = T.publish;
+    publishBtn.disabled = jobRunning || !d.has_binary;
+    publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
+    publishBtn.onclick = () => run(d, false, publishBtn);
 
-  const yamlBtn = document.createElement('button');
-  yamlBtn.textContent = T.yaml;
-  yamlBtn.onclick = () => showSnippet(d);
+    const buildBtn = document.createElement('button');
+    buildBtn.className = 'jobctl primary';
+    buildBtn.textContent = T.buildPublish;
+    buildBtn.disabled = jobRunning;
+    buildBtn.onclick = () => run(d, true, buildBtn);
 
-  actions.append(publishBtn, buildBtn, yamlBtn);
+    const yamlBtn = document.createElement('button');
+    yamlBtn.textContent = T.yaml;
+    yamlBtn.onclick = () => showSnippet(d);
+
+    actions.append(publishBtn, buildBtn, yamlBtn);
+  }
+
+  if (pub) {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = T.deleteBtn;
+    deleteBtn.onclick = () => deletePublished(d);
+    actions.append(deleteBtn);
+  }
+
   return tr;
+}
+
+async function deletePublished(d) {
+  if (!confirm(T.deleteConfirm(d.friendly_name))) return;
+  await api(`api/publish/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
+  loadDevices();
 }
 
 async function loadDevices() {
   try {
-    const { devices } = await api('api/devices');
+    const { devices, dashboard_error } = await api('api/devices');
+    // A dedicated slot, not the generic banner() accumulator: loadDevices()
+    // re-runs after every job/publish/delete, and banner() only ever
+    // appends — reusing it here would stack a fresh copy on every refresh.
+    $('deviceBanner').innerHTML = dashboard_error
+      ? `<div class="card banner warn"><b>${T.dashboardErrorTitle}</b><br>` +
+        `<span class="muted tiny">${T.dashboardErrorBody(escapeHtml(dashboard_error))}</span></div>`
+      : '';
     const tbody = $('rows');
     tbody.innerHTML = '';
     if (!devices.length) {
