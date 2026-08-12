@@ -1,6 +1,6 @@
 # ESPHome OTA Server
 
-🇰🇷 [한국어 문서](README.ko.md)
+[한국어 문서](README.ko.md)
 
 For ESPHome devices that ESPHome's own local/mDNS OTA can't reach — typically
 because they're outside your home network and only reachable through your

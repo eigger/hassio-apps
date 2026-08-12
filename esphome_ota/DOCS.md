@@ -1,6 +1,6 @@
 # ESPHome OTA Server — Documentation
 
-🇰🇷 [한국어 문서](DOCS.ko.md)
+[한국어 문서](DOCS.ko.md)
 
 ## Manual publish
 

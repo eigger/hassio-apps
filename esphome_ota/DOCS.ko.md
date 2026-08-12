@@ -1,6 +1,6 @@
 # ESPHome OTA Server — 문서
 
-🇺🇸 [English](DOCS.md)
+[English](DOCS.md)
 
 ## 수동 게시
 

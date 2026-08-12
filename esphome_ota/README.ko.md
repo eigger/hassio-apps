@@ -1,6 +1,6 @@
 # ESPHome OTA Server
 
-🇺🇸 [English](README.md)
+[English](README.md)
 
 ESPHome 자체의 로컬/mDNS OTA가 닿지 않는 기기용입니다 — 보통 집 네트워크
 바깥에 있어서 Home Assistant의 원격/클라우드 터널 주소로만 접근 가능한
