@@ -58,7 +58,7 @@ substitutions:
   ota_base_url: {base_url}
 
 http_request:
-  timeout: 15s
+  timeout: 60s
 
 ota:
   - platform: http_request
@@ -98,7 +98,7 @@ substitutions:
   ota_base_url: {base_url}
 
 http_request:
-  timeout: 15s
+  timeout: 60s
 
 ota:
   - platform: http_request

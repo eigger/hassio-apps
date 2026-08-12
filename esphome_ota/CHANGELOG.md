@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- Generated packages (`update.yaml` / `flash_button.yaml`) now use
+  `http_request: timeout: 60s` instead of `15s`, so remote/tunnel OTA
+  downloads of ~1–2 MB firmware are less likely to abort mid-transfer.
+
 ## 0.3.2
 
 - Manual device rows now have an **Upload** button that reopens the Manual
