@@ -235,6 +235,7 @@ async def devices(request: web.Request) -> web.Response:
     try:
         return web.json_response({"devices": await app.list_devices()})
     except DashboardError as err:
+        LOG.warning("GET /api/devices failed: %s", err)
         return web.json_response({"error": str(err)}, status=502)
 
 

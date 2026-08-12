@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -44,29 +44,122 @@
   .muted { color:var(--muted); }
   .tiny { font-size:12px; }
   code { background:var(--bg); padding:1px 5px; border-radius:4px; }
+  select { font:inherit; padding:3px 8px; border-radius:6px; border:1px solid var(--line);
+           background:var(--card); color:var(--fg); }
+  .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
 </style>
 </head>
 <body>
-<h1>ESPHome OTA Server</h1>
-<div class="sub">ESPHome 대시보드에서 펌웨어를 받아 <code>/local</code>로 게시합니다.</div>
+<div class="topbar">
+  <div>
+    <h1 id="t-title">ESPHome OTA Server</h1>
+    <div class="sub" id="t-sub">Pulls firmware from the ESPHome dashboard and publishes it to /local.</div>
+  </div>
+  <select id="langSelect" title="Language">
+    <option value="auto">Auto</option>
+    <option value="en">English</option>
+    <option value="ko">한국어</option>
+  </select>
+</div>
 
 <div id="banners"></div>
 
 <div class="card">
   <table>
     <thead>
-      <tr><th>기기</th><th>칩</th><th>게시된 버전</th><th>상태</th><th></th></tr>
+      <tr>
+        <th id="t-col-device">Device</th>
+        <th id="t-col-chip">Chip</th>
+        <th id="t-col-version">Published version</th>
+        <th id="t-col-status">Status</th>
+        <th></th>
+      </tr>
     </thead>
-    <tbody id="rows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="5" class="muted" id="t-loading">Loading…</td></tr></tbody>
   </table>
 </div>
 
 <div class="card" id="detail" hidden></div>
 
 <script>
+const STRINGS = {
+  en: {
+    title: 'ESPHome OTA Server',
+    sub: 'Pulls firmware from the ESPHome dashboard and publishes it to /local.',
+    colDevice: 'Device', colChip: 'Chip', colVersion: 'Published version', colStatus: 'Status',
+    loading: 'Loading…', noDevices: 'No devices.',
+    restartTitle: 'Restart Home Assistant once.',
+    restartBody: 'The www folder was just created. Home Assistant registers /local only at ' +
+      'startup, so devices can\'t fetch firmware until you restart it once.',
+    noDashboardTitle: 'Could not find the ESPHome dashboard.',
+    noDashboardBody: 'Make sure the ESPHome Device Builder add-on is running, or set ' +
+      '<code>dashboard_url</code> in this add-on\'s options.',
+    noBaseUrlTitle: 'Could not determine Home Assistant\'s address.',
+    noBaseUrlBody: 'Set <code>base_url</code> in this add-on\'s options, e.g. ' +
+      '<code>http://192.168.0.10:8123</code>, so the device packages can be generated.',
+    notPublished: 'Not published', needsRepublish: 'Needs republish', published: 'Published',
+    noProjectVersion: 'no project.version',
+    publish: 'Publish', publishTitleReady: 'Publish the binary already built on the dashboard',
+    publishTitleMissing: 'No built binary yet',
+    buildPublish: 'Build & publish', yaml: 'YAML',
+    yamlHeader: (name) => `${name} — paste into the device YAML`,
+    optionA: 'A. Update entity (version comparison, "Install" button in HA)',
+    optionB: 'B. Force-install button (no version comparison)',
+    pickOne: 'Use one or the other — including both duplicates <code>ota:</code>.',
+    building: 'Building…', publishing: 'Publishing…',
+    md5: (m) => `md5 ${m}`,
+  },
+  ko: {
+    title: 'ESPHome OTA Server',
+    sub: 'ESPHome 대시보드에서 펌웨어를 받아 /local로 게시합니다.',
+    colDevice: '기기', colChip: '칩', colVersion: '게시된 버전', colStatus: '상태',
+    loading: '불러오는 중…', noDevices: '기기가 없습니다.',
+    restartTitle: 'Home Assistant를 한 번 재시작하세요.',
+    restartBody: 'www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 /local 경로를 등록하므로, ' +
+      '재시작 전에는 기기가 펌웨어를 받을 수 없습니다.',
+    noDashboardTitle: 'ESPHome 대시보드를 찾지 못했습니다.',
+    noDashboardBody: 'ESPHome Device Builder 애드온이 실행 중인지 확인하거나, 이 애드온 옵션의 ' +
+      '<code>dashboard_url</code>을 직접 지정하세요.',
+    noBaseUrlTitle: 'Home Assistant 주소를 알 수 없습니다.',
+    noBaseUrlBody: '애드온 옵션의 <code>base_url</code>에 <code>http://192.168.0.10:8123</code> ' +
+      '형태로 입력하면 패키지 파일이 생성됩니다.',
+    notPublished: '미게시', needsRepublish: '재게시 필요', published: '게시됨',
+    noProjectVersion: 'project.version 없음',
+    publish: '게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
+    publishTitleMissing: '빌드된 바이너리가 없습니다',
+    buildPublish: '빌드 후 게시', yaml: 'YAML',
+    yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
+    optionA: 'A. 업데이트 엔티티 (버전 비교, HA에 "설치" 버튼)',
+    optionB: 'B. 강제 설치 버튼 (버전 비교 없음)',
+    pickOne: '둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.',
+    building: '빌드 중…', publishing: '게시 중…',
+    md5: (m) => `md5 ${m}`,
+  },
+};
+
+function detectLocale() {
+  const saved = localStorage.getItem('esphome_ota_lang');
+  if (saved === 'en' || saved === 'ko') return saved;
+  return (navigator.language || 'en').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+}
+
+let LOCALE = detectLocale();
+let T = STRINGS[LOCALE];
+
 const $ = (id) => document.getElementById(id);
 let status = {};
 let polling = null;
+
+function applyStaticText() {
+  document.documentElement.lang = LOCALE;
+  $('t-title').textContent = T.title;
+  $('t-sub').textContent = T.sub;
+  $('t-col-device').textContent = T.colDevice;
+  $('t-col-chip').textContent = T.colChip;
+  $('t-col-version').textContent = T.colVersion;
+  $('t-col-status').textContent = T.colStatus;
+  $('t-loading').textContent = T.loading;
+}
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -75,31 +168,19 @@ async function api(path, opts) {
   return body;
 }
 
-function banner(text, kind) {
+function banner(title, body, kind) {
   const div = document.createElement('div');
   div.className = 'card banner' + (kind === 'err' ? ' err' : '');
-  div.innerHTML = text;
+  div.innerHTML = `<b>${title}</b><br><span class="muted tiny">${body}</span>`;
   $('banners').appendChild(div);
 }
 
 async function loadStatus() {
   status = await api('api/status');
   $('banners').innerHTML = '';
-  if (status.restart_required) {
-    banner('<b>Home Assistant를 한 번 재시작하세요.</b><br>'
-      + '<span class="muted tiny">www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 '
-      + '<code>/local</code> 경로를 등록하므로, 재시작 전에는 기기가 펌웨어를 받을 수 없습니다.</span>');
-  }
-  if (!status.dashboard) {
-    banner('<b>ESPHome 대시보드를 찾지 못했습니다.</b><br>'
-      + '<span class="muted tiny">ESPHome Device Builder 애드온이 실행 중인지 확인하거나, '
-      + '애드온 옵션의 <code>dashboard_url</code>을 직접 지정하세요.</span>', 'err');
-  }
-  if (!status.base_url) {
-    banner('<b>Home Assistant 주소를 알 수 없습니다.</b><br>'
-      + '<span class="muted tiny">애드온 옵션의 <code>base_url</code>에 '
-      + '<code>http://192.168.0.10:8123</code> 형태로 입력하면 패키지 파일이 생성됩니다.</span>', 'err');
-  }
+  if (status.restart_required) banner(T.restartTitle, T.restartBody, 'warn');
+  if (!status.dashboard) banner(T.noDashboardTitle, T.noDashboardBody, 'err');
+  if (!status.base_url) banner(T.noBaseUrlTitle, T.noBaseUrlBody, 'err');
 }
 
 function row(d) {
@@ -108,36 +189,36 @@ function row(d) {
   const stale = pub && d.project_version && pub.version !== d.project_version;
 
   const state = !pub
-    ? '<span class="chip">미게시</span>'
+    ? `<span class="chip">${T.notPublished}</span>`
     : stale
-      ? '<span class="chip warn">재게시 필요</span>'
-      : '<span class="chip ok">게시됨</span>';
+      ? `<span class="chip warn">${T.needsRepublish}</span>`
+      : `<span class="chip ok">${T.published}</span>`;
 
   const version = pub
-    ? `${pub.version}<div class="tiny muted">md5 ${pub.md5.slice(0, 8)}</div>`
+    ? `${pub.version}<div class="tiny muted">${T.md5(pub.md5.slice(0, 8))}</div>`
     : '<span class="muted">—</span>';
 
   tr.innerHTML = `
     <td class="name">${d.friendly_name}<div class="tiny muted">${d.configuration}</div></td>
     <td>${d.chip_family || '<span class="muted">?</span>'}</td>
     <td>${version}</td>
-    <td>${state}${d.project_version ? '' : '<div class="tiny muted">project.version 없음</div>'}</td>
+    <td>${state}${d.project_version ? '' : `<div class="tiny muted">${T.noProjectVersion}</div>`}</td>
     <td class="actions"></td>`;
 
   const actions = tr.querySelector('.actions');
   const publishBtn = document.createElement('button');
-  publishBtn.textContent = '게시';
+  publishBtn.textContent = T.publish;
   publishBtn.disabled = !d.has_binary;
-  publishBtn.title = d.has_binary ? '이미 빌드된 바이너리를 게시' : '빌드된 바이너리가 없습니다';
+  publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
   publishBtn.onclick = () => run(d, false);
 
   const buildBtn = document.createElement('button');
   buildBtn.className = 'primary';
-  buildBtn.textContent = '빌드 후 게시';
+  buildBtn.textContent = T.buildPublish;
   buildBtn.onclick = () => run(d, true);
 
   const yamlBtn = document.createElement('button');
-  yamlBtn.textContent = 'YAML';
+  yamlBtn.textContent = T.yaml;
   yamlBtn.onclick = () => showSnippet(d);
 
   actions.append(publishBtn, buildBtn, yamlBtn);
@@ -150,12 +231,12 @@ async function loadDevices() {
     const tbody = $('rows');
     tbody.innerHTML = '';
     if (!devices.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="muted">기기가 없습니다.</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="5" class="muted">${T.noDevices}</td></tr>`;
       return;
     }
     devices.forEach((d) => tbody.appendChild(row(d)));
   } catch (err) {
-    $('rows').innerHTML = `<tr><td colspan="5" class="muted">${err.message}</td></tr>`;
+    $('rows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -167,12 +248,12 @@ async function showSnippet(d) {
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
-    <b>${d.friendly_name}</b> — 기기 YAML에 붙여넣기
-    <div class="tiny muted" style="margin-top:10px">A. 업데이트 엔티티 (버전 비교, HA에 "설치" 버튼)</div>
+    <b>${T.yamlHeader(d.friendly_name)}</b>
+    <div class="tiny muted" style="margin-top:10px">${T.optionA}</div>
     <pre>${escapeHtml(update.snippet)}</pre>
-    <div class="tiny muted" style="margin-top:12px">B. 강제 설치 버튼 (버전 비교 없음)</div>
+    <div class="tiny muted" style="margin-top:12px">${T.optionB}</div>
     <pre>${escapeHtml(button.snippet)}</pre>
-    <div class="tiny muted" style="margin-top:10px">둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.</div>`;
+    <div class="tiny muted" style="margin-top:10px">${T.pickOne}</div>`;
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -183,7 +264,7 @@ function escapeHtml(s) {
 async function run(d, compile) {
   const detail = $('detail');
   detail.hidden = false;
-  detail.innerHTML = `<b>${d.friendly_name}</b> — ${compile ? '빌드 중' : '게시 중'}…<pre class="log" id="joblog"></pre>`;
+  detail.innerHTML = `<b>${d.friendly_name}</b> — ${compile ? T.building : T.publishing}<pre class="log" id="joblog"></pre>`;
   const job = await api('api/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -208,7 +289,20 @@ async function pollJob(id) {
   }
 }
 
+$('langSelect').value = localStorage.getItem('esphome_ota_lang') || 'auto';
+$('langSelect').addEventListener('change', (e) => {
+  const value = e.target.value;
+  if (value === 'auto') localStorage.removeItem('esphome_ota_lang');
+  else localStorage.setItem('esphome_ota_lang', value);
+  LOCALE = detectLocale();
+  T = STRINGS[LOCALE];
+  applyStaticText();
+  loadStatus();
+  loadDevices();
+});
+
 (async () => {
+  applyStaticText();
   await loadStatus();
   await loadDevices();
 })();
