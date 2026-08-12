@@ -14,7 +14,7 @@ init: false
 # unauthenticated /local/ static path, so nothing new has to be opened.
 ingress: true
 ingress_port: 8099
-panel_icon: mdi:chip
+panel_icon: mdi:home-upload-outline
 panel_title: ESPHome OTA
 # Needed to discover the ESPHome add-on's mapped public port and the host's LAN IP.
 hassio_api: true

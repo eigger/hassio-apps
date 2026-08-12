@@ -2,6 +2,10 @@
 
 ## 0.3.1
 
+- Refreshed add-on **icon** / **logo** to the current ESPHome house mark
+  (Open Home Foundation branding, `#18BCF2`) with an OTA upload badge, and
+  switched the sidebar `panel_icon` from `mdi:chip` to
+  `mdi:home-upload-outline`.
 - **Manually published devices now show up in the device table**, marked
   with a "manual" badge, instead of only existing as a one-off success
   message. `GET /api/devices` merges the ESPHome dashboard's list with
