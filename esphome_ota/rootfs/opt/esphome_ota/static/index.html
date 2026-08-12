@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESPHome OTA Server</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --fg: #16191d; --muted: #6b7480; --card: #fff;
+    --line: #e2e5ea; --accent: #03a9f4; --ok: #2e7d32; --warn: #b26a00; --err: #c62828;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --fg:#e6e8eb; --muted:#98a1ac; --card:#1b1f24;
+            --line:#2b3138; --accent:#4fc3f7; --ok:#81c784; --warn:#ffb74d; --err:#ef9a9a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:20px; background:var(--bg); color:var(--fg);
+         font:14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin-bottom:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:14px 16px; margin-bottom:14px; }
+  .banner { border-left:4px solid var(--warn); }
+  .banner.err { border-left-color:var(--err); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line);
+           vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase;
+       letter-spacing:.04em; }
+  td.name { font-weight:600; }
+  .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
+          border:1px solid var(--line); color:var(--muted); }
+  .chip.ok { color:var(--ok); border-color:currentColor; }
+  .chip.warn { color:var(--warn); border-color:currentColor; }
+  button { font:inherit; padding:5px 11px; border-radius:6px; border:1px solid var(--line);
+           background:transparent; color:var(--fg); cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#04121a; }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px;
+        padding:10px; overflow-x:auto; font-size:12.5px; margin:8px 0 0; }
+  .log { max-height:260px; overflow-y:auto; white-space:pre-wrap; }
+  .muted { color:var(--muted); }
+  .tiny { font-size:12px; }
+  code { background:var(--bg); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<h1>ESPHome OTA Server</h1>
+<div class="sub">ESPHome 대시보드에서 펌웨어를 받아 <code>/local</code>로 게시합니다.</div>
+
+<div id="banners"></div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>기기</th><th>칩</th><th>게시된 버전</th><th>상태</th><th></th></tr>
+    </thead>
+    <tbody id="rows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
+  </table>
+</div>
+
+<div class="card" id="detail" hidden></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let status = {};
+let polling = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+function banner(text, kind) {
+  const div = document.createElement('div');
+  div.className = 'card banner' + (kind === 'err' ? ' err' : '');
+  div.innerHTML = text;
+  $('banners').appendChild(div);
+}
+
+async function loadStatus() {
+  status = await api('api/status');
+  $('banners').innerHTML = '';
+  if (status.restart_required) {
+    banner('<b>Home Assistant를 한 번 재시작하세요.</b><br>'
+      + '<span class="muted tiny">www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 '
+      + '<code>/local</code> 경로를 등록하므로, 재시작 전에는 기기가 펌웨어를 받을 수 없습니다.</span>');
+  }
+  if (!status.dashboard) {
+    banner('<b>ESPHome 대시보드를 찾지 못했습니다.</b><br>'
+      + '<span class="muted tiny">ESPHome Device Builder 애드온이 실행 중인지 확인하거나, '
+      + '애드온 옵션의 <code>dashboard_url</code>을 직접 지정하세요.</span>', 'err');
+  }
+  if (!status.base_url) {
+    banner('<b>Home Assistant 주소를 알 수 없습니다.</b><br>'
+      + '<span class="muted tiny">애드온 옵션의 <code>base_url</code>에 '
+      + '<code>http://192.168.0.10:8123</code> 형태로 입력하면 패키지 파일이 생성됩니다.</span>', 'err');
+  }
+}
+
+function row(d) {
+  const tr = document.createElement('tr');
+  const pub = d.published;
+  const stale = pub && d.project_version && pub.version !== d.project_version;
+
+  const state = !pub
+    ? '<span class="chip">미게시</span>'
+    : stale
+      ? '<span class="chip warn">재게시 필요</span>'
+      : '<span class="chip ok">게시됨</span>';
+
+  const version = pub
+    ? `${pub.version}<div class="tiny muted">md5 ${pub.md5.slice(0, 8)}</div>`
+    : '<span class="muted">—</span>';
+
+  tr.innerHTML = `
+    <td class="name">${d.friendly_name}<div class="tiny muted">${d.configuration}</div></td>
+    <td>${d.chip_family || '<span class="muted">?</span>'}</td>
+    <td>${version}</td>
+    <td>${state}${d.project_version ? '' : '<div class="tiny muted">project.version 없음</div>'}</td>
+    <td class="actions"></td>`;
+
+  const actions = tr.querySelector('.actions');
+  const publishBtn = document.createElement('button');
+  publishBtn.textContent = '게시';
+  publishBtn.disabled = !d.has_binary;
+  publishBtn.title = d.has_binary ? '이미 빌드된 바이너리를 게시' : '빌드된 바이너리가 없습니다';
+  publishBtn.onclick = () => run(d, false);
+
+  const buildBtn = document.createElement('button');
+  buildBtn.className = 'primary';
+  buildBtn.textContent = '빌드 후 게시';
+  buildBtn.onclick = () => run(d, true);
+
+  const yamlBtn = document.createElement('button');
+  yamlBtn.textContent = 'YAML';
+  yamlBtn.onclick = () => showSnippet(d);
+
+  actions.append(publishBtn, buildBtn, yamlBtn);
+  return tr;
+}
+
+async function loadDevices() {
+  try {
+    const { devices } = await api('api/devices');
+    const tbody = $('rows');
+    tbody.innerHTML = '';
+    if (!devices.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">기기가 없습니다.</td></tr>';
+      return;
+    }
+    devices.forEach((d) => tbody.appendChild(row(d)));
+  } catch (err) {
+    $('rows').innerHTML = `<tr><td colspan="5" class="muted">${err.message}</td></tr>`;
+  }
+}
+
+async function showSnippet(d) {
+  const [update, button] = await Promise.all([
+    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=update`),
+    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=button`),
+  ]);
+  const detail = $('detail');
+  detail.hidden = false;
+  detail.innerHTML = `
+    <b>${d.friendly_name}</b> — 기기 YAML에 붙여넣기
+    <div class="tiny muted" style="margin-top:10px">A. 업데이트 엔티티 (버전 비교, HA에 "설치" 버튼)</div>
+    <pre>${escapeHtml(update.snippet)}</pre>
+    <div class="tiny muted" style="margin-top:12px">B. 강제 설치 버튼 (버전 비교 없음)</div>
+    <pre>${escapeHtml(button.snippet)}</pre>
+    <div class="tiny muted" style="margin-top:10px">둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.</div>`;
+  detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+async function run(d, compile) {
+  const detail = $('detail');
+  detail.hidden = false;
+  detail.innerHTML = `<b>${d.friendly_name}</b> — ${compile ? '빌드 중' : '게시 중'}…<pre class="log" id="joblog"></pre>`;
+  const job = await api('api/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ configuration: d.configuration, compile }),
+  });
+  clearInterval(polling);
+  polling = setInterval(() => pollJob(job.id), 1500);
+}
+
+async function pollJob(id) {
+  const job = await api(`api/jobs/${id}`);
+  const log = $('joblog');
+  if (log) {
+    const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+    log.textContent = job.lines.join('\n') + (job.error ? `\n\n${job.error}` : '');
+    if (atBottom) log.scrollTop = log.scrollHeight;
+  }
+  if (job.status !== 'running') {
+    clearInterval(polling);
+    polling = null;
+    loadDevices();
+  }
+}
+
+(async () => {
+  await loadStatus();
+  await loadDevices();
+})();
+</script>
+</body>
+</html>

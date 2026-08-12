@@ -1,0 +1,19 @@
+#!/command/with-contenv bashio
+# ==============================================================================
+# ESPHome OTA Server
+# ==============================================================================
+set -euo pipefail
+
+DASHBOARD_URL="$(bashio::config 'dashboard_url')"
+DASHBOARD_TOKEN="$(bashio::config 'dashboard_token')"
+PUBLISH_DIR="$(bashio::config 'publish_dir')"
+BASE_URL="$(bashio::config 'base_url')"
+LOG_LEVEL="$(bashio::config 'log_level')"
+INGRESS_PORT="$(bashio::addon.ingress_port)"
+
+export DASHBOARD_URL DASHBOARD_TOKEN PUBLISH_DIR BASE_URL LOG_LEVEL INGRESS_PORT
+
+bashio::log.info "Starting ESPHome OTA Server on ingress port ${INGRESS_PORT}"
+
+cd /opt/esphome_ota
+exec python3 -u main.py

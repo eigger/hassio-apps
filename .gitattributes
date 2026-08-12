@@ -1,0 +1,5 @@
+# Container payloads must keep LF endings — a CRLF shebang makes s6 fail with
+# a bare "no such file or directory" that points at nothing useful.
+*/rootfs/** text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
