@@ -20,6 +20,8 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
                                                  your remote devices
 ```
 
+![add-on 패널: 칩, 게시된 버전, 상태가 보이는 기기 목록](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
+
 펌웨어를 저기에 올리는 방법은 두 가지입니다:
 
 ## A. 수동 게시 — 별도 설정 필요 없음
@@ -28,6 +30,8 @@ ESPHome 대시보드에서 직접 `firmware.ota.bin`을 받은 뒤("OTA format"
 다운로드), 이 add-on 패널 → **Manual publish** → 노드 이름, 칩 종류,
 버전을 입력하고 파일을 업로드하세요. ESPHome 쪽은 아무것도 바꿀 필요
 없습니다.
+
+![Manual publish 폼](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
 ## B. 여기서 빌드 & 게시 — ESPHome 쪽 설정이 필요함
 
@@ -92,5 +96,7 @@ CDN(예: Cloudflare 터널)이 재게시 이후에도 옛날 `.ota.bin`을 계�
    거기 설정된 게 없다면 이 add-on 옵션에서 `base_url`을 직접 설정하세요
 5. 기기를 게시하고(수동으로, 또는 위에서처럼 ESPHome의 public 포트를 켠
    뒤), 화면에 뜨는 YAML 스니펫을 그 기기의 설정에 붙여넣으세요
+
+![기기 게시 후 뜨는 YAML 스니펫, 복사 버튼 포함](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 
 옵션과 문제 해결은 [DOCS.ko.md](DOCS.ko.md)를 참고하세요.

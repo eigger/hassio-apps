@@ -20,6 +20,8 @@ tunnel, with nothing to open on this add-on's side.
                                                  your remote devices
 ```
 
+![The add-on's panel: device list with chip, published version, and status](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
+
 There are two ways to get firmware in there:
 
 ## A. Manual publish — no other setup required
@@ -28,6 +30,8 @@ Download `firmware.ota.bin` from the ESPHome dashboard yourself (its "OTA
 format" download), then open this add-on's panel → **Manual publish** →
 fill in the node name, chip family, and version, and upload the file. Nothing
 on the ESPHome side needs to change for this.
+
+![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
 ## B. Build & publish from here — needs a setting on ESPHome's side
 
@@ -91,5 +95,7 @@ the fix.
    you haven't set one there, set `base_url` in this add-on's options directly
 5. Publish a device (manually, or after enabling ESPHome's public port — see
    above), then paste the shown YAML snippet into that device's config
+
+![The YAML snippet shown after publishing a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.
