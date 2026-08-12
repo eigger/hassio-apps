@@ -90,9 +90,11 @@ BUTTON_PACKAGE = """\
 #   packages:
 #     ota: !include {package_dir}/flash_button.yaml
 #
-# Note: this URL is fixed, so it relies on nothing caching it. Fine through
-# the tunnel directly; behind a second caching proxy in front of that,
-# prefer update.yaml, whose manifest carries a cache buster.
+# url/md5_url carry a random ?r= on every press (random_uint32(), evaluated
+# fresh each call) so a caching proxy in front of Home Assistant — a
+# Cloudflare tunnel, for instance — never has a reason to serve back a stale
+# firmware/md5 pair from an earlier press or an earlier republish: the query
+# string makes each request a cache miss by construction.
 
 substitutions:
   ota_base_url: {base_url}
@@ -110,8 +112,10 @@ button:
     entity_category: config
     on_press:
       - ota.http_request.flash:
-          url: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin
-          md5_url: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5
+          url: !lambda |-
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+          md5_url: !lambda |-
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
 """
 
 

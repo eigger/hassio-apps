@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.5
+
+- `flash_button.yaml`'s `url`/`md5_url` are now lambdas that append a random
+  `?r=<random_uint32()>` on every press, instead of a fixed URL. Diagnosed
+  against a real report: a Cloudflare tunnel was caching `.ota.bin` at the
+  edge (`cf-cache-status: HIT`, hours-old) while `.ota.bin.md5` stayed
+  uncached and current, so the device kept downloading stale firmware
+  against a fresh digest and aborting with an MD5 mismatch. The random query
+  string makes every press a cache miss by construction, so this can't
+  happen regardless of what's sitting in front of Home Assistant. Devices
+  need one recompile + reflash (by any method that still works) to pick up
+  the new package.
+
 ## 0.3.4
 
 - Fixed the sidebar panel icon not rendering: `mdi:home-upload-outline` (set

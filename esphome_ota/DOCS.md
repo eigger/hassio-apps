@@ -148,11 +148,13 @@ packages:
 ```
 
 No version tracking. Pressing the button runs `ota.http_request.flash` against
-the fixed `.ota.bin` URL with `md5_url` for verification; if the digest does not
+the `.ota.bin` URL with `md5_url` for verification; if the digest does not
 match what was downloaded, the device keeps its existing firmware.
 
-Because that URL is fixed it has no cache buster — fine directly through the
-tunnel, but behind a second caching proxy in front of that, prefer package A.
+`url`/`md5_url` are lambdas that append a random `?r=<random_uint32()>` on
+every press, so each press is a fresh cache miss for any proxy or CDN in
+front of Home Assistant — there is no fixed URL for it to have cached a
+stale copy of in the first place.
 
 ### Overriding the address for one device
 
@@ -206,12 +208,15 @@ publish is readable by anything that can reach Home Assistant's HTTP port.
 
 **MD5 mismatch during OTA (`Aborting due to MD5 mismatch`)** — usually a
 caching proxy in front of Home Assistant (a Cloudflare tunnel, most
-commonly) serving a stale `.ota.bin` after a republish. `flash_button.yaml`
-fetches `url` and `md5_url` as two separate fixed, uncached-buster requests
-(see [above](#b-force-install-button--ota_serverflash_buttonyaml)); if
-anything between the device and Home Assistant caches one of those two by
-content, they stop matching after the next republish. Confirm it by comparing
-what the origin actually has right now against what's really being served:
+commonly) serving a stale `.ota.bin` after a republish. Both packages now
+cache-bust their firmware URL (see
+[above](#b-force-install-button--ota_serverflash_buttonyaml)), so a freshly
+regenerated `flash_button.yaml`/`update.yaml` shouldn't hit this — this is
+for a device still running firmware compiled from the old fixed-URL
+`flash_button.yaml` (pre-0.3.5), or a caching layer that's ignoring query
+strings entirely (rare, but some CDNs can be configured that way). Confirm
+it by comparing what the origin actually has right now against what's
+really being served:
 
 ```bash
 curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin.md5"
@@ -221,16 +226,15 @@ curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin" | md5sum
 If those two disagree, check the response headers (`curl -sD -`) for
 `cf-cache-status: HIT` (or an equivalent proxy cache header) and a stale
 `age`/`last-modified` on the `.bin` request — that confirms a cache, not the
-add-on, is serving old bytes. Fix it either way:
+add-on, is serving old bytes. Fix it:
 
-- **Switch that device to `update.yaml`.** Its manifest embeds the MD5
-  directly and cache-busts the binary's URL with it
-  (`livingroom.ota.bin?v=<md5>`), so a stale cache entry can only ever be a
-  stale entry for an old URL — it's never returned for the current one.
-- **Keep `flash_button.yaml`, add a cache bypass rule.** In Cloudflare:
-  Rules → Cache Rules → match the path (e.g. `contains` `.ota.bin`) →
-  Cache eligibility: **Bypass cache**. Any other caching proxy needs the
-  equivalent "don't cache this path" rule.
+- **Recompile and reflash the device once**, by whatever method currently
+  works (USB, or a manual firmware install through the ESPHome dashboard).
+  That picks up the new `flash_button.yaml` with its randomized `?r=`, which
+  ends the problem for every press after.
+- **If the CDN ignores query strings for caching**, add an explicit cache
+  bypass rule instead. In Cloudflare: Rules → Cache Rules → match the path
+  (e.g. `contains` `.ota.bin`) → Cache eligibility: **Bypass cache**.
 
 A one-off already-stuck cache just needs a manual purge of that specific
 `.ota.bin` URL to unblock the device immediately.
