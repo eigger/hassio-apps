@@ -13,6 +13,15 @@ No connection to ESPHome is needed for this path at all; it goes straight to
 Use this if you don't want to open ESPHome's public port (see below), or just
 for a one-off device.
 
+Manually published nodes appear in the device table too, marked with a
+"manual" badge — the table is a merge of the ESPHome dashboard's device list
+(when reachable) with whatever is actually published on disk
+(`Publisher.list_published`, a directory scan, no separate tracking file to
+drift from reality). If the ESPHome dashboard can't be reached at all, the
+table still renders — just the manually published rows, with a banner
+explaining why the rest is missing — instead of failing outright the way it
+used to (`GET /api/devices` no longer 502s for this).
+
 ## Required ESPHome add-on setting (only for the automatic Build & publish path)
 
 The manual path above needs none of this. This section only applies if you

@@ -65,6 +65,7 @@ ota:
 
 update:
   - platform: http_request
+    id: ota_update
     name: Firmware
     source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
     update_interval: 6h
@@ -104,6 +105,7 @@ ota:
 
 button:
   - platform: template
+    id: ota_flash_button
     name: Firmware Update
     entity_category: config
     on_press:

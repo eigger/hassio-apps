@@ -27,6 +27,14 @@ OTA_FILE = "firmware.ota.bin"
 # A compile of a fresh ESP-IDF config on a slow host really can take this long.
 COMPILE_TIMEOUT = 45 * 60
 COMMAND_TIMEOUT = 60
+# How long a firmware download may run before it's treated as stuck rather
+# than just slow — the aiohttp default (5 min total, unset here otherwise)
+# would silently cover a hang for a while with the UI showing no progress.
+DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=180)
+# Inner poll interval for stream(): short enough that a quiet compile phase
+# (a slow idf.py step with no output) still produces a "still going" signal
+# instead of looking indistinguishable from a hang until the full deadline.
+STREAM_POLL_INTERVAL = 20
 
 
 class DashboardError(RuntimeError):
@@ -113,6 +121,7 @@ class DashboardClient:
             except ValueError:
                 LOG.debug("Ignoring non-JSON frame")
                 continue
+            LOG.debug("WS frame: %s", payload)
             # The unsolicited handshake frame carries no message_id.
             key = payload.get("message_id", "")
             self._queues.setdefault(key, asyncio.Queue()).put_nowait(payload)
@@ -132,7 +141,15 @@ class DashboardClient:
 
     async def stream(self, command: str, args: dict[str, Any] | None = None,
                      timeout: float = COMPILE_TIMEOUT) -> AsyncIterator[dict[str, Any]]:
-        """Send a streaming command, yielding every frame until it terminates."""
+        """Send a streaming command, yielding every frame until it terminates.
+
+        Polls in STREAM_POLL_INTERVAL-sized slices rather than waiting for
+        the whole timeout in one shot: a quiet compile phase (a slow idf.py
+        step with no output for a while) would otherwise look identical, from
+        the caller's side, to a genuine hang until the full deadline hit. A
+        synthetic {"event": "_heartbeat"} frame on each empty slice lets the
+        caller show it's still alive without changing what counts as done.
+        """
         message_id, queue = await self._begin(command, args)
         deadline = asyncio.get_running_loop().time() + timeout
         try:
@@ -140,10 +157,14 @@ class DashboardClient:
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     raise DashboardError(f"Timed out streaming '{command}'")
+                poll = min(STREAM_POLL_INTERVAL, remaining)
                 try:
-                    payload = await asyncio.wait_for(queue.get(), timeout=remaining)
-                except asyncio.TimeoutError as err:
-                    raise DashboardError(f"Timed out streaming '{command}'") from err
+                    payload = await asyncio.wait_for(queue.get(), timeout=poll)
+                except asyncio.TimeoutError:
+                    if poll >= remaining:
+                        raise DashboardError(f"Timed out streaming '{command}'") from None
+                    yield {"event": "_heartbeat"}
+                    continue
 
                 if "error_code" in payload:
                     raise DashboardError(
@@ -210,6 +231,10 @@ class DashboardClient:
         async for frame in self.stream("firmware/follow_job", {"job_id": job_id}):
             event = frame.get("event")
             data = frame.get("data")
+            if event == "_heartbeat":
+                if on_output:
+                    on_output(f"... still building (job {job_id}) ...")
+                continue
             if event == "output" and on_output and isinstance(data, str):
                 on_output(data.rstrip("\n"))
             elif event == "result" and isinstance(data, dict):
@@ -217,6 +242,7 @@ class DashboardClient:
             elif isinstance(data, dict) and "status" in data:
                 status = data["status"]
 
+        LOG.info("Build of %s ended with status=%s", configuration, status)
         if status not in ("completed", "unknown"):
             raise DashboardError(f"Build of {configuration} ended as '{status}'")
 
@@ -231,9 +257,19 @@ class DashboardClient:
 
         assert self._session is not None
         url = f"{self.base_url}/api/firmware/download"
-        async with self._session.get(url, params={"token": token}) as resp:
-            if resp.status != 200:
-                raise DashboardError(
-                    f"Download of {OTA_FILE} for {configuration} returned HTTP {resp.status}"
-                )
-            return await resp.read()
+        try:
+            async with self._session.get(
+                url, params={"token": token}, timeout=DOWNLOAD_TIMEOUT
+            ) as resp:
+                if resp.status != 200:
+                    raise DashboardError(
+                        f"Download of {OTA_FILE} for {configuration} returned HTTP {resp.status}"
+                    )
+                blob = await resp.read()
+        except asyncio.TimeoutError as err:
+            raise DashboardError(
+                f"Download of {OTA_FILE} for {configuration} timed out after "
+                f"{DOWNLOAD_TIMEOUT.total}s"
+            ) from err
+        LOG.info("Downloaded %s bytes for %s", len(blob), configuration)
+        return blob
