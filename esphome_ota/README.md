@@ -59,6 +59,12 @@ Two ESPHome packages are generated into `<config>/esphome/ota_server/`:
 
 Use one or the other — both define `ota:`, so including both is a conflict.
 
+`flash_button.yaml`'s URL is fixed, so if Home Assistant sits behind a
+caching proxy or CDN (e.g. a Cloudflare tunnel), it can keep serving an old
+cached `.ota.bin` after you republish, and the device aborts with an MD5
+mismatch. See [DOCS.md](DOCS.md#md5-mismatch-during-ota-aborting-due-to-md5-mismatch)
+if you hit that.
+
 ## Install
 
 1. Add this repository to Home Assistant → Settings → Add-ons → Repositories
