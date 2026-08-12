@@ -17,8 +17,10 @@ Manually published nodes appear in the device table too, marked with a
 "manual" badge — the table is a merge of the ESPHome dashboard's device list
 (when reachable) with whatever is actually published on disk
 (`Publisher.list_published`, a directory scan, no separate tracking file to
-drift from reality). If the ESPHome dashboard can't be reached at all, the
-table still renders — just the manually published rows, with a banner
+drift from reality). From that row you can **Upload** again (opens Manual
+publish pre-filled for that node — replaces the bin/manifest in place), copy
+the YAML snippet, or **Delete**. If the ESPHome dashboard can't be reached at
+all, the table still renders — just the manually published rows, with a banner
 explaining why the rest is missing — instead of failing outright the way it
 used to (`GET /api/devices` no longer 502s for this).
 
