@@ -79,7 +79,7 @@ class Publisher:
                     "ota": {
                         "md5": digest,
                         "path": f"{bin_name}?v={digest[:8]}",
-                        "summary": summary or "Built by ESPHome OTA Server",
+                        "summary": summary or "Built by ESPHome OTA Publisher",
                     },
                 }
             ],

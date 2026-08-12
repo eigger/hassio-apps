@@ -1,4 +1,4 @@
-# ESPHome OTA Server
+# ESPHome OTA Publisher
 
 [English](README.md)
 
@@ -84,7 +84,7 @@ CDN(예: Cloudflare 터널)이 재게시 이후에도 옛날 `.ota.bin`을 계�
 ## 설치
 
 1. Home Assistant → 설정 → 애드온 → 저장소에 이 저장소를 추가하세요
-2. **ESPHome OTA Server**를 설치하고 시작하세요
+2. **ESPHome OTA Publisher**를 설치하고 시작하세요
 3. add-on이 Home Assistant 재시작을 요청하면 한 번 해주세요 (`/local`
    정적 경로는 시작할 때 등록됩니다)
 4. add-on 패널에서 `base_url` 관련 배너를 확인하세요 — Home Assistant의

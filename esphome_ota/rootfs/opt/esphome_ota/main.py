@@ -1,4 +1,4 @@
-"""Entry point for the ESPHome OTA Server add-on."""
+"""Entry point for the ESPHome OTA Publisher add-on."""
 
 from __future__ import annotations
 

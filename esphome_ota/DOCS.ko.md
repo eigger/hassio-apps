@@ -1,4 +1,4 @@
-# ESPHome OTA Server — 문서
+# ESPHome OTA Publisher — 문서
 
 [English](DOCS.md)
 

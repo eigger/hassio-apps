@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ESPHome OTA Server</title>
+<title>ESPHome OTA Publisher</title>
 <style>
   :root {
     --bg: #f6f7f9; --fg: #16191d; --muted: #6b7480; --card: #fff;
@@ -71,7 +71,7 @@
 <body>
 <div class="topbar">
   <div>
-    <h1 id="t-title">ESPHome OTA Server</h1>
+    <h1 id="t-title">ESPHome OTA Publisher</h1>
     <div class="sub" id="t-sub">Pulls firmware from the ESPHome dashboard and publishes it to /local.</div>
   </div>
   <select id="langSelect" title="Language">
@@ -137,7 +137,7 @@
 <script>
 const STRINGS = {
   en: {
-    title: 'ESPHome OTA Server',
+    title: 'ESPHome OTA Publisher',
     sub: 'Pulls firmware from the ESPHome dashboard and publishes it to /local.',
     colDevice: 'Device', colChip: 'Chip', colVersion: 'Published version', colStatus: 'Status',
     loading: 'Loading…', noDevices: 'No devices.',
@@ -183,7 +183,7 @@ const STRINGS = {
     dashboardErrorBody: (msg) => `Showing manually published devices only. ${msg}`,
   },
   ko: {
-    title: 'ESPHome OTA Server',
+    title: 'ESPHome OTA Publisher',
     sub: 'ESPHome 대시보드에서 펌웨어를 받아 /local로 게시합니다.',
     colDevice: '기기', colChip: '칩', colVersion: '게시된 버전', colStatus: '상태',
     loading: '불러오는 중…', noDevices: '기기가 없습니다.',

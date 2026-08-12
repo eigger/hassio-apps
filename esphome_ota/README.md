@@ -1,4 +1,4 @@
-# ESPHome OTA Server
+# ESPHome OTA Publisher
 
 [한국어 문서](README.ko.md)
 
@@ -83,7 +83,7 @@ the fix.
 ## Install
 
 1. Add this repository to Home Assistant → Settings → Add-ons → Repositories
-2. Install **ESPHome OTA Server** and start it
+2. Install **ESPHome OTA Publisher** and start it
 3. If the add-on asks you to restart Home Assistant, do it once (the `/local`
    static path is registered at startup)
 4. Check the add-on's panel for a banner about `base_url` — it auto-fills from

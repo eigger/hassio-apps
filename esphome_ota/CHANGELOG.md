@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.7
+
+- Renamed the display name from "ESPHome OTA Server" to **"ESPHome OTA
+  Publisher"** — this add-on doesn't itself serve OTA traffic to devices
+  (Home Assistant's own `/local` static file server does that); it builds
+  or accepts firmware and publishes it there. `slug: esphome_ota` and the
+  repo/folder path are unchanged, so this is not a reinstall for existing
+  users — just the name shown in the Supervisor UI, panel, page title, and
+  docs.
+
 ## 0.3.6
 
 - `flash_button.yaml` is now labeled "A" (recommended default) and
