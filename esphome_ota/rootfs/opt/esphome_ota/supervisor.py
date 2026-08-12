@@ -76,7 +76,13 @@ async def find_dashboard_url(session: ClientSession) -> str | None:
             LOG.warning("Could not read info for add-on %s: %s", slug, err)
             continue
 
-        for container_port, host_port in (info.get("network") or {}).items():
+        network = info.get("network") or {}
+        # Logged at info level (not debug) because this is exactly the fact
+        # needed to tell "not mapped yet" apart from "mapped, but this add-on
+        # is somehow still not seeing it" — the two look identical from the
+        # outside otherwise.
+        LOG.info("%s network map from Supervisor: %s", slug, network)
+        for container_port, host_port in network.items():
             if container_port.startswith("6052") and host_port:
                 url = f"http://{HOST_GATEWAY}:{host_port}"
                 LOG.info("Found ESPHome dashboard (%s) on public port %s", slug, url)

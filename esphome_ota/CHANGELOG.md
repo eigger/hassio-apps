@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Still-unreachable dashboard is now diagnosable: `find_dashboard_url` logs
+  the raw `network` map the Supervisor returned for each candidate ESPHome
+  add-on at info level, so "port not mapped yet" and "mapped, but this add-on
+  isn't recognizing it" no longer look identical in the log.
+
 ## 0.2.0
 
 Fixes the `GET /api/devices` 502 seen in the field: `Cannot reach the ESPHome
