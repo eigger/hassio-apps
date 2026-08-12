@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.6
+
+- `flash_button.yaml` is now labeled "A" (recommended default) and
+  `update.yaml` "B", matching the reordered docs. The generated
+  `flash_button.yaml` now documents its button's id (`ota_flash_button`)
+  inline and in the header, with a copy-paste example of triggering the same
+  flash from a different button (e.g. a physical GPIO button) via
+  `button.press: ota_flash_button` instead of duplicating the
+  `ota.http_request.flash` call.
+- The **per-device YAML snippet shown in the Ingress UI** (not just the
+  generated package file) now carries the same `ota_flash_button` /
+  `button.press` example for option A, plus a commented-out
+  `http_request: verify_ssl: false` note for memory-constrained boards
+  (typically ESP8266) on both options.
+- The Ingress UI's YAML snippets each get a **copy-to-clipboard button**
+  next to their label, instead of select-all-by-hand. Falls back to the
+  legacy `execCommand('copy')` when `navigator.clipboard` isn't available
+  (Ingress is often plain HTTP on the LAN, which isn't a secure context).
+- DOCS.md's package sections got the same treatment as the generated
+  files: option A now shows the `button.press` GPIO example, and option
+  B's `update.check`/`on_update_available`/`update.perform` example is a
+  real YAML code block instead of a cramped inline-bracket description.
+
 ## 0.3.5
 
 - `flash_button.yaml`'s `url`/`md5_url` are now lambdas that append a random

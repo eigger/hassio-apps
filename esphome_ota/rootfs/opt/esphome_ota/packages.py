@@ -34,6 +34,11 @@ HEADER = """\
 
 UPDATE_PACKAGE = """\
 {header}
+# B. Update entity — see this add-on's DOCS.md. Prefer flash_button.yaml
+# (package A) unless you specifically want version tracking: this one parses
+# a JSON manifest first, which is one more thing a proxy/CDN in front of
+# Home Assistant can interfere with.
+#
 # For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
 # your LAN, reachable only through your remote/cloud-tunnel URL). A device on
 # the same network as Home Assistant should just use ESPHome's built-in OTA —
@@ -73,6 +78,8 @@ update:
 
 BUTTON_PACKAGE = """\
 {header}
+# A. Force-install button (recommended default — see this add-on's DOCS.md)
+#
 # For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
 # your LAN, reachable only through your remote/cloud-tunnel URL). A device on
 # the same network as Home Assistant should just use ESPHome's built-in OTA —
@@ -95,6 +102,19 @@ BUTTON_PACKAGE = """\
 # Cloudflare tunnel, for instance — never has a reason to serve back a stale
 # firmware/md5 pair from an earlier press or an earlier republish: the query
 # string makes each request a cache miss by construction.
+#
+# This button's id is `ota_flash_button` (see below) — press it
+# programmatically from anything else in the device YAML with the
+# button.press action, instead of duplicating the ota.http_request.flash
+# call. E.g. to flash from a physical GPIO button instead of (or in
+# addition to) the generated Home Assistant button:
+#
+#   button:
+#     - platform: gpio
+#       pin: GPIO0
+#       name: Flash Button
+#       on_press:
+#         - button.press: ota_flash_button
 
 substitutions:
   ota_base_url: {base_url}
@@ -107,7 +127,7 @@ ota:
 
 button:
   - platform: template
-    id: ota_flash_button
+    id: ota_flash_button  # referenced by `button.press: ota_flash_button` — see header
     name: Firmware Update
     entity_category: config
     on_press:
@@ -144,6 +164,7 @@ def snippet(node: str, mode: str) -> str:
     """The copy-paste block shown in the UI for one device."""
     include = "update.yaml" if mode == "update" else "flash_button.yaml"
     extra = ""
+    button_note = ""
     if mode == "update":
         extra = (
             "\nesphome:\n"
@@ -151,10 +172,28 @@ def snippet(node: str, mode: str) -> str:
             '    name: "eigger.esphome"\n'
             '    version: "1.0.0"   # bump to publish an update\n'
         )
+    else:
+        button_note = (
+            "\n# This button's id is ota_flash_button. Trigger the same flash from\n"
+            "# another button (e.g. a physical GPIO button) instead of duplicating\n"
+            "# the ota.http_request.flash call:\n"
+            "#\n"
+            "# button:\n"
+            "#   - platform: gpio\n"
+            "#     pin: GPIO0\n"
+            "#     name: Flash Button\n"
+            "#     on_press:\n"
+            "#       - button.press: ota_flash_button\n"
+        )
     return (
         f"substitutions:\n"
         f"  ota_device: {node}\n"
         f"\npackages:\n"
         f"  ota: !include {PACKAGE_DIR}/{include}\n"
         f"{extra}"
+        f"{button_note}"
+        f"\n# On a memory-constrained board (typically ESP8266), TLS certificate\n"
+        f"# verification can be too much for its RAM. Uncomment to skip it:\n"
+        f"# http_request:\n"
+        f"#   verify_ssl: false\n"
     )

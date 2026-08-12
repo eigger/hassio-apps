@@ -142,6 +142,20 @@ every press, so each press is a fresh cache miss for any proxy or CDN in
 front of Home Assistant — there is no fixed URL for it to have cached a
 stale copy of in the first place.
 
+The generated button's id is `ota_flash_button`. Trigger it from something
+else in the device YAML with `button.press` instead of duplicating the
+`ota.http_request.flash` call — e.g. a physical GPIO button that flashes the
+latest published firmware when pressed:
+
+```yaml
+button:
+  - platform: gpio
+    pin: GPIO0
+    name: Flash Button
+    on_press:
+      - button.press: ota_flash_button
+```
+
 ### B. Update entity — `ota_server/update.yaml`
 
 ```yaml
@@ -166,12 +180,25 @@ UI flags devices in that state.
 
 Pressing Install only downloads if the device's `update:` state is already
 `AVAILABLE` — that state only comes from a prior successful manifest fetch
-(automatic, every `update_interval`, or via the `update.check` action). If
-you want a button that also triggers that fetch itself, pair a button's
-`on_press: [update.check: {id: ota_update}]` with an
-`on_update_available: [update.perform: {id: ota_update}]` on the `update:`
-entity — `update.check` is asynchronous, so triggering `update.perform`
-straight from the button's `on_press` can fire before the fetch resolves.
+(automatic, every `update_interval`, or via the `update.check` action).
+`update.check` is asynchronous, so calling it and then immediately calling
+`update.perform` from the same button press can fire the install before the
+fetch resolves. Use `on_update_available` on the `update:` entity instead,
+so the install only happens after a fetch actually confirms one is
+available:
+
+```yaml
+button:
+  - platform: template
+    name: Check for update
+    on_press:
+      - update.check: ota_update
+
+update:
+  - id: !extend ota_update
+    on_update_available:
+      - update.perform: ota_update
+```
 
 ### Overriding the address for one device
 
