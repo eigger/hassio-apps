@@ -28,8 +28,13 @@
   th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase;
        letter-spacing:.04em; }
   td.name { font-weight:600; }
+  /* Keep secondary lines in-flow with a fixed line-height so every data cell
+     shares the same row height — a bare <div> under the name/version used to
+     make left columns taller than the actions cell and the shared border
+     looked stepped across the row. */
+  td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
   .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
-          border:1px solid var(--line); color:var(--muted); }
+          border:1px solid var(--line); color:var(--muted); vertical-align:middle; }
   .chip.ok { color:var(--ok); border-color:currentColor; }
   .chip.warn { color:var(--warn); border-color:currentColor; }
   button { font:inherit; padding:5px 11px; border-radius:6px; border:1px solid var(--line);
@@ -37,7 +42,10 @@
   button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
   button:disabled { opacity:.45; cursor:default; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#04121a; }
-  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  /* Never put display:flex on a <td> — it drops table-cell layout and the
+     row's bottom border stops lining up across columns. */
+  .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+             justify-content:flex-end; }
   pre { background:var(--bg); border:1px solid var(--line); border-radius:6px;
         padding:10px; overflow-x:auto; font-size:12.5px; margin:8px 0 0; }
   .log { max-height:260px; overflow-y:auto; white-space:pre-wrap; }
@@ -163,6 +171,9 @@ const STRINGS = {
     manualFile: 'firmware.ota.bin', manualSubmit: 'Publish', manualUploading: 'Uploading…',
     manualOk: (n) => `Published ${n}.`,
     manualBadge: 'manual', manualBadgeTitle: 'Published manually — not known to the ESPHome dashboard',
+    reupload: 'Upload',
+    reuploadTitle: 'Replace the published firmware.ota.bin for this device',
+    reuploadHint: (n) => `Re-upload for ${n} — pick a new firmware.ota.bin below.`,
     deleteBtn: 'Delete', deleteConfirm: (n) => `Delete the published firmware for "${n}"?`,
     dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
     dashboardErrorBody: (msg) => `Showing manually published devices only. ${msg}`,
@@ -204,6 +215,9 @@ const STRINGS = {
     manualFile: 'firmware.ota.bin', manualSubmit: '게시', manualUploading: '업로드 중…',
     manualOk: (n) => `${n} 게시 완료.`,
     manualBadge: '수동', manualBadgeTitle: '수동으로 게시됨 — ESPHome 대시보드에는 없는 기기',
+    reupload: '업로드',
+    reuploadTitle: '이 기기의 게시된 firmware.ota.bin을 새 파일로 교체합니다',
+    reuploadHint: (n) => `${n} 재업로드 — 아래에서 새 firmware.ota.bin을 선택하세요.`,
     deleteBtn: '삭제', deleteConfirm: (n) => `"${n}"의 게시된 펌웨어를 삭제할까요?`,
     dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
     dashboardErrorBody: (msg) => `수동으로 게시한 기기만 표시합니다. ${msg}`,
@@ -287,32 +301,43 @@ function row(d) {
       ? `<span class="chip warn"${noVersionHint}>${T.needsRepublish}</span>`
       : `<span class="chip ok"${noVersionHint}>${T.published}</span>`;
 
+  // Always emit a .subline under version so the cell's height matches rows
+  // that have an md5 (and name cells that have a configuration subtitle).
   const version = pub
-    ? `${pub.version}<div class="tiny muted">${T.md5(pub.md5.slice(0, 8))}</div>`
-    : '<span class="muted">—</span>';
+    ? `${escapeHtml(pub.version)}<span class="subline tiny muted">${T.md5(pub.md5.slice(0, 8))}</span>`
+    : `<span class="muted">—</span><span class="subline tiny muted">&nbsp;</span>`;
 
   const badge = d.manual
     ? ` <span class="chip" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`
     : '';
   const subtitle = d.configuration
-    ? `<div class="tiny muted">${d.configuration}</div>` : '';
+    ? `<span class="subline tiny muted">${escapeHtml(d.configuration)}</span>`
+    : `<span class="subline tiny muted">&nbsp;</span>`;
 
   tr.innerHTML = `
-    <td class="name">${d.friendly_name}${badge}${subtitle}</td>
-    <td>${d.chip_family || '<span class="muted">?</span>'}</td>
+    <td class="name">${escapeHtml(d.friendly_name)}${badge}${subtitle}</td>
+    <td>${d.chip_family ? escapeHtml(d.chip_family) : '<span class="muted">?</span>'}</td>
     <td>${version}</td>
     <td>${state}</td>
-    <td class="actions"></td>`;
+    <td><div class="actions"></div></td>`;
 
   const actions = tr.querySelector('.actions');
 
   if (d.manual) {
     // No dashboard configuration to build from — this row exists purely
-    // because a manifest is on disk for it.
+    // because a manifest is on disk for it. Re-upload replaces the bin via
+    // the same POST /api/publish/manual path as the form below.
+    const uploadBtn = document.createElement('button');
+    uploadBtn.className = 'jobctl primary';
+    uploadBtn.textContent = T.reupload;
+    uploadBtn.title = T.reuploadTitle;
+    uploadBtn.disabled = jobRunning;
+    uploadBtn.onclick = () => openReupload(d);
+
     const yamlBtn = document.createElement('button');
     yamlBtn.textContent = T.yaml;
     yamlBtn.onclick = () => showSnippet(d);
-    actions.append(yamlBtn);
+    actions.append(uploadBtn, yamlBtn);
   } else {
     const publishBtn = document.createElement('button');
     publishBtn.className = 'jobctl';
@@ -342,6 +367,26 @@ function row(d) {
   }
 
   return tr;
+}
+
+function openReupload(d) {
+  const pub = d.published || {};
+  const form = $('manualForm');
+  const panel = form.closest('details');
+  if (panel) panel.open = true;
+
+  $('mNode').value = d.node || '';
+  if (d.chip_family) $('mChip').value = d.chip_family;
+  else if (pub.chip_family) $('mChip').value = pub.chip_family;
+  $('mVersion').value = pub.version || '';
+  $('mTitle').value = pub.title || d.friendly_name || '';
+  $('mFile').value = '';
+
+  const result = $('manualResult');
+  result.innerHTML = `<span class="muted">${escapeHtml(T.reuploadHint(d.friendly_name || d.node))}</span>`;
+
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('mFile').focus();
 }
 
 async function deletePublished(d) {

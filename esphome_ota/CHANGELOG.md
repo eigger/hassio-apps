@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2
+
+- Manual device rows now have an **Upload** button that reopens the Manual
+  publish form pre-filled with that node's name / chip / version / title, so
+  you can replace the firmware without deleting first.
+- Fixed the device table's stepped row borders: `.actions` used `display:flex`
+  directly on the `<td>`, which drops table-cell layout. Buttons live in an
+  inner flex div now, and name/version cells always reserve a subtitle line
+  so row heights stay even.
+
 ## 0.3.1
 
 - Refreshed add-on **icon** / **logo** to the current ESPHome house mark
