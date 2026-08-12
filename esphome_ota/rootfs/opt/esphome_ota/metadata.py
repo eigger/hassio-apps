@@ -36,6 +36,10 @@ VARIANTS = {
     "rp2350": "RP2350",
 }
 
+# For the manual-publish form: every chipFamily string ESPHome's update
+# component might compare against, sorted for a stable dropdown order.
+CHIP_FAMILIES = sorted(set(VARIANTS.values()))
+
 # esp_image_header_t.chip_id (uint16 LE at offset 12) -> ESPHOME_VARIANT
 CHIP_IDS = {
     0: "ESP32",

@@ -34,6 +34,7 @@ _TIMEOUT = ClientTimeout(total=15)
 
 
 async def _get(session: ClientSession, path: str) -> Any:
+    """GET a Supervisor endpoint. Unwraps the {"result": "ok", "data": {...}} envelope."""
     if not TOKEN:
         raise RuntimeError("SUPERVISOR_TOKEN is not set")
     headers = {"Authorization": f"Bearer {TOKEN}"}
@@ -41,6 +42,21 @@ async def _get(session: ClientSession, path: str) -> Any:
         resp.raise_for_status()
         payload = await resp.json()
     return payload.get("data")
+
+
+async def _get_core(session: ClientSession, path: str) -> Any:
+    """GET a Home Assistant Core REST endpoint via the Supervisor's proxy.
+
+    Requires ``homeassistant_api: true`` in config.yaml. Core's own REST API
+    returns raw JSON — no {"result", "data"} envelope like Supervisor's — so
+    this does not unwrap anything.
+    """
+    if not TOKEN:
+        raise RuntimeError("SUPERVISOR_TOKEN is not set")
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    async with session.get(f"{SUPERVISOR}/core/api{path}", headers=headers, timeout=_TIMEOUT) as resp:
+        resp.raise_for_status()
+        return await resp.json()
 
 
 async def find_dashboard_url(session: ClientSession) -> str | None:
@@ -100,8 +116,28 @@ async def find_dashboard_url(session: ClientSession) -> str | None:
     return None
 
 
+async def find_external_url(session: ClientSession) -> str | None:
+    """Return HA's configured external URL (Settings → System → Network), if set.
+
+    This is the right default for this add-on: it exists for devices ESPHome's
+    own local OTA can't reach, i.e. devices outside the LAN, so the address
+    they need is the one already configured for exactly that purpose.
+    """
+    try:
+        config = await _get_core(session, "/config")
+    except Exception as err:  # noqa: BLE001
+        LOG.warning("Could not read Home Assistant Core config: %s", err)
+        return None
+    return config.get("external_url") or None
+
+
 async def find_host_ip(session: ClientSession) -> str | None:
-    """Return the host's primary LAN IPv4 address."""
+    """Return the host's primary LAN IPv4 address.
+
+    LAN-only — a last-resort fallback, not this add-on's intended default.
+    A device outside the LAN can't reach this address at all; see
+    find_external_url for the address that actually matters here.
+    """
     try:
         info = await _get(session, "/network/info")
     except Exception as err:  # noqa: BLE001

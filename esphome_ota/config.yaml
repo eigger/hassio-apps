@@ -1,6 +1,6 @@
 ---
 name: ESPHome OTA Server
-version: "0.2.1"
+version: "0.3.0"
 slug: esphome_ota
 description: Publish ESPHome firmware for http_request OTA — pulled straight from the ESPHome Device Builder add-on, served by Home Assistant on /local
 url: https://github.com/eigger/hassio-apps/tree/master/esphome_ota
@@ -16,9 +16,12 @@ ingress: true
 ingress_port: 8099
 panel_icon: mdi:chip
 panel_title: ESPHome OTA
-# Needed to discover the ESPHome add-on's ingress port and the host's LAN IP.
+# Needed to discover the ESPHome add-on's mapped public port and the host's LAN IP.
 hassio_api: true
 hassio_role: manager
+# Needed to read HA's configured external URL (Settings -> System -> Network)
+# as the default base_url — see supervisor.find_external_url.
+homeassistant_api: true
 map:
   - addon_config:rw
   - homeassistant_config:rw
