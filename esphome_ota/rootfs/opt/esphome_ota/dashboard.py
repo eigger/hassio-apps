@@ -108,7 +108,7 @@ class DashboardClient:
 
     async def command(self, command: str, args: dict[str, Any] | None = None) -> Any:
         """Send a command and return its result."""
-        message_id, queue = self._begin(command, args)
+        message_id, queue = await self._begin(command, args)
         try:
             payload = await asyncio.wait_for(queue.get(), timeout=COMMAND_TIMEOUT)
         except asyncio.TimeoutError as err:
@@ -120,7 +120,7 @@ class DashboardClient:
     async def stream(self, command: str, args: dict[str, Any] | None = None,
                      timeout: float = COMPILE_TIMEOUT) -> AsyncIterator[dict[str, Any]]:
         """Send a streaming command, yielding every frame until it terminates."""
-        message_id, queue = self._begin(command, args)
+        message_id, queue = await self._begin(command, args)
         deadline = asyncio.get_running_loop().time() + timeout
         try:
             while True:
@@ -142,7 +142,7 @@ class DashboardClient:
         finally:
             self._queues.pop(message_id, None)
 
-    def _begin(self, command: str, args: dict[str, Any] | None) -> tuple[str, asyncio.Queue]:
+    async def _begin(self, command: str, args: dict[str, Any] | None) -> tuple[str, asyncio.Queue]:
         if self._ws is None or self._ws.closed:
             raise DashboardError("The dashboard connection is closed")
         self._next_id += 1
@@ -150,7 +150,15 @@ class DashboardClient:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._queues[message_id] = queue
         frame = {"command": command, "message_id": message_id, "args": args or {}}
-        asyncio.ensure_future(self._ws.send_str(json.dumps(frame)))
+        try:
+            # Awaited, not fire-and-forget: a send failure (e.g. the socket
+            # died between connect and here) must raise here, not disappear
+            # into an unretrieved task exception while the caller sits out
+            # a 60s timeout with no idea why.
+            await self._ws.send_str(json.dumps(frame))
+        except (ConnectionResetError, aiohttp.ClientError) as err:
+            self._queues.pop(message_id, None)
+            raise DashboardError(f"Lost connection to the dashboard while sending '{command}': {err}") from err
         return message_id, queue
 
     @staticmethod
@@ -165,7 +173,12 @@ class DashboardClient:
 
     async def devices(self) -> list[dict[str, Any]]:
         result = await self.command("devices/list") or {}
-        return result.get("configured", []) if isinstance(result, dict) else list(result)
+        if isinstance(result, dict):
+            configured = result.get("configured")
+            if configured is None:
+                LOG.debug("devices/list returned an unexpected shape: keys=%s", list(result.keys()))
+            return configured or []
+        return list(result)
 
     async def binaries(self, configuration: str) -> list[dict[str, Any]]:
         return await self.command("firmware/get_binaries", {"configuration": configuration}) or []

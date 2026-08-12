@@ -42,7 +42,7 @@ Use one or the other — both define `ota:`, so including both is a conflict.
 2. Install **ESPHome OTA Server** and start it
 3. If the add-on asks you to restart Home Assistant, do it once (the `/local`
    static path is registered at startup)
-4. Open the add-on's panel, hit **빌드 후 게시** on a device, then paste the
-   shown snippet into that device's YAML
+4. Open the add-on's panel, hit **Build & publish** on a device, then paste
+   the shown snippet into that device's YAML
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.

@@ -100,14 +100,22 @@ devices that would fetch through a caching proxy prefer package A.
 
 ## Troubleshooting
 
-**"Home Assistant를 한 번 재시작하세요"** — `/local` is registered once at
-startup, behind an `isdir` check on the `www` folder. If the add-on had to
-create that folder, Home Assistant does not know about it yet.
+**"Restart Home Assistant once."** — `/local` is registered once at startup,
+behind an `isdir` check on the `www` folder. If the add-on had to create that
+folder, Home Assistant does not know about it yet.
 
-**"ESPHome 대시보드를 찾지 못했습니다"** — the ESPHome add-on must be running.
-If auto-detection still fails, map port 6052 in the ESPHome add-on's Network
-settings, turn on its `leave_front_door_open` option, and set
+**"Could not find the ESPHome dashboard."** — the ESPHome add-on must be
+running. If auto-detection still fails, map port 6052 in the ESPHome add-on's
+Network settings, turn on its `leave_front_door_open` option, and set
 `dashboard_url: http://172.30.32.1:6052`.
+
+**Devices list returns HTTP 502** — the add-on log now includes the real
+`DashboardError` message for this (a warning logged right where the 502 is
+returned). Common causes: the ESPHome add-on isn't actually reachable at the
+resolved `dashboard_url` (check the add-on log's "Found ESPHome dashboard…"
+line against what's actually running), or the WebSocket connection dropped
+mid-request. Re-check the add-on log after reproducing — the error text there
+is the same one shown in the UI, not a generic proxy failure.
 
 **The update entity never appears** — check `chipFamily` in the UI. ESPHome
 matches it against `ESPHOME_VARIANT` with an exact string comparison and
