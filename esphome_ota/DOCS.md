@@ -1,8 +1,23 @@
 # ESPHome OTA Server — Documentation
 
-## Required ESPHome add-on setting
+## Manual publish
 
-This add-on needs to reach the ESPHome Device Builder's WebSocket API. Its
+Settings → this add-on's panel → **Manual publish**. Fields: node name (must
+match the `ota_device` substitution in the device's YAML), chip family
+(dropdown — must match the firmware's actual target exactly, ESPHome compares
+it as a plain string), version, optional title, and the `firmware.ota.bin`
+file itself (download it from the ESPHome dashboard's own UI — "OTA format").
+No connection to ESPHome is needed for this path at all; it goes straight to
+`Publisher.publish`, the same code the automatic path uses at the end.
+
+Use this if you don't want to open ESPHome's public port (see below), or just
+for a one-off device.
+
+## Required ESPHome add-on setting (only for the automatic Build & publish path)
+
+The manual path above needs none of this. This section only applies if you
+want this add-on to build and pull firmware directly from ESPHome Device
+Builder's WebSocket API. Its
 normal access path — the HA sidebar / Ingress — is a dead end for that: the
 ingress site is guarded by `ingress_peer_guard` middleware
 (`esphome_device_builder/helpers/auth.py`) that only admits connections whose
@@ -29,14 +44,19 @@ can't find the dashboard.
 
 ## How it works
 
-1. Finds the ESPHome add-on's mapped public port through the Supervisor
-   (`GET /addons`, then `/addons/<slug>/info`) and connects its WebSocket API
-   there — see above for why the ingress port doesn't work for this.
-2. On demand it runs `firmware/compile` → `firmware/follow_job` →
-   `firmware/download_token` → `GET /api/firmware/download`, which is the same
-   sequence the dashboard frontend performs.
-3. It computes the MD5, works out the `chipFamily`, and writes three files into
-   `<config>/www/<publish_dir>/`.
+1. Resolves `base_url` (see the Options table below) — HA's configured
+   external URL via `GET /core/api/config` (needs `homeassistant_api: true`,
+   already set) unless overridden, since that's the address a device outside
+   the LAN actually needs.
+2. **Automatic path:** finds the ESPHome add-on's mapped public port through
+   the Supervisor (`GET /addons`, then `/addons/<slug>/info`) and connects its
+   WebSocket API there — see above for why the ingress port doesn't work for
+   this. Runs `firmware/compile` → `firmware/follow_job` →
+   `firmware/download_token` → `GET /api/firmware/download`, the same
+   sequence the dashboard frontend performs. **Manual path:** the uploaded
+   file is used as-is.
+3. Either way: computes the MD5, works out the `chipFamily`, and writes three
+   files into `<config>/www/<publish_dir>/`.
 4. Home Assistant serves those at `/local/<publish_dir>/…` with no
    authentication, over whatever address the device can reach it on.
 
@@ -47,7 +67,7 @@ can't find the dashboard.
 | `dashboard_url` | *(auto)* | Override the ESPHome dashboard base URL, e.g. `http://172.30.32.1:6052` (the mapped public port, not the ingress port — see above). Leave empty to auto-detect. |
 | `dashboard_token` | *(empty)* | Only needed for a dashboard started with `ESPHOME_USERNAME`/`ESPHOME_PASSWORD`. |
 | `publish_dir` | `esphome_ota` | Folder under `<config>/www/`, and therefore the path under `/local/`. |
-| `base_url` | *(auto)* | How your devices reach Home Assistant, e.g. `http://192.168.0.10:8123`. Auto-detected from the host's primary LAN address. Only used to fill in the generated packages. |
+| `base_url` | *(auto)* | How your devices reach Home Assistant, e.g. `https://your-tunnel-domain`. Resolution order: this option, if set → HA's configured external URL (Settings → System → Network) → the host's LAN address as a last resort (logged as a warning — this only works for devices on the same LAN, which generally don't need this add-on at all). Only used to fill in the generated packages. |
 | `log_level` | `info` | `debug` prints every dashboard frame. |
 
 ## Published files
@@ -120,8 +140,22 @@ No version tracking. Pressing the button runs `ota.http_request.flash` against
 the fixed `.ota.bin` URL with `md5_url` for verification; if the digest does not
 match what was downloaded, the device keeps its existing firmware.
 
-Because that URL is fixed it has no cache buster — fine over the LAN, but for
-devices that would fetch through a caching proxy prefer package A.
+Because that URL is fixed it has no cache buster — fine directly through the
+tunnel, but behind a second caching proxy in front of that, prefer package A.
+
+### Overriding the address for one device
+
+Both packages define an `ota_base_url` substitution defaulting to the add-on's
+configured `base_url`. ESPHome applies the main config's `substitutions:` over
+a package's same-named ones, so a device that needs a different address —
+say, a second remote site — can override it without touching the generated
+files:
+
+```yaml
+substitutions:
+  ota_device: livingroom
+  ota_base_url: https://second-site.example
+```
 
 ## Troubleshooting
 
@@ -158,3 +192,10 @@ endpoint or by clearing the folder.
 **Firmware is world-readable** — `/local` has no authentication, by design.
 That is what makes it reachable from a device that cannot log in. Anything you
 publish is readable by anything that can reach Home Assistant's HTTP port.
+
+**Manual publish rejects the chip family / update entity never appears** —
+the dropdown lists every string ESPHome's update component might compare
+against (`ESPHOME_VARIANT`), but picking the wrong one for the actual binary
+still passes validation here — ESPHome just won't match it on the device side.
+Match it to the board's actual chip exactly (e.g. an ESP32-C3 board is
+`ESP32-C3`, not `ESP32`).

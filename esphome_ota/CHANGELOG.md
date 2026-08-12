@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.0
+
+**`base_url` no longer defaults to the host's LAN address.** This add-on
+exists for devices ESPHome's own local/mDNS OTA can't reach — i.e. devices
+outside the LAN — so a LAN IP was the wrong default for its actual use case
+(confirmed against a real report: a remote device's generated `source:` URL
+pointed at `192.168.x.x`, unreachable from where the device actually is).
+Resolution order is now: the `base_url` option, if set → Home Assistant's
+configured external URL (`GET /core/api/config`, needs the new
+`homeassistant_api: true` permission) → the LAN address as a last resort,
+now logged as a loud warning explaining it won't work off-LAN instead of
+silently becoming the default.
+
+**Manual publish**, for anyone who'd rather not open ESPHome's public port at
+all: a form in the add-on's Ingress panel (node name, chip family, version,
+`firmware.ota.bin`) that publishes a file you downloaded from the ESPHome
+dashboard yourself, with no WebSocket connection to ESPHome involved.
+`POST /api/publish/manual`.
+
+**`ota_base_url` substitution** in both generated packages, defaulting to the
+add-on's `base_url` but overridable per-device (ESPHome's own config
+overrides same-named package substitutions) — for a device that needs a
+different address than the rest of the fleet.
+
+**Build & publish button now gives immediate feedback.** Clicking it used to
+show nothing until the POST request resolved, which could be several seconds
+behind a slow dashboard connection or a queued build — indistinguishable from
+the click not registering. All build/publish controls now disable
+synchronously on click, before any network call.
+
 ## 0.2.1
 
 - Still-unreachable dashboard is now diagnosable: `find_dashboard_url` logs

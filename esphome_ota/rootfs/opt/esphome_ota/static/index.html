@@ -44,9 +44,17 @@
   .muted { color:var(--muted); }
   .tiny { font-size:12px; }
   code { background:var(--bg); padding:1px 5px; border-radius:4px; }
-  select { font:inherit; padding:3px 8px; border-radius:6px; border:1px solid var(--line);
-           background:var(--card); color:var(--fg); }
+  select, input[type=text], input[type=file] {
+    font:inherit; padding:5px 8px; border-radius:6px; border:1px solid var(--line);
+    background:var(--card); color:var(--fg);
+  }
   .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .formgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+              gap:10px; align-items:end; margin-top:10px; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
+  .field input, .field select { width:100%; }
+  details summary { cursor:pointer; font-weight:600; }
+  details[open] summary { margin-bottom:4px; }
 </style>
 </head>
 <body>
@@ -81,6 +89,39 @@
 
 <div class="card" id="detail" hidden></div>
 
+<details class="card">
+  <summary id="t-manual-title">Manual publish</summary>
+  <div class="tiny muted" id="t-manual-body">
+    Publish a firmware.ota.bin you downloaded from the ESPHome dashboard yourself.
+  </div>
+  <form id="manualForm" class="formgrid">
+    <div class="field">
+      <label id="t-manual-node" for="mNode">Node name</label>
+      <input type="text" id="mNode" name="node" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}" required>
+    </div>
+    <div class="field">
+      <label id="t-manual-chip" for="mChip">Chip family</label>
+      <select id="mChip" name="chip_family" required></select>
+    </div>
+    <div class="field">
+      <label id="t-manual-version" for="mVersion">Version</label>
+      <input type="text" id="mVersion" name="version" required>
+    </div>
+    <div class="field">
+      <label id="t-manual-titlefield" for="mTitle">Title</label>
+      <input type="text" id="mTitle" name="title">
+    </div>
+    <div class="field">
+      <label id="t-manual-file" for="mFile">firmware.ota.bin</label>
+      <input type="file" id="mFile" name="file" accept=".bin" required>
+    </div>
+    <div class="field">
+      <button type="submit" class="primary jobctl" id="manualSubmit">Publish</button>
+    </div>
+  </form>
+  <div id="manualResult" class="tiny" style="margin-top:8px"></div>
+</details>
+
 <script>
 const STRINGS = {
   en: {
@@ -108,6 +149,18 @@ const STRINGS = {
     pickOne: 'Use one or the other — including both duplicates <code>ota:</code>.',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
+    lanFallbackTitle: 'Using a LAN-only address.',
+    lanFallbackBody: 'Home Assistant has no external URL configured (Settings → System → ' +
+      'Network), so this add-on fell back to the host\'s LAN address. That only works for ' +
+      'devices on the same network — set <code>base_url</code> in the add-on options, or ' +
+      'configure HA\'s external URL, for devices outside the LAN.',
+    manualTitle: 'Manual publish',
+    manualBody: 'Publish a <code>firmware.ota.bin</code> you downloaded from the ESPHome ' +
+      'dashboard yourself — no connection to ESPHome needed for this.',
+    manualNode: 'Node name (matches ota_device in the YAML)',
+    manualChip: 'Chip family', manualVersion: 'Version', manualTitleField: 'Title (optional)',
+    manualFile: 'firmware.ota.bin', manualSubmit: 'Publish', manualUploading: 'Uploading…',
+    manualOk: (n) => `Published ${n}.`,
   },
   ko: {
     title: 'ESPHome OTA Server',
@@ -134,6 +187,17 @@ const STRINGS = {
     pickOne: '둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
+    lanFallbackTitle: 'LAN 전용 주소를 쓰고 있습니다.',
+    lanFallbackBody: 'Home Assistant에 외부 주소가 설정돼 있지 않아서(설정 → 시스템 → 네트워크), ' +
+      '호스트의 LAN 주소로 대체했습니다. 같은 네트워크의 기기에만 동작합니다 — LAN 밖 기기라면 ' +
+      '애드온 옵션의 <code>base_url</code>을 직접 지정하거나 HA 외부 주소를 설정하세요.',
+    manualTitle: '수동 게시',
+    manualBody: 'ESPHome 대시보드에서 직접 받은 <code>firmware.ota.bin</code>을 게시합니다 — ' +
+      'ESPHome 연결이 필요 없습니다.',
+    manualNode: '기기 이름 (YAML의 ota_device와 동일)',
+    manualChip: '칩 종류', manualVersion: '버전', manualTitleField: '표시 이름 (선택)',
+    manualFile: 'firmware.ota.bin', manualSubmit: '게시', manualUploading: '업로드 중…',
+    manualOk: (n) => `${n} 게시 완료.`,
   },
 };
 
@@ -149,6 +213,7 @@ let T = STRINGS[LOCALE];
 const $ = (id) => document.getElementById(id);
 let status = {};
 let polling = null;
+let jobRunning = false;
 
 function applyStaticText() {
   document.documentElement.lang = LOCALE;
@@ -159,6 +224,14 @@ function applyStaticText() {
   $('t-col-version').textContent = T.colVersion;
   $('t-col-status').textContent = T.colStatus;
   $('t-loading').textContent = T.loading;
+  $('t-manual-title').textContent = T.manualTitle;
+  $('t-manual-body').innerHTML = T.manualBody;
+  $('t-manual-node').textContent = T.manualNode;
+  $('t-manual-chip').textContent = T.manualChip;
+  $('t-manual-version').textContent = T.manualVersion;
+  $('t-manual-titlefield').textContent = T.manualTitleField;
+  $('t-manual-file').textContent = T.manualFile;
+  $('manualSubmit').textContent = T.manualSubmit;
 }
 
 async function api(path, opts) {
@@ -181,6 +254,13 @@ async function loadStatus() {
   if (status.restart_required) banner(T.restartTitle, T.restartBody, 'warn');
   if (!status.dashboard) banner(T.noDashboardTitle, T.noDashboardBody, 'err');
   if (!status.base_url) banner(T.noBaseUrlTitle, T.noBaseUrlBody, 'err');
+  else if (status.base_url_source === 'lan_ip_fallback') banner(T.lanFallbackTitle, T.lanFallbackBody, 'warn');
+
+  const chipSelect = $('mChip');
+  const previous = chipSelect.value;
+  chipSelect.innerHTML = (status.chip_families || [])
+    .map((c) => `<option value="${c}">${c}</option>`).join('');
+  if (previous) chipSelect.value = previous;
 }
 
 function row(d) {
@@ -207,15 +287,17 @@ function row(d) {
 
   const actions = tr.querySelector('.actions');
   const publishBtn = document.createElement('button');
+  publishBtn.className = 'jobctl';
   publishBtn.textContent = T.publish;
-  publishBtn.disabled = !d.has_binary;
+  publishBtn.disabled = jobRunning || !d.has_binary;
   publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
-  publishBtn.onclick = () => run(d, false);
+  publishBtn.onclick = () => run(d, false, publishBtn);
 
   const buildBtn = document.createElement('button');
-  buildBtn.className = 'primary';
+  buildBtn.className = 'jobctl primary';
   buildBtn.textContent = T.buildPublish;
-  buildBtn.onclick = () => run(d, true);
+  buildBtn.disabled = jobRunning;
+  buildBtn.onclick = () => run(d, true, buildBtn);
 
   const yamlBtn = document.createElement('button');
   yamlBtn.textContent = T.yaml;
@@ -261,17 +343,38 @@ function escapeHtml(s) {
   return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
 
-async function run(d, compile) {
+function setJobButtonsDisabled(disabled) {
+  document.querySelectorAll('.jobctl').forEach((b) => { b.disabled = disabled; });
+}
+
+async function run(d, compile, clickedBtn) {
+  if (jobRunning) return;
+  jobRunning = true;
+  // Disabled synchronously, before anything async — the click must visibly
+  // register even if the POST below takes a moment (queued behind another
+  // build, or a slow dashboard connection).
+  setJobButtonsDisabled(true);
+  const originalLabel = clickedBtn ? clickedBtn.textContent : '';
+  if (clickedBtn) clickedBtn.textContent = compile ? T.building : T.publishing;
+
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `<b>${d.friendly_name}</b> — ${compile ? T.building : T.publishing}<pre class="log" id="joblog"></pre>`;
-  const job = await api('api/publish', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ configuration: d.configuration, compile }),
-  });
-  clearInterval(polling);
-  polling = setInterval(() => pollJob(job.id), 1500);
+
+  try {
+    const job = await api('api/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ configuration: d.configuration, compile }),
+    });
+    clearInterval(polling);
+    polling = setInterval(() => pollJob(job.id), 1500);
+  } catch (err) {
+    jobRunning = false;
+    if (clickedBtn) clickedBtn.textContent = originalLabel;
+    detail.innerHTML += `\n<div class="tiny" style="color:var(--err)">${escapeHtml(err.message)}</div>`;
+    loadDevices();
+  }
 }
 
 async function pollJob(id) {
@@ -285,9 +388,39 @@ async function pollJob(id) {
   if (job.status !== 'running') {
     clearInterval(polling);
     polling = null;
+    jobRunning = false;
     loadDevices();
   }
 }
+
+$('manualForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (jobRunning) return;
+  jobRunning = true;
+  setJobButtonsDisabled(true);
+  const submitBtn = $('manualSubmit');
+  const originalLabel = submitBtn.textContent;
+  submitBtn.textContent = T.manualUploading;
+  const result = $('manualResult');
+  result.textContent = '';
+
+  try {
+    const form = new FormData(e.target);
+    const body = await api('api/publish/manual', { method: 'POST', body: form });
+    result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
+    e.target.reset();
+  } catch (err) {
+    result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+  } finally {
+    jobRunning = false;
+    submitBtn.textContent = originalLabel;
+    submitBtn.disabled = false;
+    // Table buttons' disabled state depends on per-device data (has_binary),
+    // not just jobRunning — a blind re-enable here would un-disable a
+    // Publish button for a device with no built binary. Reload instead.
+    loadDevices();
+  }
+});
 
 $('langSelect').value = localStorage.getItem('esphome_ota_lang') || 'auto';
 $('langSelect').addEventListener('change', (e) => {

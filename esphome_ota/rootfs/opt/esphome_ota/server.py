@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -72,6 +73,7 @@ class App:
         self.publisher = Publisher(self.settings.www_root, self.settings.publish_dir)
         self.resolved_dashboard: str = ""
         self.resolved_base_url: str = ""
+        self.base_url_source: str = ""
         self.restart_required = False
         self.jobs: dict[str, Job] = {}
         self.lock = asyncio.Lock()
@@ -87,20 +89,44 @@ class App:
             else:
                 self.resolved_dashboard = await supervisor.find_dashboard_url(session) or ""
 
+            # This add-on exists for devices ESPHome's own local/mDNS OTA can't
+            # reach — i.e. devices outside the LAN. The address that matters is
+            # therefore the one HA is already configured to be reached at from
+            # outside (Settings -> System -> Network), not the host's LAN IP.
+            # Resolution order: explicit option > HA's configured external_url
+            # > LAN IP as a last resort (logged loudly — it will not work for
+            # an off-LAN device, but a working LAN-only default beats none for
+            # local testing).
             if self.settings.base_url:
                 self.resolved_base_url = self.settings.base_url.rstrip("/")
+                self.base_url_source = "configured"
             else:
-                host_ip = await supervisor.find_host_ip(session)
-                self.resolved_base_url = f"http://{host_ip}:8123" if host_ip else ""
+                external_url = await supervisor.find_external_url(session)
+                if external_url:
+                    self.resolved_base_url = external_url.rstrip("/")
+                    self.base_url_source = "ha_external_url"
+                else:
+                    host_ip = await supervisor.find_host_ip(session)
+                    self.resolved_base_url = f"http://{host_ip}:8123" if host_ip else ""
+                    self.base_url_source = "lan_ip_fallback"
 
         if self.resolved_base_url:
+            if self.base_url_source == "lan_ip_fallback":
+                LOG.warning(
+                    "Using the host's LAN address (%s) as base_url — Home Assistant has no "
+                    "external URL configured (Settings -> System -> Network). This only works "
+                    "for devices on the same LAN; a device this add-on is actually meant for "
+                    "won't be able to reach it. Set 'base_url' in the add-on options, or "
+                    "configure HA's external URL, to fix this.",
+                    self.resolved_base_url,
+                )
             packages.write_packages(
                 self.settings.esphome_config_dir, self.resolved_base_url, self.settings.publish_dir
             )
         else:
             LOG.error(
                 "Could not determine Home Assistant's address. Set 'base_url' in the add-on "
-                "options (for example http://192.168.0.10:8123) so the packages can be written."
+                "options (for example https://your-tunnel-domain) so the packages can be written."
             )
 
     # -- dashboard ---------------------------------------------------------
@@ -222,9 +248,11 @@ async def status(request: web.Request) -> web.Response:
         {
             "dashboard": app.resolved_dashboard,
             "base_url": app.resolved_base_url,
+            "base_url_source": app.base_url_source,
             "publish_dir": app.settings.publish_dir,
             "restart_required": app.restart_required,
             "package_dir": packages.PACKAGE_DIR,
+            "chip_families": metadata.CHIP_FAMILIES,
         }
     )
 
@@ -269,6 +297,67 @@ async def snippet(request: web.Request) -> web.Response:
     return web.json_response({"snippet": packages.snippet(node, mode)})
 
 
+NODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$")
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # generous for any ESPHome target; caps abuse
+
+
+@routes.post("/api/publish/manual")
+async def publish_manual(request: web.Request) -> web.Response:
+    """Publish a firmware.ota.bin the operator downloaded from the ESPHome
+    dashboard themselves — the path that needs no WS connection to ESPHome at
+    all, for anyone who won't open ESPHome's public port for this add-on.
+    """
+    app: App = request.app["app"]
+    reader = await request.multipart()
+
+    node = title = version = chip_family = ""
+    blob = b""
+
+    field = await reader.next()
+    while field is not None:
+        if field.name == "file":
+            chunks = []
+            total = 0
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    return web.json_response({"error": "file too large"}, status=413)
+                chunks.append(chunk)
+            blob = b"".join(chunks)
+        elif field.name in ("node", "title", "version", "chip_family"):
+            value = (await field.text()).strip()
+            if field.name == "node":
+                node = value
+            elif field.name == "title":
+                title = value
+            elif field.name == "version":
+                version = value
+            elif field.name == "chip_family":
+                chip_family = value
+        field = await reader.next()
+
+    if not NODE_RE.match(node):
+        return web.json_response(
+            {"error": "node must be letters/digits/hyphen/underscore, matching the device's ota_device"},
+            status=400,
+        )
+    if chip_family not in metadata.CHIP_FAMILIES:
+        return web.json_response({"error": "unknown chip_family"}, status=400)
+    if not version:
+        return web.json_response({"error": "version required"}, status=400)
+    if not blob:
+        return web.json_response({"error": "file required"}, status=400)
+
+    record = app.publisher.publish(
+        node=node, blob=blob, chip_family=chip_family, version=version, title=title or node
+    )
+    LOG.info("Manually published %s (%s, %s bytes)", node, chip_family, record["size"])
+    return web.json_response(record)
+
+
 @routes.delete("/api/publish/{node}")
 async def unpublish(request: web.Request) -> web.Response:
     app: App = request.app["app"]
@@ -280,7 +369,8 @@ async def unpublish(request: web.Request) -> web.Response:
 
 
 def create_app() -> web.Application:
-    app = web.Application()
+    # Default is 1MB, well under any real firmware — raised for /api/publish/manual.
+    app = web.Application(client_max_size=MAX_UPLOAD_BYTES + 65536)
     instance = App()
     app["app"] = instance
     app.on_startup.append(instance.startup)

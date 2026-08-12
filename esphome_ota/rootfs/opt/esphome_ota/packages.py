@@ -34,11 +34,18 @@ HEADER = """\
 
 UPDATE_PACKAGE = """\
 {header}
+# For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
+# your LAN, reachable only through your remote/cloud-tunnel URL). A device on
+# the same network as Home Assistant should just use ESPHome's built-in OTA —
+# it doesn't need this at all.
+#
 # Adds an "Update" entity to Home Assistant.
 #
 # Requires, in the device YAML:
 #   substitutions:
 #     ota_device: <name of this YAML file without .yaml>
+#     # ota_base_url: https://something-else.example  # only to override the
+#     #   add-on's configured base_url for this one device
 #   esphome:
 #     project:
 #       name: "you.something"
@@ -46,6 +53,9 @@ UPDATE_PACKAGE = """\
 #
 #   packages:
 #     ota: !include {package_dir}/update.yaml
+
+substitutions:
+  ota_base_url: {base_url}
 
 http_request:
   timeout: 15s
@@ -56,25 +66,35 @@ ota:
 update:
   - platform: http_request
     name: Firmware
-    source: {base_url}/local/{publish_dir}/${{ota_device}}.json
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
     update_interval: 6h
 """
 
 BUTTON_PACKAGE = """\
 {header}
+# For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
+# your LAN, reachable only through your remote/cloud-tunnel URL). A device on
+# the same network as Home Assistant should just use ESPHome's built-in OTA —
+# it doesn't need this at all.
+#
 # Adds a "Firmware Update" button. No version tracking: pressing it always
 # installs whatever is currently published for this device.
 #
 # Requires, in the device YAML:
 #   substitutions:
 #     ota_device: <name of this YAML file without .yaml>
+#     # ota_base_url: https://something-else.example  # only to override the
+#     #   add-on's configured base_url for this one device
 #
 #   packages:
 #     ota: !include {package_dir}/flash_button.yaml
 #
-# Note: this URL is fixed, so it relies on nothing caching it. Fetching it
-# over the LAN is fine; through a caching proxy, prefer update.yaml, whose
-# manifest carries a cache buster.
+# Note: this URL is fixed, so it relies on nothing caching it. Fine through
+# the tunnel directly; behind a second caching proxy in front of that,
+# prefer update.yaml, whose manifest carries a cache buster.
+
+substitutions:
+  ota_base_url: {base_url}
 
 http_request:
   timeout: 15s
@@ -88,8 +108,8 @@ button:
     entity_category: config
     on_press:
       - ota.http_request.flash:
-          url: {base_url}/local/{publish_dir}/${{ota_device}}.ota.bin
-          md5_url: {base_url}/local/{publish_dir}/${{ota_device}}.ota.bin.md5
+          url: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin
+          md5_url: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5
 """
 
 
