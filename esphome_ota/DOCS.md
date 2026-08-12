@@ -1,5 +1,7 @@
 # ESPHome OTA Server — Documentation
 
+🇰🇷 [한국어 문서](DOCS.ko.md)
+
 ## Manual publish
 
 Settings → this add-on's panel → **Manual publish**. Fields: node name (must
