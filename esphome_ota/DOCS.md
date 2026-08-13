@@ -115,25 +115,34 @@ Binaries are written to a temp file and `os.replace`d into position. A rename
 swaps the directory entry while an in-flight download keeps reading the old
 inode, so republishing while a device is downloading cannot corrupt its update.
 
-## The two packages
-
-Recommended default: `flash_button.yaml`. It never parses anything — it
-downloads a `.bin` and checks an MD5 hex string against it. `update.yaml`
-fetches and parses a JSON manifest first, which is one more thing a
-proxy/CDN in front of Home Assistant can interfere with (see
-[Troubleshooting](#failed-to-parse-json-from-the-manifest-updateyaml-only)).
-Reach for `update.yaml` only if you specifically want an Update entity in
-Home Assistant with version tracking.
-
-### A. Force-install button — `ota_server/flash_button.yaml`
+## The package — `ota_server/ota.yaml`
 
 ```yaml
 substitutions:
   ota_device: livingroom
 
 packages:
-  ota: !include ota_server/flash_button.yaml
+  ota: !include ota_server/ota.yaml
+
+esphome:
+  project:
+    name: "you.something"
+    version: "1.0.0"      # bump to publish an update
 ```
+
+That one include adds both a force-install button and an Update entity. The
+old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
+are still generated as identical copies of `ota.yaml`, so existing device
+configs that include either one keep working — they now get both entities.
+
+The button never parses anything — it downloads a `.bin` and checks an MD5
+hex string against it. The Update entity fetches and parses a JSON manifest
+first, which is one more thing a proxy/CDN in front of Home Assistant can
+interfere with (see
+[Troubleshooting](#failed-to-parse-json-from-the-manifest-update-entity-only)).
+If the manifest fetch fails, use the button.
+
+### Force-install button
 
 No version tracking. Pressing the button runs `ota.http_request.flash` against
 the `.ota.bin` URL with `md5_url` for verification; if the digest does not
@@ -158,27 +167,14 @@ button:
       - button.press: ota_flash_button
 ```
 
-### B. Update entity — `ota_server/update.yaml`
-
-```yaml
-substitutions:
-  ota_device: livingroom
-
-packages:
-  ota: !include ota_server/update.yaml
-
-esphome:
-  project:
-    name: "you.something"
-    version: "1.0.0"      # bump to publish an update
-```
+### Update entity
 
 The device reports `ESPHOME_PROJECT_VERSION` as its current version and
 compares it with the manifest's `version`. **Without an `esphome.project`
 block** the device falls back to reporting the ESPHome release string, so the
 add-on publishes that as the manifest version too — meaning an update only ever
 appears when you upgrade ESPHome itself, not when you change your config. The
-UI flags devices in that state.
+UI flags devices in that state. The button still works either way.
 
 Pressing Install only downloads if the device's `update:` state is already
 `AVAILABLE` — that state only comes from a prior successful manifest fetch
@@ -204,7 +200,7 @@ update:
 
 ### Overriding the address for one device
 
-Both packages define an `ota_base_url` substitution defaulting to the add-on's
+The package defines an `ota_base_url` substitution defaulting to the add-on's
 configured `base_url`. ESPHome applies the main config's `substitutions:` over
 a package's same-named ones, so a device that needs a different address —
 say, a second remote site — can override it without touching the generated
@@ -254,15 +250,14 @@ publish is readable by anything that can reach Home Assistant's HTTP port.
 
 **MD5 mismatch during OTA (`Aborting due to MD5 mismatch`)** — usually a
 caching proxy in front of Home Assistant (a Cloudflare tunnel, most
-commonly) serving a stale `.ota.bin` after a republish. Both packages now
-cache-bust their firmware URL (see
-[above](#a-force-install-button--ota_serverflash_buttonyaml)), so a freshly
-regenerated `flash_button.yaml`/`update.yaml` shouldn't hit this — this is
-for a device still running firmware compiled from the old fixed-URL
-`flash_button.yaml` (pre-0.3.5), or a caching layer that's ignoring query
-strings entirely (rare, but some CDNs can be configured that way). Confirm
-it by comparing what the origin actually has right now against what's
-really being served:
+commonly) serving a stale `.ota.bin` after a republish. The generated
+package now cache-busts the firmware URL (see
+[above](#force-install-button)), so a freshly regenerated `ota.yaml`
+shouldn't hit this — this is for a device still running firmware compiled
+from the old fixed-URL `flash_button.yaml` (pre-0.3.5), or a caching layer
+that's ignoring query strings entirely (rare, but some CDNs can be
+configured that way). Confirm it by comparing what the origin actually has
+right now against what's really being served:
 
 ```bash
 curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin.md5"
@@ -276,7 +271,7 @@ add-on, is serving old bytes. Fix it:
 
 - **Recompile and reflash the device once**, by whatever method currently
   works (USB, or a manual firmware install through the ESPHome dashboard).
-  That picks up the new `flash_button.yaml` with its randomized `?r=`, which
+  That picks up the new package with its randomized `?r=`, which
   ends the problem for every press after.
 - **If the CDN ignores query strings for caching**, add an explicit cache
   bypass rule instead. In Cloudflare: Rules → Cache Rules → match the path
@@ -285,7 +280,9 @@ add-on, is serving old bytes. Fix it:
 A one-off already-stuck cache just needs a manual purge of that specific
 `.ota.bin` URL to unblock the device immediately.
 
-**"Failed to parse JSON from ...`/<node>.json`" (`update.yaml` only)** — the
+<a id="failed-to-parse-json-from-the-manifest-update-entity-only"></a>
+
+**"Failed to parse JSON from ...`/<node>.json`" (Update entity only)** — the
 device successfully reached `source:` but what it got back didn't parse as
 JSON. Confirmed in the field on a Cloudflare-tunneled `base_url`: the file on
 disk was valid every time it was checked from outside (`curl -s
@@ -311,10 +308,10 @@ few hundred bytes, compression buys nothing) or, on a plan with
 Configuration Rules / Response Header Transform Rules, scope the exclusion
 to `/local/*` instead of the whole zone.
 
-Simplest fix regardless of root cause: **switch the device to
-`flash_button.yaml`**. It downloads `.ota.bin` and reads `.ota.bin.md5` as
-plain text — no JSON parsing step for a compressed or otherwise-mangled
-response to break.
+Simplest fix regardless of root cause: **use the force-install button
+instead of the Update entity's Install**. It downloads `.ota.bin` and reads
+`.ota.bin.md5` as plain text — no JSON parsing step for a compressed or
+otherwise-mangled response to break.
 
 **Manual publish rejects the chip family / update entity never appears** —
 the dropdown lists every string ESPHome's update component might compare

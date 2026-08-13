@@ -119,25 +119,34 @@ URL을 가리킵니다.
 읽기 때문에, 다운로드 도중 재게시가 일어나도 업데이트가 깨지지
 않습니다.
 
-## 두 패키지
-
-기본 권장: `flash_button.yaml`. 이건 아무것도 파싱하지 않습니다 —
-`.bin`을 받아서 MD5 16진수 문자열을 대조할 뿐입니다. `update.yaml`은
-먼저 JSON 매니페스트를 받아서 파싱하는데, 이건 Home Assistant 앞단의
-프록시/CDN이 개입할 수 있는 지점이 하나 더 생기는 셈입니다(
-[문제 해결](#매니페스트에서-json-파싱-실패-updateyaml에서만) 참고).
-`update.yaml`은 Home Assistant에 버전 추적이 되는 Update 엔티티를
-꼭 원할 때만 쓰세요.
-
-### A. 강제 설치 버튼 (flash_button.yaml)
+## 패키지 — `ota_server/ota.yaml`
 
 ```yaml
 substitutions:
   ota_device: livingroom
 
 packages:
-  ota: !include ota_server/flash_button.yaml
+  ota: !include ota_server/ota.yaml
+
+esphome:
+  project:
+    name: "you.something"
+    version: "1.0.0"      # bump this to offer an update
 ```
+
+이 include 하나로 강제 설치 버튼과 Update 엔티티가 둘 다 들어갑니다.
+예전 파일명 `ota_server/update.yaml`과 `ota_server/flash_button.yaml`도
+`ota.yaml`과 같은 내용으로 계속 생성되므로, 기존 기기 설정은 그대로
+동작하고 — 이제는 두 엔티티를 모두 갖게 됩니다.
+
+버튼은 아무것도 파싱하지 않습니다 — `.bin`을 받아서 MD5 16진수
+문자열을 대조할 뿐입니다. Update 엔티티는 먼저 JSON 매니페스트를 받아서
+파싱하는데, 이건 Home Assistant 앞단의 프록시/CDN이 개입할 수 있는
+지점이 하나 더 생기는 셈입니다(
+[문제 해결](#매니페스트에서-json-파싱-실패-update-엔티티에서만) 참고).
+매니페스트 fetch가 실패하면 버튼을 쓰세요.
+
+### 강제 설치 버튼
 
 버전 추적이 없습니다. 버튼을 누르면 `ota.http_request.flash`가
 `.ota.bin` URL로 `md5_url`과 함께 실행되고, 다이제스트가 받은 것과 안
@@ -161,27 +170,14 @@ button:
       - button.press: ota_flash_button
 ```
 
-### B. 업데이트 엔티티 (update.yaml)
-
-```yaml
-substitutions:
-  ota_device: livingroom
-
-packages:
-  ota: !include ota_server/update.yaml
-
-esphome:
-  project:
-    name: "you.something"
-    version: "1.0.0"      # bump this to offer an update
-```
+### 업데이트 엔티티
 
 기기는 `ESPHOME_PROJECT_VERSION`을 현재 버전으로 보고해서 매니페스트의
 `version`과 비교합니다. **`esphome.project` 블록이 없으면** 기기는
 ESPHome 릴리스 문자열을 대신 보고하고, add-on도 매니페스트 버전을
 그걸로 게시하게 됩니다 — 즉 본인 설정을 바꿔도 업데이트가 안 뜨고,
 ESPHome 자체를 업그레이드했을 때만 뜹니다. UI가 이 상태인 기기를
-표시해줍니다.
+표시해줍니다. 버튼은 버전 없이도 동작합니다.
 
 Install을 눌렀을 때 실제로 다운로드가 되려면 디바이스의 `update:`
 상태가 이미 `AVAILABLE`이어야 합니다 — 이 상태는 오직 이전에 성공한
@@ -207,7 +203,7 @@ update:
 
 ### 기기별로 주소 오버라이드하기
 
-두 패키지 모두 `ota_base_url` substitution을 정의하는데, 기본값은
+패키지는 `ota_base_url` substitution을 정의하는데, 기본값은
 add-on에 설정된 `base_url`입니다. ESPHome은 메인 설정의
 `substitutions:`를 패키지의 동일 이름 substitution 위에 덮어쓰므로,
 다른 주소가 필요한 기기 — 예를 들어 두 번째 원격 사이트 — 는 생성된
@@ -261,15 +257,14 @@ ESPHome은 이걸 `ESPHOME_VARIANT`와 정확한 문자열 비교로 대조하�
 
 **OTA 중 MD5 불일치 (`Aborting due to MD5 mismatch`)** — 보통 Home
 Assistant 앞단의 캐싱 프록시(가장 흔하게는 Cloudflare 터널)가 재게시
-이후에도 옛날 `.ota.bin`을 계속 내려주는 경우입니다. 두 패키지 모두
+이후에도 옛날 `.ota.bin`을 계속 내려주는 경우입니다. 생성된 패키지는
 이제 펌웨어 URL에 캐시버스터가 붙어서(위
-[강제 설치 버튼](#a-강제-설치-버튼-flash_buttonyaml) 참고), 새로
-생성된 `flash_button.yaml`/`update.yaml`이라면 이 문제가 안 나야
-정상입니다 — 이 항목은 이 수정 이전(0.3.5 이전)에 컴파일된 고정 URL
-`flash_button.yaml`을 아직 쓰는 기기이거나, 쿼리 문자열 자체를 무시하는
-캐싱 레이어(드물지만 일부 CDN은 그렇게 설정 가능)일 때를 위한
-겁니다. 지금 origin에 실제로 있는 것과 실제로 서빙되고 있는 것을
-비교해서 확인하세요:
+[강제 설치 버튼](#강제-설치-버튼) 참고), 새로 생성된 `ota.yaml`이라면
+이 문제가 안 나야 정상입니다 — 이 항목은 이 수정 이전(0.3.5 이전)에
+컴파일된 고정 URL `flash_button.yaml`을 아직 쓰는 기기이거나, 쿼리
+문자열 자체를 무시하는 캐싱 레이어(드물지만 일부 CDN은 그렇게 설정
+가능)일 때를 위한 겁니다. 지금 origin에 실제로 있는 것과 실제로
+서빙되고 있는 것을 비교해서 확인하세요:
 
 ```bash
 curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin.md5"
@@ -283,8 +278,8 @@ curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin" | md5sum
 
 - **기기를 한 번 재컴파일 & 재플래시하세요**, 지금 되는 아무 방법으로나
   (USB, 또는 ESPHome 대시보드를 통한 수동 펌웨어 설치). 그러면 새로운
-  랜덤 `?r=`가 붙은 `flash_button.yaml`을 받아서, 그 이후 누를
-  때마다 이 문제가 끝납니다.
+  랜덤 `?r=`가 붙은 패키지를 받아서, 그 이후 누를 때마다 이 문제가
+  끝납니다.
 - **CDN이 쿼리 문자열을 캐싱 기준에서 무시한다면**, 명시적인 캐시
   우회 규칙을 대신 추가하세요. Cloudflare라면: Rules → Cache Rules →
   경로 매칭(예: `contains` `.ota.bin`) → Cache eligibility:
@@ -293,7 +288,7 @@ curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin" | md5sum
 일회성으로 이미 걸려있는 캐시라면 그 특정 `.ota.bin` URL만 수동으로
 퍼지하면 바로 풀립니다.
 
-**매니페스트에서 JSON 파싱 실패 (`update.yaml`에서만)** — 기기는
+**매니페스트에서 JSON 파싱 실패 (Update 엔티티에서만)** — 기기는
 `source:`에 정상적으로 닿았는데, 받아온 게 JSON으로 파싱이 안 된
 경우입니다. Cloudflare 터널을 쓰는 `base_url`에서 실제로 확인된
 사례: 밖에서 확인할 때마다(`curl -s ".../<node>.json"`) 디스크의
@@ -320,9 +315,10 @@ Cloudflare 사이 어디든) 압축된 바이트를 그대로 받아서 JSON 파
 Configuration Rules / Response Header Transform Rules가 있는
 플랜이라면 `/local/*`로만 예외 범위를 좁히세요.
 
-원인이 뭐든 가장 간단한 해결책: **기기를 `flash_button.yaml`로
-바꾸세요.** `.ota.bin`을 받고 `.ota.bin.md5`는 그냥 텍스트로 읽어서,
-압축되거나 어떻게든 망가진 응답이 깨질 JSON 파싱 단계 자체가 없습니다.
+원인이 뭐든 가장 간단한 해결책: **Update 엔티티의 Install 대신 강제
+설치 버튼을 쓰세요.** `.ota.bin`을 받고 `.ota.bin.md5`는 그냥 텍스트로
+읽어서, 압축되거나 어떻게든 망가진 응답이 깨질 JSON 파싱 단계 자체가
+없습니다.
 
 **수동 게시에서 칩 종류가 거부되거나 / Update 엔티티가 아예 안 뜸** —
 드롭다운은 ESPHome의 update 컴포넌트가 비교할 수 있는 모든 문자열을

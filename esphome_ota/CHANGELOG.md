@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Generated ESPHome packages are now a single `ota.yaml`: Update entity and
+  force-install button share one `ota:` / `http_request:` block, so they can
+  be used together. The button keeps the randomized `?r=` cache buster from
+  0.3.5. `update.yaml` and `flash_button.yaml` are still written as identical
+  copies, so existing `!include`s keep working.
+
 ## 0.3.7
 
 - Renamed the display name from "ESPHome OTA Server" to **"ESPHome OTA

@@ -1,19 +1,18 @@
-"""Generate the ESPHome packages users include in their device configs.
+"""Generate the ESPHome package users include in their device configs.
 
-Two flavours, because the update entity only works when the device has a
-version to compare against:
+One package, two entities, sharing a single ``ota:`` / ``http_request:``
+block (the previous split into ``update.yaml`` and ``flash_button.yaml``
+couldn't be included together because both defined those keys):
 
-``update.yaml``  — an ``update:`` entity. The device reports
-    ESPHOME_PROJECT_VERSION as its current version, so the config must declare
-    an ``esphome.project`` block or HA will compare against the ESPHome
-    release string and never see a change.
+* a template button running ``ota.http_request.flash`` — no version
+  comparison; press it and the current published firmware is installed
+* an ``update:`` entity — the device reports ESPHOME_PROJECT_VERSION as
+  its current version, so the config should declare an ``esphome.project``
+  block or HA will compare against the ESPHome release string
 
-``flash_button.yaml`` — a template button running ``ota.http_request.flash``.
-    No version comparison at all: press it and the current published firmware
-    is installed. Works on any config.
-
-Both are written into the ESPHome config folder so a device YAML can pull them
-in with a plain ``!include``.
+Both are written into the ESPHome config folder so a device YAML can pull
+them in with a plain ``!include``. The old filenames are still written as
+identical copies so existing includes keep working.
 """
 
 from __future__ import annotations
@@ -24,6 +23,10 @@ from pathlib import Path
 LOG = logging.getLogger("packages")
 
 PACKAGE_DIR = "ota_server"
+PACKAGE_FILE = "ota.yaml"
+# Identical copies of PACKAGE_FILE, so device YAMLs that already
+# ``!include`` either of the old names keep compiling after the merge.
+LEGACY_PACKAGE_FILES = ("update.yaml", "flash_button.yaml")
 
 HEADER = """\
 # ---------------------------------------------------------------------------
@@ -32,19 +35,15 @@ HEADER = """\
 # ---------------------------------------------------------------------------
 """
 
-UPDATE_PACKAGE = """\
+OTA_PACKAGE = """\
 {header}
-# B. Update entity — see this add-on's DOCS.md. Prefer flash_button.yaml
-# (package A) unless you specifically want version tracking: this one parses
-# a JSON manifest first, which is one more thing a proxy/CDN in front of
-# Home Assistant can interfere with.
-#
 # For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
 # your LAN, reachable only through your remote/cloud-tunnel URL). A device on
 # the same network as Home Assistant should just use ESPHome's built-in OTA —
 # it doesn't need this at all.
 #
-# Adds an "Update" entity to Home Assistant.
+# Adds a "Firmware Update" button that always installs whatever is currently
+# published, and an "Update" entity (version comparison, Install in HA).
 #
 # Requires, in the device YAML:
 #   substitutions:
@@ -57,51 +56,18 @@ UPDATE_PACKAGE = """\
 #       version: "1.0.0"      # bump this to offer an update
 #
 #   packages:
-#     ota: !include {package_dir}/update.yaml
-
-substitutions:
-  ota_base_url: {base_url}
-
-http_request:
-  timeout: 60s
-
-ota:
-  - platform: http_request
-
-update:
-  - platform: http_request
-    id: ota_update
-    name: Firmware
-    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
-    update_interval: 6h
-"""
-
-BUTTON_PACKAGE = """\
-{header}
-# A. Force-install button (recommended default — see this add-on's DOCS.md)
+#     ota: !include {package_dir}/{package_file}
 #
-# For devices ESPHome's own local/mDNS OTA can't reach (typically: outside
-# your LAN, reachable only through your remote/cloud-tunnel URL). A device on
-# the same network as Home Assistant should just use ESPHome's built-in OTA —
-# it doesn't need this at all.
+# Without an esphome.project block the Update entity compares against the
+# ESPHome release string and will not flag config-only changes. The button
+# still works either way.
 #
-# Adds a "Firmware Update" button. No version tracking: pressing it always
-# installs whatever is currently published for this device.
-#
-# Requires, in the device YAML:
-#   substitutions:
-#     ota_device: <name of this YAML file without .yaml>
-#     # ota_base_url: https://something-else.example  # only to override the
-#     #   add-on's configured base_url for this one device
-#
-#   packages:
-#     ota: !include {package_dir}/flash_button.yaml
-#
-# url/md5_url carry a random ?r= on every press (random_uint32(), evaluated
-# fresh each call) so a caching proxy in front of Home Assistant — a
-# Cloudflare tunnel, for instance — never has a reason to serve back a stale
-# firmware/md5 pair from an earlier press or an earlier republish: the query
-# string makes each request a cache miss by construction.
+# The button's url/md5_url carry a random ?r= on every press
+# (random_uint32(), evaluated fresh each call) so a caching proxy in front
+# of Home Assistant — a Cloudflare tunnel, for instance — never has a
+# reason to serve back a stale firmware/md5 pair. Prefer the button over
+# the Update entity's Install if a proxy/CDN is mangling the JSON
+# manifest (ESPHome's http_request does not decompress gzip).
 #
 # This button's id is `ota_flash_button` (see below) — press it
 # programmatically from anything else in the device YAML with the
@@ -125,6 +91,13 @@ http_request:
 ota:
   - platform: http_request
 
+update:
+  - platform: http_request
+    id: ota_update
+    name: Firmware
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    update_interval: 6h
+
 button:
   - platform: template
     id: ota_flash_button  # referenced by `button.press: ota_flash_button` — see header
@@ -140,58 +113,48 @@ button:
 
 
 def write_packages(esphome_config_dir: Path, base_url: str, publish_dir: str) -> list[Path]:
-    """(Re)write both package files. Returns the paths written."""
+    """(Re)write the package file and its legacy aliases. Returns the paths written."""
     target = esphome_config_dir / PACKAGE_DIR
     target.mkdir(parents=True, exist_ok=True)
 
-    fields = {
-        "header": HEADER,
-        "base_url": base_url.rstrip("/"),
-        "publish_dir": publish_dir,
-        "package_dir": PACKAGE_DIR,
-    }
+    text = OTA_PACKAGE.format(
+        header=HEADER,
+        base_url=base_url.rstrip("/"),
+        publish_dir=publish_dir,
+        package_dir=PACKAGE_DIR,
+        package_file=PACKAGE_FILE,
+    )
     written = []
-    for filename, template in (("update.yaml", UPDATE_PACKAGE), ("flash_button.yaml", BUTTON_PACKAGE)):
+    for filename in (PACKAGE_FILE, *LEGACY_PACKAGE_FILES):
         path = target / filename
-        path.write_text(template.format(**fields), encoding="utf-8")
+        path.write_text(text, encoding="utf-8")
         written.append(path)
 
     LOG.info("Wrote ESPHome packages to %s", target)
     return written
 
 
-def snippet(node: str, mode: str) -> str:
+def snippet(node: str) -> str:
     """The copy-paste block shown in the UI for one device."""
-    include = "update.yaml" if mode == "update" else "flash_button.yaml"
-    extra = ""
-    button_note = ""
-    if mode == "update":
-        extra = (
-            "\nesphome:\n"
-            "  project:\n"
-            '    name: "eigger.esphome"\n'
-            '    version: "1.0.0"   # bump to publish an update\n'
-        )
-    else:
-        button_note = (
-            "\n# This button's id is ota_flash_button. Trigger the same flash from\n"
-            "# another button (e.g. a physical GPIO button) instead of duplicating\n"
-            "# the ota.http_request.flash call:\n"
-            "#\n"
-            "# button:\n"
-            "#   - platform: gpio\n"
-            "#     pin: GPIO0\n"
-            "#     name: Flash Button\n"
-            "#     on_press:\n"
-            "#       - button.press: ota_flash_button\n"
-        )
     return (
         f"substitutions:\n"
         f"  ota_device: {node}\n"
         f"\npackages:\n"
-        f"  ota: !include {PACKAGE_DIR}/{include}\n"
-        f"{extra}"
-        f"{button_note}"
+        f"  ota: !include {PACKAGE_DIR}/{PACKAGE_FILE}\n"
+        f"\nesphome:\n"
+        f"  project:\n"
+        f'    name: "eigger.esphome"\n'
+        f'    version: "1.0.0"   # bump to publish an update\n'
+        f"\n# This button's id is ota_flash_button. Trigger the same flash from\n"
+        f"# another button (e.g. a physical GPIO button) instead of duplicating\n"
+        f"# the ota.http_request.flash call:\n"
+        f"#\n"
+        f"# button:\n"
+        f"#   - platform: gpio\n"
+        f"#     pin: GPIO0\n"
+        f"#     name: Flash Button\n"
+        f"#     on_press:\n"
+        f"#       - button.press: ota_flash_button\n"
         f"\n# On a memory-constrained board (typically ESP8266), TLS certificate\n"
         f"# verification can be too much for its RAM. Uncomment to skip it:\n"
         f"# http_request:\n"

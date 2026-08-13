@@ -56,31 +56,26 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 
 ## 뭘 얻게 되나요
 
-`<config>/esphome/ota_server/`에 ESPHome 패키지 두 개가 생성됩니다:
+`<config>/esphome/ota_server/ota.yaml`에 ESPHome 패키지 하나가
+생성됩니다(예전 `update.yaml` / `flash_button.yaml` 이름도 같은
+내용으로 계속 쓰이므로, 기존 include는 그대로 동작합니다):
 
-| 패키지 | 주는 것 | 필요한 것 |
-|---|---|---|
-| `flash_button.yaml` **(기본 권장)** | 항상 최신 게시본을 설치하는 **버튼** | 없음 |
-| `update.yaml` | HA에 Install 버튼이 달린 **Update 엔티티** | 버전을 올릴 `esphome.project` 블록 |
+| 얻는 것 | 필요한 것 |
+|---|---|
+| 항상 최신 게시본을 설치하는 **버튼** | 없음 — `project.version` 없이도 동작 |
+| HA에 Install 버튼이 달린 **Update 엔티티** | 버전을 올릴 `esphome.project` 블록 |
 
-둘 중 하나만 쓰세요 — 둘 다 `ota:`를 정의해서 같이 넣으면 충돌합니다.
-
-HA에 Update 엔티티를 꼭 원하는 게 아니라면 `flash_button.yaml`부터
-시작하세요. `update.yaml`은 먼저 JSON 매니페스트를 받아서 파싱한 뒤에야
-펌웨어를 받는데, `flash_button.yaml`은 아무것도 파싱하지 않고 그냥
-`.bin`을 받아서 MD5만 확인합니다 — Home Assistant 앞단의 프록시/CDN이
-개입할 여지가 하나 줄어드는 셈입니다. `update.yaml`에서
-`Failed to parse JSON from .../<node>.json`가 로그에 찍히면 그 기기를
-`flash_button.yaml`로 바꾸세요 —
-[DOCS.ko.md](DOCS.ko.md#매니페스트에서-json-파싱-실패-updateyaml에서만)
+버튼은 아무것도 파싱하지 않고 `.bin`을 받아 MD5만 확인합니다. Update
+엔티티는 먼저 JSON 매니페스트를 받는데, `Failed to parse JSON from
+.../<node>.json`가 로그에 찍히면 버튼 쪽으로 설치하세요 —
+[DOCS.ko.md](DOCS.ko.md#매니페스트에서-json-파싱-실패-update-엔티티에서만)
 참고.
 
-두 패키지 모두 이제 펌웨어 URL에 캐시버스터가 붙습니다(`update.yaml`은
-매니페스트의 바이너리 경로에 `?v=<md5>`, `flash_button.yaml`은 누를
-때마다 랜덤 `?r=`) — 그래서 Home Assistant 앞단의 캐싱 프록시나
-CDN(예: Cloudflare 터널)이 재게시 이후에도 옛날 `.ota.bin`을 계속
-내려주는 일이 없습니다. 이 수정 이전에 컴파일된 `flash_button.yaml`을
-아직 쓰고 있는 기기가 있다면
+펌웨어 URL에는 캐시버스터가 붙습니다(매니페스트의 바이너리 경로에
+`?v=<md5>`, 버튼은 누를 때마다 랜덤 `?r=`) — 그래서 Home Assistant
+앞단의 캐싱 프록시나 CDN(예: Cloudflare 터널)이 재게시 이후에도 옛날
+`.ota.bin`을 계속 내려주는 일이 없습니다. 그 수정 이전에 컴파일된
+`flash_button.yaml`을 아직 쓰는 기기가 있다면
 [DOCS.ko.md](DOCS.ko.md#ota-중-md5-불일치-aborting-due-to-md5-mismatch)를
 참고하세요 — 한 번만 재컴파일/재플래시하면(지금 되는 아무 방법으로나)
 바로 해결됩니다.

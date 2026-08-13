@@ -56,30 +56,25 @@ another add-on's data. Only the YAML sources are shared.
 
 ## What you get
 
-Two ESPHome packages are generated into `<config>/esphome/ota_server/`:
+One ESPHome package is generated into `<config>/esphome/ota_server/ota.yaml`
+(the old `update.yaml` / `flash_button.yaml` names are still written as
+identical copies, so existing includes keep working):
 
-| Package | Gives you | Needs |
-|---|---|---|
-| `flash_button.yaml` **(recommended default)** | A **button** that always installs the latest published build | Nothing |
-| `update.yaml` | An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
+| You get | Needs |
+|---|---|
+| A **button** that always installs the latest published build | Nothing — works even without `project.version` |
+| An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
 
-Use one or the other — both define `ota:`, so including both is a conflict.
+The button never parses anything — it downloads a `.bin` and checks its MD5.
+The Update entity fetches a JSON manifest first; if that logs
+`Failed to parse JSON from .../<node>.json`, use the button instead — see
+[DOCS.md](DOCS.md#failed-to-parse-json-from-the-manifest-update-entity-only).
 
-Start with `flash_button.yaml` unless you specifically want an Update entity
-in Home Assistant. `update.yaml` fetches a JSON manifest first and only
-downloads firmware after parsing it; `flash_button.yaml` never parses
-anything, it just downloads a `.bin` and checks its MD5 — one fewer thing
-for a proxy/CDN sitting in front of Home Assistant to interfere with. If
-`update.yaml` logs `Failed to parse JSON from .../<node>.json`, switch that
-device to `flash_button.yaml` — see
-[DOCS.md](DOCS.md#failed-to-parse-json-from-the-manifest-updateyaml-only).
-
-Both packages cache-bust their firmware URL now (a `?v=<md5>` on the
-manifest's binary path for `update.yaml`, a random `?r=` on every press for
-`flash_button.yaml`), so a caching proxy or CDN in front of Home Assistant
-(e.g. a Cloudflare tunnel) can't serve back a stale `.ota.bin` after a
-republish. If a device is still running an older `flash_button.yaml`
-compiled before this, see
+Firmware URLs are cache-busted (a `?v=<md5>` on the manifest's binary path,
+a random `?r=` on every button press), so a caching proxy or CDN in front of
+Home Assistant (e.g. a Cloudflare tunnel) can't serve back a stale `.ota.bin`
+after a republish. If a device is still running an older `flash_button.yaml`
+compiled before that, see
 [DOCS.md](DOCS.md#md5-mismatch-during-ota-aborting-due-to-md5-mismatch) —
 recompiling and reflashing it once (any way that currently works) picks up
 the fix.

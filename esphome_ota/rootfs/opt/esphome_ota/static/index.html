@@ -156,9 +156,7 @@ const STRINGS = {
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'YAML',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
-    optionA: 'A. Force-install button (recommended default, no version comparison)',
-    optionB: 'B. Update entity (version comparison, "Install" button in HA)',
-    pickOne: 'Use one or the other — including both duplicates <code>ota:</code>.',
+    yamlNote: 'Force-install button plus an Update entity (Install in HA). Set <code>esphome.project.version</code> so the Update entity can see new builds; the button works either way.',
     copyTitle: 'Copy to clipboard', copied: 'Copied',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
@@ -202,9 +200,7 @@ const STRINGS = {
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: 'YAML',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
-    optionA: 'A. 강제 설치 버튼 (기본 권장, 버전 비교 없음)',
-    optionB: 'B. 업데이트 엔티티 (버전 비교, HA에 "설치" 버튼)',
-    pickOne: '둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.',
+    yamlNote: '강제 설치 버튼과 업데이트 엔티티(HA 설치 버튼)가 함께 들어갑니다. 업데이트 엔티티가 새 빌드를 보려면 <code>esphome.project.version</code>을 설정하세요. 버튼은 버전 없이도 동작합니다.',
     copyTitle: '클립보드에 복사', copied: '복사됨',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
@@ -460,27 +456,17 @@ async function copySnippet(id, btn) {
 window.copySnippet = copySnippet;
 
 async function showSnippet(d) {
-  const [button, update] = await Promise.all([
-    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=button`),
-    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=update`),
-  ]);
+  const { snippet } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
     <b>${T.yamlHeader(d.friendly_name)}</b>
     <div class="snippetLabel tiny muted" style="margin-top:10px">
-      <span>${T.optionA}</span>
+      <span>${T.yamlNote}</span>
       <button type="button" class="copyBtn" title="${T.copyTitle}"
               onclick="copySnippet('snippetA', this)">${COPY_ICON}</button>
     </div>
-    <pre id="snippetA">${escapeHtml(button.snippet)}</pre>
-    <div class="snippetLabel tiny muted" style="margin-top:12px">
-      <span>${T.optionB}</span>
-      <button type="button" class="copyBtn" title="${T.copyTitle}"
-              onclick="copySnippet('snippetB', this)">${COPY_ICON}</button>
-    </div>
-    <pre id="snippetB">${escapeHtml(update.snippet)}</pre>
-    <div class="tiny muted" style="margin-top:10px">${T.pickOne}</div>`;
+    <pre id="snippetA">${escapeHtml(snippet)}</pre>`;
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
