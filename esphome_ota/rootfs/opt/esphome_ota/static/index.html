@@ -162,11 +162,12 @@ const STRINGS = {
     md5: (m) => `md5 ${m}`,
     publishedMeta: (m, d) => `md5 ${m} · ${d}`,
     legacyTitle: 'Advanced: individual entities',
-    legacyBody: 'Reference only — the package above already includes both. Paste one of ' +
-      'these directly into the device YAML (not an <code>!include</code>) if you genuinely ' +
-      'want just one entity and not the other.',
-    legacyUpdateLabel: 'Update entity only',
-    legacyButtonLabel: 'Force-install button only',
+    legacyBody: 'The package above includes both. Use one of these instead if you want ' +
+      'just one entity — <code>update.yaml</code> and <code>flash_button.yaml</code> can\'t ' +
+      'both be <code>!include</code>d in the same device (both declare ' +
+      '<code>http_request:</code>/<code>ota:</code>).',
+    legacyUpdateLabel: 'Update entity only (update.yaml)',
+    legacyButtonLabel: 'Force-install button only (flash_button.yaml)',
     lanFallbackTitle: 'Using a LAN-only address.',
     lanFallbackBody: 'Home Assistant has no external URL configured (Settings → System → ' +
       'Network), so this add-on fell back to the host\'s LAN address. That only works for ' +
@@ -214,10 +215,12 @@ const STRINGS = {
     md5: (m) => `md5 ${m}`,
     publishedMeta: (m, d) => `md5 ${m} · ${d}`,
     legacyTitle: '고급: 개별 엔티티',
-    legacyBody: '참고용입니다 — 위 패키지 하나로 이미 둘 다 포함됩니다. 정말 하나만 필요하면 ' +
-      '아래를 <code>!include</code> 대신 기기 YAML에 직접 붙여넣으세요.',
-    legacyUpdateLabel: '업데이트 엔티티만',
-    legacyButtonLabel: '강제 설치 버튼만',
+    legacyBody: '위 패키지는 둘 다 포함합니다. 하나만 필요하면 이쪽을 쓰세요 — ' +
+      '<code>update.yaml</code>과 <code>flash_button.yaml</code>은 둘 다 ' +
+      '<code>http_request:</code>/<code>ota:</code>를 정의해서, 같은 기기에서 ' +
+      '동시에 <code>!include</code>할 수 없습니다.',
+    legacyUpdateLabel: '업데이트 엔티티만 (update.yaml)',
+    legacyButtonLabel: '강제 설치 버튼만 (flash_button.yaml)',
     lanFallbackTitle: 'LAN 전용 주소를 쓰고 있습니다.',
     lanFallbackBody: 'Home Assistant에 외부 주소가 설정돼 있지 않아서(설정 → 시스템 → 네트워크), ' +
       '호스트의 LAN 주소로 대체했습니다. 같은 네트워크의 기기에만 동작합니다 — LAN 밖 기기라면 ' +
