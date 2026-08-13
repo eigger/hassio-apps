@@ -116,14 +116,22 @@ Binaries are written to a temp file and `os.replace`d into position. A rename
 swaps the directory entry while an in-flight download keeps reading the old
 inode, so republishing while a device is downloading cannot corrupt its update.
 
-## The package — `ota_server/ota.yaml`
+## The packages — `ota_server/*.yaml`
+
+Three files, each named for exactly what it contains:
+
+| File | Contains |
+|---|---|
+| `update.yaml` — **recommended** | Update entity only |
+| `flash_button.yaml` — fallback | Force-install button only |
+| `ota.yaml` | Both — only exists because `update.yaml` and `flash_button.yaml` can't be `!include`d together (both declare `http_request:`/`ota:`, and ESPHome doesn't merge two packages' same-named top-level keys) |
 
 ```yaml
 substitutions:
   ota_device: livingroom
 
 packages:
-  ota: !include ota_server/ota.yaml
+  ota: !include ota_server/update.yaml
 
 esphome:
   project:
@@ -131,18 +139,15 @@ esphome:
     version: "1.0.0"      # bump to publish an update
 ```
 
-That one include adds both an Update entity and a force-install button. The
-old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
-are still generated as identical copies of `ota.yaml`, so existing device
-configs that include either one keep working — they now get both entities.
-
 **The Update entity is the recommended default** — version tracking, and an
 Install button in Home Assistant. It fetches and parses a JSON manifest
 first, which is one more thing a proxy/CDN in front of Home Assistant can
 interfere with on some configurations (see
 [Troubleshooting](#failed-to-parse-json-from-the-manifest-update-entity-only)).
-If you hit that specific failure, the button is a working fallback — it
-never parses anything.
+If you hit that specific failure, switch the `!include` to
+`ota_server/flash_button.yaml` — it never parses anything, at the cost of
+no version tracking. Want both entities on one device? Use
+`ota_server/ota.yaml` instead of either.
 
 ### Update entity
 

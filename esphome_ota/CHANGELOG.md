@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.3
+
+**`update.yaml` and `flash_button.yaml` are genuinely single-entity again.**
+Since the 0.4.0 merge they'd been written as identical copies of the
+combined `ota.yaml` — so `!include`-ing either name silently gave you both
+entities, not just the one its filename promised. Reverted: `update.yaml`
+now contains only the Update entity, `flash_button.yaml` only the button;
+`ota.yaml` remains for a device that wants both (and is the only way to get
+both — the two single-entity files can't be `!include`d together, both
+declare `http_request:`/`ota:`).
+
+The "Advanced: individual entities" section added last version (0.4.2) was
+built against the old identical-copies behavior and had it backwards — it
+inlined raw single-entity YAML instead of using these files, and the
+Update-only example was missing its `esphome.project` block entirely. Now
+uses clean `packages: ota: !include ota_server/update.yaml` /
+`flash_button.yaml`, matching the main example's style, with the project
+block included.
+
+README/DOCS (both languages) updated to describe three distinct files
+instead of one file with two aliases.
+
 ## 0.4.2
 
 - **Update entity promoted to the recommended default** across README/DOCS

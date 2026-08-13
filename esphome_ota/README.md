@@ -56,14 +56,14 @@ another add-on's data. Only the YAML sources are shared.
 
 ## What you get
 
-One ESPHome package is generated into `<config>/esphome/ota_server/ota.yaml`
-(the old `update.yaml` / `flash_button.yaml` names are still written as
-identical copies, so existing includes keep working):
+Three ESPHome packages are generated into `<config>/esphome/ota_server/`,
+each named for exactly what it contains:
 
-| You get | Needs |
-|---|---|
-| An **Update entity** in Home Assistant with an Install button — recommended | An `esphome.project` block with a `version` you bump |
-| A **button** that always installs the latest published build — fallback | Nothing — works even without `project.version` |
+| File | You get | Needs |
+|---|---|---|
+| `update.yaml` — recommended | An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
+| `flash_button.yaml` — fallback | A **button** that always installs the latest published build | Nothing — works even without `project.version` |
+| `ota.yaml` | Both of the above together | Can't `!include` `update.yaml` and `flash_button.yaml` together — both declare `http_request:`/`ota:` |
 
 The Update entity fetches and parses a JSON manifest first; on the rare setup
 where a proxy/CDN in front of Home Assistant compresses that response in a

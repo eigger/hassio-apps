@@ -56,14 +56,14 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 
 ## 뭘 얻게 되나요
 
-`<config>/esphome/ota_server/ota.yaml`에 ESPHome 패키지 하나가
-생성됩니다(예전 `update.yaml` / `flash_button.yaml` 이름도 같은
-내용으로 계속 쓰이므로, 기존 include는 그대로 동작합니다):
+`<config>/esphome/ota_server/` 밑에 ESPHome 패키지 세 개가 생성되는데,
+각각 이름 그대로의 내용만 담고 있습니다:
 
-| 얻는 것 | 필요한 것 |
-|---|---|
-| HA에 Install 버튼이 달린 **Update 엔티티** — 추천 | 버전을 올릴 `esphome.project` 블록 |
-| 항상 최신 게시본을 설치하는 **버튼** — 대안 | 없음 — `project.version` 없이도 동작 |
+| 파일 | 얻는 것 | 필요한 것 |
+|---|---|---|
+| `update.yaml` — 추천 | HA에 Install 버튼이 달린 **Update 엔티티** | 버전을 올릴 `esphome.project` 블록 |
+| `flash_button.yaml` — 대안 | 항상 최신 게시본을 설치하는 **버튼** | 없음 — `project.version` 없이도 동작 |
+| `ota.yaml` | 위 둘 다 함께 | `update.yaml`과 `flash_button.yaml`은 같이 `!include` 못 함 — 둘 다 `http_request:`/`ota:`를 정의하므로 |
 
 Update 엔티티는 먼저 JSON 매니페스트를 받아서 파싱합니다. 드물게 Home
 Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 처리

@@ -339,11 +339,10 @@ async def snippet(request: web.Request) -> web.Response:
         return web.json_response({"error": "node required"}, status=400)
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
-    legacy = packages.legacy_snippets(node, app.resolved_base_url, app.settings.publish_dir)
     return web.json_response(
         {
             "snippet": packages.snippet(node, published_version),
-            "legacy": legacy,
+            "legacy": packages.single_entity_snippets(node, published_version),
         }
     )
 

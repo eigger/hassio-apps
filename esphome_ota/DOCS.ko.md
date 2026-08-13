@@ -120,14 +120,22 @@ URL을 가리킵니다.
 읽기 때문에, 다운로드 도중 재게시가 일어나도 업데이트가 깨지지
 않습니다.
 
-## 패키지 — `ota_server/ota.yaml`
+## 패키지 — `ota_server/*.yaml`
+
+파일 세 개, 각자 이름 그대로의 내용만 담고 있습니다:
+
+| 파일 | 내용 |
+|---|---|
+| `update.yaml` — **추천** | Update 엔티티만 |
+| `flash_button.yaml` — 대안 | 강제 설치 버튼만 |
+| `ota.yaml` | 둘 다 — `update.yaml`과 `flash_button.yaml`을 같이 `!include` 못 해서 있는 파일입니다(둘 다 `http_request:`/`ota:`를 정의하는데, ESPHome은 두 패키지의 같은 최상위 키를 병합하지 않습니다) |
 
 ```yaml
 substitutions:
   ota_device: livingroom
 
 packages:
-  ota: !include ota_server/ota.yaml
+  ota: !include ota_server/update.yaml
 
 esphome:
   project:
@@ -135,17 +143,13 @@ esphome:
     version: "1.0.0"      # bump this to offer an update
 ```
 
-이 include 하나로 Update 엔티티와 강제 설치 버튼이 둘 다 들어갑니다.
-예전 파일명 `ota_server/update.yaml`과 `ota_server/flash_button.yaml`도
-`ota.yaml`과 같은 내용으로 계속 생성되므로, 기존 기기 설정은 그대로
-동작하고 — 이제는 두 엔티티를 모두 갖게 됩니다.
-
 **Update 엔티티가 기본 추천 방식입니다** — 버전 추적이 되고, HA에
 Install 버튼이 생깁니다. 먼저 JSON 매니페스트를 받아서 파싱하는데,
 일부 환경에서는 Home Assistant 앞단의 프록시/CDN이 여기 개입할 수
 있습니다([문제 해결](#매니페스트에서-json-파싱-실패-update-엔티티에서만)
-참고). 이 특정 증상을 겪으면 버튼이 확실한 대안입니다 — 아무것도
-파싱하지 않으니까요.
+참고). 이 특정 증상을 겪으면 `!include`를 `ota_server/flash_button.yaml`로
+바꾸세요 — 아무것도 파싱하지 않는 대신 버전 추적은 없습니다. 한 기기에
+둘 다 필요하면 둘 중 하나 대신 `ota_server/ota.yaml`을 쓰세요.
 
 ### 업데이트 엔티티
 
