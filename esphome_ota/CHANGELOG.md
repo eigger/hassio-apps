@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Generated ESPHome packages are now a single `ota.yaml`: Update entity and
+  force-install button share one `ota:` / `http_request:` block, so they can
+  be used together. `update.yaml` and `flash_button.yaml` are still written
+  as identical copies, so existing `!include`s keep working.
+
 ## 0.3.3
 
 - Generated packages (`update.yaml` / `flash_button.yaml`) now use

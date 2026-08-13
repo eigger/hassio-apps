@@ -334,10 +334,9 @@ async def job_status(request: web.Request) -> web.Response:
 @routes.get("/api/snippet")
 async def snippet(request: web.Request) -> web.Response:
     node = request.query.get("node", "")
-    mode = request.query.get("mode", "update")
     if not node:
         return web.json_response({"error": "node required"}, status=400)
-    return web.json_response({"snippet": packages.snippet(node, mode)})
+    return web.json_response({"snippet": packages.snippet(node)})
 
 
 NODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$")

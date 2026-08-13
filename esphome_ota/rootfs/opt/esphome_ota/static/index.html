@@ -153,9 +153,7 @@ const STRINGS = {
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'YAML',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
-    optionA: 'A. Update entity (version comparison, "Install" button in HA)',
-    optionB: 'B. Force-install button (no version comparison)',
-    pickOne: 'Use one or the other — including both duplicates <code>ota:</code>.',
+    yamlNote: 'Update entity (Install in HA) plus a force-install button. Set <code>esphome.project.version</code> so the Update entity can see new builds; the button works either way.',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
     lanFallbackTitle: 'Using a LAN-only address.',
@@ -198,9 +196,7 @@ const STRINGS = {
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: 'YAML',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
-    optionA: 'A. 업데이트 엔티티 (버전 비교, HA에 "설치" 버튼)',
-    optionB: 'B. 강제 설치 버튼 (버전 비교 없음)',
-    pickOne: '둘 중 하나만 쓰세요 — 둘 다 넣으면 <code>ota:</code>가 중복됩니다.',
+    yamlNote: '업데이트 엔티티(HA 설치 버튼)와 강제 설치 버튼이 함께 들어갑니다. 업데이트 엔티티가 새 빌드를 보려면 <code>esphome.project.version</code>을 설정하세요. 버튼은 버전 없이도 동작합니다.',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
     lanFallbackTitle: 'LAN 전용 주소를 쓰고 있습니다.',
@@ -418,19 +414,13 @@ async function loadDevices() {
 }
 
 async function showSnippet(d) {
-  const [update, button] = await Promise.all([
-    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=update`),
-    api(`api/snippet?node=${encodeURIComponent(d.node)}&mode=button`),
-  ]);
+  const { snippet } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
     <b>${T.yamlHeader(d.friendly_name)}</b>
-    <div class="tiny muted" style="margin-top:10px">${T.optionA}</div>
-    <pre>${escapeHtml(update.snippet)}</pre>
-    <div class="tiny muted" style="margin-top:12px">${T.optionB}</div>
-    <pre>${escapeHtml(button.snippet)}</pre>
-    <div class="tiny muted" style="margin-top:10px">${T.pickOne}</div>`;
+    <div class="tiny muted" style="margin-top:10px">${T.yamlNote}</div>
+    <pre>${escapeHtml(snippet)}</pre>`;
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 

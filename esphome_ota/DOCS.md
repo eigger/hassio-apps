@@ -113,16 +113,14 @@ Binaries are written to a temp file and `os.replace`d into position. A rename
 swaps the directory entry while an in-flight download keeps reading the old
 inode, so republishing while a device is downloading cannot corrupt its update.
 
-## The two packages
-
-### A. Update entity — `ota_server/update.yaml`
+## The package — `ota_server/ota.yaml`
 
 ```yaml
 substitutions:
   ota_device: livingroom
 
 packages:
-  ota: !include ota_server/update.yaml
+  ota: !include ota_server/ota.yaml
 
 esphome:
   project:
@@ -130,33 +128,30 @@ esphome:
     version: "1.0.0"      # bump to publish an update
 ```
 
-The device reports `ESPHOME_PROJECT_VERSION` as its current version and
-compares it with the manifest's `version`. **Without an `esphome.project`
-block** the device falls back to reporting the ESPHome release string, so the
-add-on publishes that as the manifest version too — meaning an update only ever
-appears when you upgrade ESPHome itself, not when you change your config. The
-UI flags devices in that state.
+That one include adds both:
 
-### B. Force-install button — `ota_server/flash_button.yaml`
+**Update entity.** The device reports `ESPHOME_PROJECT_VERSION` as its current
+version and compares it with the manifest's `version`. **Without an
+`esphome.project` block** the device falls back to reporting the ESPHome
+release string, so the add-on publishes that as the manifest version too —
+meaning an update only ever appears when you upgrade ESPHome itself, not when
+you change your config. The UI flags devices in that state.
 
-```yaml
-substitutions:
-  ota_device: livingroom
+**Force-install button.** No version tracking. Pressing it runs
+`ota.http_request.flash` against the fixed `.ota.bin` URL with `md5_url` for
+verification; if the digest does not match what was downloaded, the device
+keeps its existing firmware. Because that URL is fixed it has no cache buster
+— fine directly through the tunnel, but behind a second caching proxy in front
+of that, prefer the Update entity's Install action (its manifest carries a
+cache buster).
 
-packages:
-  ota: !include ota_server/flash_button.yaml
-```
-
-No version tracking. Pressing the button runs `ota.http_request.flash` against
-the fixed `.ota.bin` URL with `md5_url` for verification; if the digest does not
-match what was downloaded, the device keeps its existing firmware.
-
-Because that URL is fixed it has no cache buster — fine directly through the
-tunnel, but behind a second caching proxy in front of that, prefer package A.
+The old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
+are still generated as identical copies of `ota.yaml`, so existing device
+configs that include either one keep working — they now get both entities.
 
 ### Overriding the address for one device
 
-Both packages define an `ota_base_url` substitution defaulting to the add-on's
+The package defines an `ota_base_url` substitution defaulting to the add-on's
 configured `base_url`. ESPHome applies the main config's `substitutions:` over
 a package's same-named ones, so a device that needs a different address —
 say, a second remote site — can override it without touching the generated
