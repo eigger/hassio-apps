@@ -386,12 +386,29 @@ async def publish_manual(request: web.Request) -> web.Response:
             {"error": "node must be letters/digits/hyphen/underscore, matching the device's ota_device"},
             status=400,
         )
-    if chip_family not in metadata.CHIP_FAMILIES:
-        return web.json_response({"error": "unknown chip_family"}, status=400)
     if not version:
         return web.json_response({"error": "version required"}, status=400)
     if not blob:
         return web.json_response({"error": "file required"}, status=400)
+
+    # The image header knows the chip; the operator only has a dropdown and a
+    # memory of which board this .bin came from. Read it out and let the form
+    # value be the fallback — for targets with no chip_id in the header
+    # (ESP8266/RP2040) and for a chip newer than CHIP_IDS.
+    sniffed = metadata.chip_family_from_binary(blob)
+    if sniffed and chip_family and sniffed != chip_family:
+        LOG.warning(
+            "Manual publish %s: form says %s, image header says %s — trusting the header",
+            node,
+            chip_family,
+            sniffed,
+        )
+    chip_family = sniffed or chip_family
+    if chip_family not in metadata.CHIP_FAMILIES:
+        return web.json_response(
+            {"error": "could not read chipFamily from the firmware — select one explicitly"},
+            status=400,
+        )
 
     record = app.publisher.publish(
         node=node, blob=blob, chip_family=chip_family, version=version, title=title or node

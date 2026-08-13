@@ -5,10 +5,11 @@
 ## Manual publish
 
 Settings → this add-on's panel → **Manual publish**. Fields: node name (must
-match the `ota_device` substitution in the device's YAML), chip family
-(dropdown — must match the firmware's actual target exactly, ESPHome compares
-it as a plain string), version, optional title, and the `firmware.ota.bin`
-file itself (download it from the ESPHome dashboard's own UI — "OTA format").
+match the `ota_device` substitution in the device's YAML), chip family (leave
+it on **Auto** — the add-on reads it out of the uploaded image's header, and
+overrides the dropdown when the two disagree; picking one by hand only matters
+for targets that carry no chip id in the header, i.e. ESP8266/RP2040), version,
+optional title, and the `firmware.ota.bin` file itself (download it from the ESPHome dashboard's own UI — "OTA format").
 No connection to ESPHome is needed for this path at all; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.
 
@@ -236,9 +237,13 @@ the same one shown in the UI, not a generic proxy failure.
 
 **The update entity never appears** — check `chipFamily` in the UI. ESPHome
 matches it against `ESPHOME_VARIANT` with an exact string comparison and
-reports nothing at all on a mismatch. LibreTiny targets (BK72xx, RTL87xx) are
-not supported; their variant strings are per-chip and the add-on cannot derive
-them.
+reports nothing at all on a mismatch — on the device the only sign is
+`Failed to parse JSON from …` in the log, and an update entity stuck on
+*unknown* in Home Assistant. The published value comes from the image header's
+chip id; if the add-on doesn't recognise that id it now refuses to publish
+rather than guessing (the log names the id — file it as a bug). LibreTiny
+targets (BK72xx, RTL87xx) are not supported; their variant strings are
+per-chip and the add-on cannot derive them.
 
 **Backups grew** — `<config>/www` is included in Home Assistant backups, at
 roughly 1–2 MB per published device. Remove a device's files with the delete
@@ -313,9 +318,9 @@ instead of the Update entity's Install**. It downloads `.ota.bin` and reads
 `.ota.bin.md5` as plain text — no JSON parsing step for a compressed or
 otherwise-mangled response to break.
 
-**Manual publish rejects the chip family / update entity never appears** —
-the dropdown lists every string ESPHome's update component might compare
-against (`ESPHOME_VARIANT`), but picking the wrong one for the actual binary
-still passes validation here — ESPHome just won't match it on the device side.
-Match it to the board's actual chip exactly (e.g. an ESP32-C3 board is
-`ESP32-C3`, not `ESP32`).
+**Manual publish rejects the chip family** — on **Auto** this means the
+uploaded file's header carried no chip id the add-on could read: either it
+isn't an ESP32 image (ESP8266/RP2040 — pick the family from the dropdown) or
+it isn't a `.ota.bin` at all. A hand-picked family is used as-is only in that
+case; whenever the header does carry a chip id, it wins over the dropdown, so
+an ESP32-C3 binary can no longer be published as `ESP32` by mistake.

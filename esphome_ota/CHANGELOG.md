@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1
+
+- **Fixed `chipFamily` for ESP32-P4 and ESP32-C5.** Their `esp_chip_id_t`
+  values were missing from the image-header table, so detection fell through
+  to the ESPHome dashboard's `target_platform` — which reports the *component*
+  (`esp32`) for every variant and therefore published `"chipFamily": "ESP32"`.
+  Devices never matched that build: the `update` entity sat on *unknown* in
+  Home Assistant, with only a misleading `Failed to parse JSON from …` on the
+  device. An unrecognised chip id now fails the publish (naming the id in the
+  log) instead of guessing a wrong-but-plausible value.
+- **Manual publish reads the chip family out of the firmware.** The dropdown
+  defaults to *Auto* and is only needed for targets whose header carries no
+  chip id (ESP8266/RP2040); when the header does carry one it overrides a
+  hand-picked value, so a C3 binary can no longer be published as `ESP32`.
+
 ## 0.4.0
 
 - Generated ESPHome packages are now a single `ota.yaml`: Update entity and
