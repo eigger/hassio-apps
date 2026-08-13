@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.2
+
+- **Update entity promoted to the recommended default** across README/DOCS
+  (both languages) and the generated package's comments — reordered ahead
+  of the force-install button everywhere, with the button now framed as the
+  fallback for the specific JSON-parse failure mode, not the default choice.
+  The failure mode itself is unchanged and still documented; this is a
+  documentation reframe, not a behavior change.
+- **YAML snippet panel now also shows the pre-merge single-entity examples**
+  (Update-only, button-only) in a collapsed "Advanced: individual entities"
+  section — reference only, not new generated files. Fixed a real bug found
+  while building this: the two examples each had their own `substitutions:`
+  block, which is a duplicate top-level key when pasted as one document —
+  YAML silently keeps only the last one, so `ota_device` would have been
+  dropped. Merged into a single block per example.
+- **The `esphome.project` example now reflects reality**: `version` defaults
+  to whatever's actually published for that device (the number to bump
+  *from*) instead of always resetting to a fixed `1.0.0`, and
+  `project.name` defaults to `local.<node>` instead of a fixed personal
+  placeholder — every device gets a distinct name with nothing to remember
+  to edit.
+- **Published date/time now shown** in the device table, next to the MD5 on
+  the existing second line (no new row height).
+
 ## 0.4.1
 
 - **Fixed `chipFamily` for ESP32-P4 and ESP32-C5.** Their `esp_chip_id_t`

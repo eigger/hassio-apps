@@ -135,41 +135,17 @@ esphome:
     version: "1.0.0"      # bump this to offer an update
 ```
 
-이 include 하나로 강제 설치 버튼과 Update 엔티티가 둘 다 들어갑니다.
+이 include 하나로 Update 엔티티와 강제 설치 버튼이 둘 다 들어갑니다.
 예전 파일명 `ota_server/update.yaml`과 `ota_server/flash_button.yaml`도
 `ota.yaml`과 같은 내용으로 계속 생성되므로, 기존 기기 설정은 그대로
 동작하고 — 이제는 두 엔티티를 모두 갖게 됩니다.
 
-버튼은 아무것도 파싱하지 않습니다 — `.bin`을 받아서 MD5 16진수
-문자열을 대조할 뿐입니다. Update 엔티티는 먼저 JSON 매니페스트를 받아서
-파싱하는데, 이건 Home Assistant 앞단의 프록시/CDN이 개입할 수 있는
-지점이 하나 더 생기는 셈입니다(
-[문제 해결](#매니페스트에서-json-파싱-실패-update-엔티티에서만) 참고).
-매니페스트 fetch가 실패하면 버튼을 쓰세요.
-
-### 강제 설치 버튼
-
-버전 추적이 없습니다. 버튼을 누르면 `ota.http_request.flash`가
-`.ota.bin` URL로 `md5_url`과 함께 실행되고, 다이제스트가 받은 것과 안
-맞으면 기기는 기존 펌웨어를 그대로 유지합니다.
-
-`url`/`md5_url`은 누를 때마다 랜덤 `?r=<random_uint32()>`를 붙이는
-람다라서, 누를 때마다 Home Assistant 앞단의 어떤 프록시나 CDN에게도
-매번 새로운 캐시 미스가 됩니다.
-
-생성된 버튼의 id는 `ota_flash_button`입니다. `ota.http_request.flash`
-호출을 중복 작성하는 대신, 기기 YAML의 다른 곳에서 `button.press`로
-이걸 눌러주세요 — 예를 들어 물리 GPIO 버튼을 누르면 최신 게시본을
-플래시하게:
-
-```yaml
-button:
-  - platform: gpio
-    pin: GPIO0
-    name: Flash Button
-    on_press:
-      - button.press: ota_flash_button
-```
+**Update 엔티티가 기본 추천 방식입니다** — 버전 추적이 되고, HA에
+Install 버튼이 생깁니다. 먼저 JSON 매니페스트를 받아서 파싱하는데,
+일부 환경에서는 Home Assistant 앞단의 프록시/CDN이 여기 개입할 수
+있습니다([문제 해결](#매니페스트에서-json-파싱-실패-update-엔티티에서만)
+참고). 이 특정 증상을 겪으면 버튼이 확실한 대안입니다 — 아무것도
+파싱하지 않으니까요.
 
 ### 업데이트 엔티티
 
@@ -200,6 +176,30 @@ update:
   - id: !extend ota_update
     on_update_available:
       - update.perform: ota_update
+```
+
+### 강제 설치 버튼
+
+버전 추적이 없습니다. 버튼을 누르면 `ota.http_request.flash`가
+`.ota.bin` URL로 `md5_url`과 함께 실행되고, 다이제스트가 받은 것과 안
+맞으면 기기는 기존 펌웨어를 그대로 유지합니다.
+
+`url`/`md5_url`은 누를 때마다 랜덤 `?r=<random_uint32()>`를 붙이는
+람다라서, 누를 때마다 Home Assistant 앞단의 어떤 프록시나 CDN에게도
+매번 새로운 캐시 미스가 됩니다.
+
+생성된 버튼의 id는 `ota_flash_button`입니다. `ota.http_request.flash`
+호출을 중복 작성하는 대신, 기기 YAML의 다른 곳에서 `button.press`로
+이걸 눌러주세요 — 예를 들어 물리 GPIO 버튼을 누르면 최신 게시본을
+플래시하게:
+
+```yaml
+button:
+  - platform: gpio
+    pin: GPIO0
+    name: Flash Button
+    on_press:
+      - button.press: ota_flash_button
 ```
 
 ### 기기별로 주소 오버라이드하기

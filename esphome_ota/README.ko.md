@@ -62,12 +62,15 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 
 | 얻는 것 | 필요한 것 |
 |---|---|
-| 항상 최신 게시본을 설치하는 **버튼** | 없음 — `project.version` 없이도 동작 |
-| HA에 Install 버튼이 달린 **Update 엔티티** | 버전을 올릴 `esphome.project` 블록 |
+| HA에 Install 버튼이 달린 **Update 엔티티** — 추천 | 버전을 올릴 `esphome.project` 블록 |
+| 항상 최신 게시본을 설치하는 **버튼** — 대안 | 없음 — `project.version` 없이도 동작 |
 
-버튼은 아무것도 파싱하지 않고 `.bin`을 받아 MD5만 확인합니다. Update
-엔티티는 먼저 JSON 매니페스트를 받는데, `Failed to parse JSON from
-.../<node>.json`가 로그에 찍히면 버튼 쪽으로 설치하세요 —
+Update 엔티티는 먼저 JSON 매니페스트를 받아서 파싱합니다. 드물게 Home
+Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 처리
+못 하는 방식으로 압축하는 환경에서는 `Failed to parse JSON from
+.../<node>.json`이 로그에 찍히고 *AVAILABLE* 상태로 못 넘어갑니다. 버튼은
+정확히 이 경우를 위한 대안입니다 — 아무것도 파싱하지 않고 `.bin`을
+받아 MD5만 확인합니다. 이 증상을 겪으면
 [DOCS.ko.md](DOCS.ko.md#매니페스트에서-json-파싱-실패-update-엔티티에서만)
 참고.
 

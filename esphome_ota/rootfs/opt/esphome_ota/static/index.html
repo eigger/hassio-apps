@@ -156,10 +156,17 @@ const STRINGS = {
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'YAML',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
-    yamlNote: 'Force-install button plus an Update entity (Install in HA). Set <code>esphome.project.version</code> so the Update entity can see new builds; the button works either way.',
+    yamlNote: 'An Update entity (recommended — Install button in HA) plus a force-install button as fallback. Set <code>esphome.project.version</code> so the Update entity can see new builds; the button works either way.',
     copyTitle: 'Copy to clipboard', copied: 'Copied',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
+    publishedMeta: (m, d) => `md5 ${m} · ${d}`,
+    legacyTitle: 'Advanced: individual entities',
+    legacyBody: 'Reference only — the package above already includes both. Paste one of ' +
+      'these directly into the device YAML (not an <code>!include</code>) if you genuinely ' +
+      'want just one entity and not the other.',
+    legacyUpdateLabel: 'Update entity only',
+    legacyButtonLabel: 'Force-install button only',
     lanFallbackTitle: 'Using a LAN-only address.',
     lanFallbackBody: 'Home Assistant has no external URL configured (Settings → System → ' +
       'Network), so this add-on fell back to the host\'s LAN address. That only works for ' +
@@ -201,10 +208,16 @@ const STRINGS = {
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: 'YAML',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
-    yamlNote: '강제 설치 버튼과 업데이트 엔티티(HA 설치 버튼)가 함께 들어갑니다. 업데이트 엔티티가 새 빌드를 보려면 <code>esphome.project.version</code>을 설정하세요. 버튼은 버전 없이도 동작합니다.',
+    yamlNote: '업데이트 엔티티(추천 — HA에 Install 버튼)와 대안용 강제 설치 버튼이 함께 들어갑니다. 업데이트 엔티티가 새 빌드를 보려면 <code>esphome.project.version</code>을 설정하세요. 버튼은 버전 없이도 동작합니다.',
     copyTitle: '클립보드에 복사', copied: '복사됨',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
+    publishedMeta: (m, d) => `md5 ${m} · ${d}`,
+    legacyTitle: '고급: 개별 엔티티',
+    legacyBody: '참고용입니다 — 위 패키지 하나로 이미 둘 다 포함됩니다. 정말 하나만 필요하면 ' +
+      '아래를 <code>!include</code> 대신 기기 YAML에 직접 붙여넣으세요.',
+    legacyUpdateLabel: '업데이트 엔티티만',
+    legacyButtonLabel: '강제 설치 버튼만',
     lanFallbackTitle: 'LAN 전용 주소를 쓰고 있습니다.',
     lanFallbackBody: 'Home Assistant에 외부 주소가 설정돼 있지 않아서(설정 → 시스템 → 네트워크), ' +
       '호스트의 LAN 주소로 대체했습니다. 같은 네트워크의 기기에만 동작합니다 — LAN 밖 기기라면 ' +
@@ -311,7 +324,8 @@ function row(d) {
   // Always emit a .subline under version so the cell's height matches rows
   // that have an md5 (and name cells that have a configuration subtitle).
   const version = pub
-    ? `${escapeHtml(pub.version)}<span class="subline tiny muted">${T.md5(pub.md5.slice(0, 8))}</span>`
+    ? `${escapeHtml(pub.version)}<span class="subline tiny muted">` +
+      `${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`
     : `<span class="muted">—</span><span class="subline tiny muted">&nbsp;</span>`;
 
   const badge = d.manual
@@ -462,7 +476,7 @@ async function copySnippet(id, btn) {
 window.copySnippet = copySnippet;
 
 async function showSnippet(d) {
-  const { snippet } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
+  const { snippet, legacy } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
@@ -472,12 +486,36 @@ async function showSnippet(d) {
       <button type="button" class="copyBtn" title="${T.copyTitle}"
               onclick="copySnippet('snippetA', this)">${COPY_ICON}</button>
     </div>
-    <pre id="snippetA">${escapeHtml(snippet)}</pre>`;
+    <pre id="snippetA">${escapeHtml(snippet)}</pre>
+    <details style="margin-top:14px">
+      <summary class="tiny">${T.legacyTitle}</summary>
+      <div class="tiny muted" style="margin-top:6px">${T.legacyBody}</div>
+      <div class="snippetLabel tiny muted" style="margin-top:10px">
+        <span>${T.legacyUpdateLabel}</span>
+        <button type="button" class="copyBtn" title="${T.copyTitle}"
+                onclick="copySnippet('snippetLegacyUpdate', this)">${COPY_ICON}</button>
+      </div>
+      <pre id="snippetLegacyUpdate">${escapeHtml(legacy.update)}</pre>
+      <div class="snippetLabel tiny muted" style="margin-top:10px">
+        <span>${T.legacyButtonLabel}</span>
+        <button type="button" class="copyBtn" title="${T.copyTitle}"
+                onclick="copySnippet('snippetLegacyButton', this)">${COPY_ICON}</button>
+      </div>
+      <pre id="snippetLegacyButton">${escapeHtml(legacy.button)}</pre>
+    </details>`;
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function formatPublishedAt(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(LOCALE === 'ko' ? 'ko-KR' : 'en-US', {
+    dateStyle: 'short', timeStyle: 'short',
+  });
 }
 
 function setJobButtonsDisabled(disabled) {
