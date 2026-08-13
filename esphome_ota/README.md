@@ -62,13 +62,17 @@ identical copies, so existing includes keep working):
 
 | You get | Needs |
 |---|---|
-| A **button** that always installs the latest published build | Nothing — works even without `project.version` |
-| An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
+| An **Update entity** in Home Assistant with an Install button — recommended | An `esphome.project` block with a `version` you bump |
+| A **button** that always installs the latest published build — fallback | Nothing — works even without `project.version` |
 
-The button never parses anything — it downloads a `.bin` and checks its MD5.
-The Update entity fetches a JSON manifest first; if that logs
-`Failed to parse JSON from .../<node>.json`, use the button instead — see
-[DOCS.md](DOCS.md#failed-to-parse-json-from-the-manifest-update-entity-only).
+The Update entity fetches and parses a JSON manifest first; on the rare setup
+where a proxy/CDN in front of Home Assistant compresses that response in a
+way ESPHome's `http_request` can't handle, it logs
+`Failed to parse JSON from .../<node>.json` and never gets to *AVAILABLE*.
+The button is the fallback for exactly that case — it never parses
+anything, just downloads a `.bin` and checks its MD5. See
+[DOCS.md](DOCS.md#failed-to-parse-json-from-the-manifest-update-entity-only)
+if you hit it.
 
 Firmware URLs are cache-busted (a `?v=<md5>` on the manifest's binary path,
 a random `?r=` on every button press), so a caching proxy or CDN in front of

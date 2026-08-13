@@ -131,42 +131,18 @@ esphome:
     version: "1.0.0"      # bump to publish an update
 ```
 
-That one include adds both a force-install button and an Update entity. The
+That one include adds both an Update entity and a force-install button. The
 old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
 are still generated as identical copies of `ota.yaml`, so existing device
 configs that include either one keep working — they now get both entities.
 
-The button never parses anything — it downloads a `.bin` and checks an MD5
-hex string against it. The Update entity fetches and parses a JSON manifest
+**The Update entity is the recommended default** — version tracking, and an
+Install button in Home Assistant. It fetches and parses a JSON manifest
 first, which is one more thing a proxy/CDN in front of Home Assistant can
-interfere with (see
+interfere with on some configurations (see
 [Troubleshooting](#failed-to-parse-json-from-the-manifest-update-entity-only)).
-If the manifest fetch fails, use the button.
-
-### Force-install button
-
-No version tracking. Pressing the button runs `ota.http_request.flash` against
-the `.ota.bin` URL with `md5_url` for verification; if the digest does not
-match what was downloaded, the device keeps its existing firmware.
-
-`url`/`md5_url` are lambdas that append a random `?r=<random_uint32()>` on
-every press, so each press is a fresh cache miss for any proxy or CDN in
-front of Home Assistant — there is no fixed URL for it to have cached a
-stale copy of in the first place.
-
-The generated button's id is `ota_flash_button`. Trigger it from something
-else in the device YAML with `button.press` instead of duplicating the
-`ota.http_request.flash` call — e.g. a physical GPIO button that flashes the
-latest published firmware when pressed:
-
-```yaml
-button:
-  - platform: gpio
-    pin: GPIO0
-    name: Flash Button
-    on_press:
-      - button.press: ota_flash_button
-```
+If you hit that specific failure, the button is a working fallback — it
+never parses anything.
 
 ### Update entity
 
@@ -197,6 +173,31 @@ update:
   - id: !extend ota_update
     on_update_available:
       - update.perform: ota_update
+```
+
+### Force-install button
+
+No version tracking. Pressing the button runs `ota.http_request.flash` against
+the `.ota.bin` URL with `md5_url` for verification; if the digest does not
+match what was downloaded, the device keeps its existing firmware.
+
+`url`/`md5_url` are lambdas that append a random `?r=<random_uint32()>` on
+every press, so each press is a fresh cache miss for any proxy or CDN in
+front of Home Assistant — there is no fixed URL for it to have cached a
+stale copy of in the first place.
+
+The generated button's id is `ota_flash_button`. Trigger it from something
+else in the device YAML with `button.press` instead of duplicating the
+`ota.http_request.flash` call — e.g. a physical GPIO button that flashes the
+latest published firmware when pressed:
+
+```yaml
+button:
+  - platform: gpio
+    pin: GPIO0
+    name: Flash Button
+    on_press:
+      - button.press: ota_flash_button
 ```
 
 ### Overriding the address for one device

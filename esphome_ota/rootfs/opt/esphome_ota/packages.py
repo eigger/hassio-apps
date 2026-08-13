@@ -4,11 +4,15 @@ One package, two entities, sharing a single ``ota:`` / ``http_request:``
 block (the previous split into ``update.yaml`` and ``flash_button.yaml``
 couldn't be included together because both defined those keys):
 
+* an ``update:`` entity — recommended. The device reports
+  ESPHOME_PROJECT_VERSION as its current version, so the config should
+  declare an ``esphome.project`` block or HA will compare against the
+  ESPHome release string. Version tracking + an Install button in HA.
 * a template button running ``ota.http_request.flash`` — no version
-  comparison; press it and the current published firmware is installed
-* an ``update:`` entity — the device reports ESPHOME_PROJECT_VERSION as
-  its current version, so the config should declare an ``esphome.project``
-  block or HA will compare against the ESPHome release string
+  comparison; press it and the current published firmware is installed.
+  Fallback for the rare case a proxy/CDN in front of Home Assistant mangles
+  the Update entity's JSON manifest fetch (gzip compression, seen with some
+  Cloudflare configurations — see DOCS.md).
 
 Both are written into the ESPHome config folder so a device YAML can pull
 them in with a plain ``!include``. The old filenames are still written as
@@ -42,8 +46,9 @@ OTA_PACKAGE = """\
 # the same network as Home Assistant should just use ESPHome's built-in OTA —
 # it doesn't need this at all.
 #
-# Adds a "Firmware Update" button that always installs whatever is currently
-# published, and an "Update" entity (version comparison, Install in HA).
+# Adds an "Update" entity (version comparison, Install in HA — recommended)
+# and a "Firmware Update" button that always installs whatever is currently
+# published (fallback for the rare proxy/CDN JSON-mangling case, see below).
 #
 # Requires, in the device YAML:
 #   substitutions:
@@ -65,9 +70,11 @@ OTA_PACKAGE = """\
 # The button's url/md5_url carry a random ?r= on every press
 # (random_uint32(), evaluated fresh each call) so a caching proxy in front
 # of Home Assistant — a Cloudflare tunnel, for instance — never has a
-# reason to serve back a stale firmware/md5 pair. Prefer the button over
-# the Update entity's Install if a proxy/CDN is mangling the JSON
-# manifest (ESPHome's http_request does not decompress gzip).
+# reason to serve back a stale firmware/md5 pair. If the Update entity's
+# Install ever fails with "Failed to parse JSON..." in the device log
+# (ESPHome's http_request does not decompress gzip, and some proxy/CDN
+# configurations compress the manifest response) the button is a working
+# fallback — it never parses JSON.
 #
 # This button's id is `ota_flash_button` (see below) — press it
 # programmatically from anything else in the device YAML with the
@@ -134,8 +141,83 @@ def write_packages(esphome_config_dir: Path, base_url: str, publish_dir: str) ->
     return written
 
 
-def snippet(node: str) -> str:
-    """The copy-paste block shown in the UI for one device."""
+UPDATE_ONLY_SNIPPET = """\
+# Update entity only — no force-install button, no !include (this isn't a
+# generated file; paste it straight into the device YAML alongside whatever
+# else is already there).
+substitutions:
+  ota_device: {node}
+  ota_base_url: {base_url}
+
+http_request:
+  timeout: 60s
+
+ota:
+  - platform: http_request
+
+update:
+  - platform: http_request
+    id: ota_update
+    name: Firmware
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    update_interval: 6h
+"""
+
+BUTTON_ONLY_SNIPPET = """\
+# Force-install button only — no Update entity, no project.version needed,
+# no !include (this isn't a generated file; paste it straight into the
+# device YAML alongside whatever else is already there).
+substitutions:
+  ota_device: {node}
+  ota_base_url: {base_url}
+
+http_request:
+  timeout: 60s
+
+ota:
+  - platform: http_request
+
+button:
+  - platform: template
+    id: ota_flash_button
+    name: Firmware Update
+    entity_category: config
+    on_press:
+      - ota.http_request.flash:
+          url: !lambda |-
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+          md5_url: !lambda |-
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
+"""
+
+
+def legacy_snippets(node: str, base_url: str, publish_dir: str) -> dict[str, str]:
+    """The pre-merge single-entity examples, kept as reference only.
+
+    Not generated files: ``update.yaml``/``flash_button.yaml`` are now
+    identical copies of the combined ``ota.yaml`` (see write_packages), so
+    !include-ing either one gives both entities. Anyone who genuinely wants
+    just one pastes the relevant block here directly instead.
+    """
+    fields = {"node": node, "base_url": base_url.rstrip("/"), "publish_dir": publish_dir}
+    return {
+        "update": UPDATE_ONLY_SNIPPET.format(**fields),
+        "button": BUTTON_ONLY_SNIPPET.format(**fields),
+    }
+
+
+def snippet(node: str, published_version: str | None = None) -> str:
+    """The copy-paste block shown in the UI for one device.
+
+    ``project.name`` defaults to the device's own node name rather than a
+    fixed placeholder — every device gets a distinct one for free, and
+    there's nothing to remember to change. ``project.version`` mirrors
+    whatever's actually published for this node when there is one (the
+    starting point to bump *from*), instead of always resetting to 1.0.0
+    and silently un-doing whatever version scheme is already in use.
+    """
+    version = published_version or "1.0.0"
+    version_comment = "  # bump this to publish a new update" if published_version else "   # bump to publish an update"
     return (
         f"substitutions:\n"
         f"  ota_device: {node}\n"
@@ -143,8 +225,8 @@ def snippet(node: str) -> str:
         f"  ota: !include {PACKAGE_DIR}/{PACKAGE_FILE}\n"
         f"\nesphome:\n"
         f"  project:\n"
-        f'    name: "eigger.esphome"\n'
-        f'    version: "1.0.0"   # bump to publish an update\n'
+        f'    name: "local.{node}"\n'
+        f'    version: "{version}"{version_comment}\n'
         f"\n# This button's id is ota_flash_button. Trigger the same flash from\n"
         f"# another button (e.g. a physical GPIO button) instead of duplicating\n"
         f"# the ota.http_request.flash call:\n"

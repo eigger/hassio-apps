@@ -333,10 +333,19 @@ async def job_status(request: web.Request) -> web.Response:
 
 @routes.get("/api/snippet")
 async def snippet(request: web.Request) -> web.Response:
+    app: App = request.app["app"]
     node = request.query.get("node", "")
     if not node:
         return web.json_response({"error": "node required"}, status=400)
-    return web.json_response({"snippet": packages.snippet(node)})
+    published = app.publisher.published(node)
+    published_version = published.get("version") if published else None
+    legacy = packages.legacy_snippets(node, app.resolved_base_url, app.settings.publish_dir)
+    return web.json_response(
+        {
+            "snippet": packages.snippet(node, published_version),
+            "legacy": legacy,
+        }
+    )
 
 
 NODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$")
