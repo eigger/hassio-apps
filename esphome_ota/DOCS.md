@@ -1,4 +1,6 @@
-# ESPHome OTA Server — Documentation
+# ESPHome OTA Publisher — Documentation
+
+[한국어 문서](DOCS.ko.md)
 
 ## Manual publish
 
@@ -128,26 +130,73 @@ esphome:
     version: "1.0.0"      # bump to publish an update
 ```
 
-That one include adds both:
-
-**Update entity.** The device reports `ESPHOME_PROJECT_VERSION` as its current
-version and compares it with the manifest's `version`. **Without an
-`esphome.project` block** the device falls back to reporting the ESPHome
-release string, so the add-on publishes that as the manifest version too —
-meaning an update only ever appears when you upgrade ESPHome itself, not when
-you change your config. The UI flags devices in that state.
-
-**Force-install button.** No version tracking. Pressing it runs
-`ota.http_request.flash` against the fixed `.ota.bin` URL with `md5_url` for
-verification; if the digest does not match what was downloaded, the device
-keeps its existing firmware. Because that URL is fixed it has no cache buster
-— fine directly through the tunnel, but behind a second caching proxy in front
-of that, prefer the Update entity's Install action (its manifest carries a
-cache buster).
-
-The old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
+That one include adds both a force-install button and an Update entity. The
+old filenames `ota_server/update.yaml` and `ota_server/flash_button.yaml`
 are still generated as identical copies of `ota.yaml`, so existing device
 configs that include either one keep working — they now get both entities.
+
+The button never parses anything — it downloads a `.bin` and checks an MD5
+hex string against it. The Update entity fetches and parses a JSON manifest
+first, which is one more thing a proxy/CDN in front of Home Assistant can
+interfere with (see
+[Troubleshooting](#failed-to-parse-json-from-the-manifest-update-entity-only)).
+If the manifest fetch fails, use the button.
+
+### Force-install button
+
+No version tracking. Pressing the button runs `ota.http_request.flash` against
+the `.ota.bin` URL with `md5_url` for verification; if the digest does not
+match what was downloaded, the device keeps its existing firmware.
+
+`url`/`md5_url` are lambdas that append a random `?r=<random_uint32()>` on
+every press, so each press is a fresh cache miss for any proxy or CDN in
+front of Home Assistant — there is no fixed URL for it to have cached a
+stale copy of in the first place.
+
+The generated button's id is `ota_flash_button`. Trigger it from something
+else in the device YAML with `button.press` instead of duplicating the
+`ota.http_request.flash` call — e.g. a physical GPIO button that flashes the
+latest published firmware when pressed:
+
+```yaml
+button:
+  - platform: gpio
+    pin: GPIO0
+    name: Flash Button
+    on_press:
+      - button.press: ota_flash_button
+```
+
+### Update entity
+
+The device reports `ESPHOME_PROJECT_VERSION` as its current version and
+compares it with the manifest's `version`. **Without an `esphome.project`
+block** the device falls back to reporting the ESPHome release string, so the
+add-on publishes that as the manifest version too — meaning an update only ever
+appears when you upgrade ESPHome itself, not when you change your config. The
+UI flags devices in that state. The button still works either way.
+
+Pressing Install only downloads if the device's `update:` state is already
+`AVAILABLE` — that state only comes from a prior successful manifest fetch
+(automatic, every `update_interval`, or via the `update.check` action).
+`update.check` is asynchronous, so calling it and then immediately calling
+`update.perform` from the same button press can fire the install before the
+fetch resolves. Use `on_update_available` on the `update:` entity instead,
+so the install only happens after a fetch actually confirms one is
+available:
+
+```yaml
+button:
+  - platform: template
+    name: Check for update
+    on_press:
+      - update.check: ota_update
+
+update:
+  - id: !extend ota_update
+    on_update_available:
+      - update.perform: ota_update
+```
 
 ### Overriding the address for one device
 
@@ -198,6 +247,71 @@ endpoint or by clearing the folder.
 **Firmware is world-readable** — `/local` has no authentication, by design.
 That is what makes it reachable from a device that cannot log in. Anything you
 publish is readable by anything that can reach Home Assistant's HTTP port.
+
+**MD5 mismatch during OTA (`Aborting due to MD5 mismatch`)** — usually a
+caching proxy in front of Home Assistant (a Cloudflare tunnel, most
+commonly) serving a stale `.ota.bin` after a republish. The generated
+package now cache-busts the firmware URL (see
+[above](#force-install-button)), so a freshly regenerated `ota.yaml`
+shouldn't hit this — this is for a device still running firmware compiled
+from the old fixed-URL `flash_button.yaml` (pre-0.3.5), or a caching layer
+that's ignoring query strings entirely (rare, but some CDNs can be
+configured that way). Confirm it by comparing what the origin actually has
+right now against what's really being served:
+
+```bash
+curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin.md5"
+curl -s "$BASE/local/$PUBLISH_DIR/$NODE.ota.bin" | md5sum
+```
+
+If those two disagree, check the response headers (`curl -sD -`) for
+`cf-cache-status: HIT` (or an equivalent proxy cache header) and a stale
+`age`/`last-modified` on the `.bin` request — that confirms a cache, not the
+add-on, is serving old bytes. Fix it:
+
+- **Recompile and reflash the device once**, by whatever method currently
+  works (USB, or a manual firmware install through the ESPHome dashboard).
+  That picks up the new package with its randomized `?r=`, which
+  ends the problem for every press after.
+- **If the CDN ignores query strings for caching**, add an explicit cache
+  bypass rule instead. In Cloudflare: Rules → Cache Rules → match the path
+  (e.g. `contains` `.ota.bin`) → Cache eligibility: **Bypass cache**.
+
+A one-off already-stuck cache just needs a manual purge of that specific
+`.ota.bin` URL to unblock the device immediately.
+
+<a id="failed-to-parse-json-from-the-manifest-update-entity-only"></a>
+
+**"Failed to parse JSON from ...`/<node>.json`" (Update entity only)** — the
+device successfully reached `source:` but what it got back didn't parse as
+JSON. Confirmed in the field on a Cloudflare-tunneled `base_url`: the file on
+disk was valid every time it was checked from outside (`curl -s
+".../<node>.json"`), yet the device's own fetch kept failing, immediately
+and repeatably — not a caching/staleness symptom like the MD5 mismatch
+above, and not tied to a republish.
+
+Leading suspect, unconfirmed: response compression. `curl -H
+"Accept-Encoding: gzip, deflate" ".../<node>.json"` gets back
+`content-encoding: gzip` and an actually-gzipped body from this add-on's
+Cloudflare-fronted `/local` — confirming Cloudflare *can* and *will* gzip
+this response if a request asks for it. ESPHome's `http_request` component
+does not decompress gzip; if the device's request ends up asking for
+compression by any path (its own defaults, a network middlebox, whatever's
+between it and Cloudflare) it would receive compressed bytes and hand them
+to the JSON parser as-is — exactly this error, and exactly this
+reachable-but-unparseable pattern.
+
+To test: Cloudflare dashboard → **Speed → Optimization → Brotli** → turn
+off, then retry the device's manifest check. If that fixes it, compression
+was the cause; either leave it off for this zone (a firmware manifest is a
+few hundred bytes, compression buys nothing) or, on a plan with
+Configuration Rules / Response Header Transform Rules, scope the exclusion
+to `/local/*` instead of the whole zone.
+
+Simplest fix regardless of root cause: **use the force-install button
+instead of the Update entity's Install**. It downloads `.ota.bin` and reads
+`.ota.bin.md5` as plain text — no JSON parsing step for a compressed or
+otherwise-mangled response to break.
 
 **Manual publish rejects the chip family / update entity never appears** —
 the dropdown lists every string ESPHome's update component might compare

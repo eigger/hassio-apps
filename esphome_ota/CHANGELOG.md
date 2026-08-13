@@ -4,8 +4,66 @@
 
 - Generated ESPHome packages are now a single `ota.yaml`: Update entity and
   force-install button share one `ota:` / `http_request:` block, so they can
-  be used together. `update.yaml` and `flash_button.yaml` are still written
-  as identical copies, so existing `!include`s keep working.
+  be used together. The button keeps the randomized `?r=` cache buster from
+  0.3.5. `update.yaml` and `flash_button.yaml` are still written as identical
+  copies, so existing `!include`s keep working.
+
+## 0.3.7
+
+- Renamed the display name from "ESPHome OTA Server" to **"ESPHome OTA
+  Publisher"** — this add-on doesn't itself serve OTA traffic to devices
+  (Home Assistant's own `/local` static file server does that); it builds
+  or accepts firmware and publishes it there. `slug: esphome_ota` and the
+  repo/folder path are unchanged, so this is not a reinstall for existing
+  users — just the name shown in the Supervisor UI, panel, page title, and
+  docs.
+
+## 0.3.6
+
+- `flash_button.yaml` is now labeled "A" (recommended default) and
+  `update.yaml` "B", matching the reordered docs. The generated
+  `flash_button.yaml` now documents its button's id (`ota_flash_button`)
+  inline and in the header, with a copy-paste example of triggering the same
+  flash from a different button (e.g. a physical GPIO button) via
+  `button.press: ota_flash_button` instead of duplicating the
+  `ota.http_request.flash` call.
+- The **per-device YAML snippet shown in the Ingress UI** (not just the
+  generated package file) now carries the same `ota_flash_button` /
+  `button.press` example for option A, plus a commented-out
+  `http_request: verify_ssl: false` note for memory-constrained boards
+  (typically ESP8266) on both options.
+- The Ingress UI's YAML snippets each get a **copy-to-clipboard button**
+  next to their label, instead of select-all-by-hand. Falls back to the
+  legacy `execCommand('copy')` when `navigator.clipboard` isn't available
+  (Ingress is often plain HTTP on the LAN, which isn't a secure context).
+- DOCS.md's package sections got the same treatment as the generated
+  files: option A now shows the `button.press` GPIO example, and option
+  B's `update.check`/`on_update_available`/`update.perform` example is a
+  real YAML code block instead of a cramped inline-bracket description.
+
+## 0.3.5
+
+- `flash_button.yaml`'s `url`/`md5_url` are now lambdas that append a random
+  `?r=<random_uint32()>` on every press, instead of a fixed URL. Diagnosed
+  against a real report: a Cloudflare tunnel was caching `.ota.bin` at the
+  edge (`cf-cache-status: HIT`, hours-old) while `.ota.bin.md5` stayed
+  uncached and current, so the device kept downloading stale firmware
+  against a fresh digest and aborting with an MD5 mismatch. The random query
+  string makes every press a cache miss by construction, so this can't
+  happen regardless of what's sitting in front of Home Assistant. Devices
+  need one recompile + reflash (by any method that still works) to pick up
+  the new package.
+
+## 0.3.4
+
+- Fixed the sidebar panel icon not rendering: `mdi:home-upload-outline` (set
+  in 0.3.1) isn't a real Material Design Icons name, so the sidebar showed no
+  icon at all. Switched to `mdi:upload-network-outline`, which exists.
+- Fixed `logo.png`'s "ESPHome" text being invisible in dark theme: the 0.3.1
+  refresh drew it as black text on a transparent background, which blends
+  into HA's dark add-on panels. The logo now sits on its own solid `#18BCF2`
+  rounded background with white text/icon, matching this repo's other
+  add-ons, so it's legible in both themes.
 
 ## 0.3.3
 

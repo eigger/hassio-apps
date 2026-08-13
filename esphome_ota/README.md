@@ -1,4 +1,6 @@
-# ESPHome OTA Server
+# ESPHome OTA Publisher
+
+[한국어 문서](README.ko.md)
 
 For ESPHome devices that ESPHome's own local/mDNS OTA can't reach — typically
 because they're outside your home network and only reachable through your
@@ -18,6 +20,8 @@ tunnel, with nothing to open on this add-on's side.
                                                  your remote devices
 ```
 
+![The add-on's panel: device list with chip, published version, and status](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
+
 There are two ways to get firmware in there:
 
 ## A. Manual publish — no other setup required
@@ -26,6 +30,8 @@ Download `firmware.ota.bin` from the ESPHome dashboard yourself (its "OTA
 format" download), then open this add-on's panel → **Manual publish** →
 fill in the node name, chip family, and version, and upload the file. Nothing
 on the ESPHome side needs to change for this.
+
+![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
 ## B. Build & publish from here — needs a setting on ESPHome's side
 
@@ -56,13 +62,27 @@ identical copies, so existing includes keep working):
 
 | You get | Needs |
 |---|---|
-| An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
 | A **button** that always installs the latest published build | Nothing — works even without `project.version` |
+| An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
+
+The button never parses anything — it downloads a `.bin` and checks its MD5.
+The Update entity fetches a JSON manifest first; if that logs
+`Failed to parse JSON from .../<node>.json`, use the button instead — see
+[DOCS.md](DOCS.md#failed-to-parse-json-from-the-manifest-update-entity-only).
+
+Firmware URLs are cache-busted (a `?v=<md5>` on the manifest's binary path,
+a random `?r=` on every button press), so a caching proxy or CDN in front of
+Home Assistant (e.g. a Cloudflare tunnel) can't serve back a stale `.ota.bin`
+after a republish. If a device is still running an older `flash_button.yaml`
+compiled before that, see
+[DOCS.md](DOCS.md#md5-mismatch-during-ota-aborting-due-to-md5-mismatch) —
+recompiling and reflashing it once (any way that currently works) picks up
+the fix.
 
 ## Install
 
 1. Add this repository to Home Assistant → Settings → Add-ons → Repositories
-2. Install **ESPHome OTA Server** and start it
+2. Install **ESPHome OTA Publisher** and start it
 3. If the add-on asks you to restart Home Assistant, do it once (the `/local`
    static path is registered at startup)
 4. Check the add-on's panel for a banner about `base_url` — it auto-fills from
@@ -70,5 +90,7 @@ identical copies, so existing includes keep working):
    you haven't set one there, set `base_url` in this add-on's options directly
 5. Publish a device (manually, or after enabling ESPHome's public port — see
    above), then paste the shown YAML snippet into that device's config
+
+![The YAML snippet shown after publishing a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.
