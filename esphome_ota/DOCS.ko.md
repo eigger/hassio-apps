@@ -5,9 +5,10 @@
 ## 수동 게시
 
 설정 → 이 add-on 패널 → **Manual publish**. 입력 항목: 노드 이름(기기
-YAML의 `ota_device` substitution과 일치해야 함), 칩 종류(드롭다운 —
-펌웨어의 실제 타겟과 정확히 일치해야 함, ESPHome은 이걸 단순 문자열
-비교로 처리합니다), 버전, 선택적 제목, 그리고 `firmware.ota.bin` 파일
+YAML의 `ota_device` substitution과 일치해야 함), 칩 종류(**자동**으로
+두세요 — 업로드한 이미지 헤더에서 읽어내고, 드롭다운과 다르면 헤더를
+따릅니다. 직접 고르는 건 헤더에 칩 ID가 없는 타겟, 즉 ESP8266/RP2040만
+해당합니다), 버전, 선택적 제목, 그리고 `firmware.ota.bin` 파일
 자체(ESPHome 대시보드 UI에서 받으세요 — "OTA format"). 이 경로는
 ESPHome과의 연결이 아예 필요 없습니다 — 곧바로 `Publisher.publish`로
 가는데, 이건 자동 경로가 마지막에 쓰는 것과 같은 코드입니다.
@@ -242,7 +243,11 @@ warning으로 로그됨). 재현한 뒤 로그를 다시 확인하세요 — 거
 
 **Update 엔티티가 아예 안 뜸** — UI에서 `chipFamily`를 확인하세요.
 ESPHome은 이걸 `ESPHOME_VARIANT`와 정확한 문자열 비교로 대조하고,
-안 맞으면 아무것도 보고하지 않습니다. LibreTiny 타겟(BK72xx, RTL87xx)은
+안 맞으면 아무것도 보고하지 않습니다 — 기기 로그에는 `Failed to parse
+JSON from …`으로만 찍히고, Home Assistant에서는 Update 엔티티가 계속
+*알 수 없음*입니다. 게시되는 값은 이미지 헤더의 칩 ID에서 나오는데,
+add-on이 모르는 ID면 이제 추측하지 않고 게시를 거부합니다(로그에 해당
+ID가 찍히니 버그로 알려주세요). LibreTiny 타겟(BK72xx, RTL87xx)은
 지원하지 않습니다 — 그 variant 문자열은 칩마다 달라서 add-on이 유도할
 수 없습니다.
 
@@ -320,9 +325,9 @@ Configuration Rules / Response Header Transform Rules가 있는
 읽어서, 압축되거나 어떻게든 망가진 응답이 깨질 JSON 파싱 단계 자체가
 없습니다.
 
-**수동 게시에서 칩 종류가 거부되거나 / Update 엔티티가 아예 안 뜸** —
-드롭다운은 ESPHome의 update 컴포넌트가 비교할 수 있는 모든 문자열을
-나열하는데(`ESPHOME_VARIANT`), 실제 바이너리와 안 맞는 걸 골라도 여기서
-검증은 통과합니다 — ESPHome이 기기 쪽에서 그냥 매칭을 안 시킬 뿐입니다.
-보드의 실제 칩에 정확히 맞추세요(예: ESP32-C3 보드는 `ESP32-C3`이지
-`ESP32`가 아닙니다).
+**수동 게시에서 칩 종류가 거부됨** — **자동** 상태에서 이 오류가 나면
+업로드한 파일 헤더에서 칩 ID를 읽지 못한 것입니다. ESP32 이미지가 아니거나
+(ESP8266/RP2040 — 드롭다운에서 직접 고르세요), 애초에 `.ota.bin`이 아닌
+파일입니다. 직접 고른 값은 이 경우에만 그대로 쓰이고, 헤더에 칩 ID가 있으면
+언제나 헤더가 드롭다운을 이깁니다 — 그래서 ESP32-C3 바이너리를 실수로
+`ESP32`로 게시할 수 없습니다.

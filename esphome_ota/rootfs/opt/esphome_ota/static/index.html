@@ -113,7 +113,7 @@
     </div>
     <div class="field">
       <label id="t-manual-chip" for="mChip">Chip family</label>
-      <select id="mChip" name="chip_family" required></select>
+      <select id="mChip" name="chip_family"></select>
     </div>
     <div class="field">
       <label id="t-manual-version" for="mVersion">Version</label>
@@ -169,7 +169,8 @@ const STRINGS = {
     manualBody: 'Publish a <code>firmware.ota.bin</code> you downloaded from the ESPHome ' +
       'dashboard yourself — no connection to ESPHome needed for this.',
     manualNode: 'Node name (matches ota_device in the YAML)',
-    manualChip: 'Chip family', manualVersion: 'Version', manualTitleField: 'Title (optional)',
+    manualChip: 'Chip family', manualChipAuto: 'Auto — read from the firmware',
+    manualVersion: 'Version', manualTitleField: 'Title (optional)',
     manualFile: 'firmware.ota.bin', manualSubmit: 'Publish', manualUploading: 'Uploading…',
     manualOk: (n) => `Published ${n}.`,
     manualBadge: 'manual', manualBadgeTitle: 'Published manually — not known to the ESPHome dashboard',
@@ -212,7 +213,8 @@ const STRINGS = {
     manualBody: 'ESPHome 대시보드에서 직접 받은 <code>firmware.ota.bin</code>을 게시합니다 — ' +
       'ESPHome 연결이 필요 없습니다.',
     manualNode: '기기 이름 (YAML의 ota_device와 동일)',
-    manualChip: '칩 종류', manualVersion: '버전', manualTitleField: '표시 이름 (선택)',
+    manualChip: '칩 종류', manualChipAuto: '자동 — 펌웨어에서 읽기',
+    manualVersion: '버전', manualTitleField: '표시 이름 (선택)',
     manualFile: 'firmware.ota.bin', manualSubmit: '게시', manualUploading: '업로드 중…',
     manualOk: (n) => `${n} 게시 완료.`,
     manualBadge: '수동', manualBadgeTitle: '수동으로 게시됨 — ESPHome 대시보드에는 없는 기기',
@@ -282,9 +284,13 @@ async function loadStatus() {
 
   const chipSelect = $('mChip');
   const previous = chipSelect.value;
-  chipSelect.innerHTML = (status.chip_families || [])
-    .map((c) => `<option value="${c}">${c}</option>`).join('');
-  if (previous) chipSelect.value = previous;
+  // Empty value = let the server read chipFamily out of the uploaded image.
+  // Picking one by hand is only needed for targets whose header carries no
+  // chip_id (ESP8266/RP2040).
+  chipSelect.innerHTML = `<option value="">${T.manualChipAuto}</option>` +
+    (status.chip_families || [])
+      .map((c) => `<option value="${c}">${c}</option>`).join('');
+  chipSelect.value = previous;
 }
 
 function row(d) {
