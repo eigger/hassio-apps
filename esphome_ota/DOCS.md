@@ -4,14 +4,21 @@
 
 ## Manual publish
 
-The table shows firmware that is already published. To add one, open
-**Manual publish**, pick the device YAML (from `/config/esphome`), and
-upload `firmware.ota.bin` from the ESPHome dashboard (OTA format) — or drop
-the file on that form. The published slug is the YAML filename
-(`livingroom.yaml` → `livingroom.ota.bin` / `livingroom.json`). Chip family
-is read from the image header (pick one by hand only for ESP8266/RP2040).
-Version comes from `esphome.project.version` when that block is present;
-otherwise the form asks.
+The table shows firmware that is already published. To add one, follow this
+order:
+
+1. Pick the device YAML under **Device YAML & publish** — the snippet appears.
+2. Paste that include into the device YAML **once**. Do not add `ota_device`
+   or `project.version` there.
+3. Compile in ESPHome.
+4. Upload `firmware.ota.bin` (OTA format) or drop it on the form.
+
+The published slug is the YAML filename (`livingroom.yaml` →
+`livingroom.ota.bin` / `livingroom.json`). Chip family is read from the
+image header (pick one by hand only for ESP8266/RP2040). Version comes from
+the wrapper's `esphome.project` and is raised when you open the snippet
+again to prepare the next build. You can edit it in the form before
+compile.
 
 No connection to ESPHome is needed for this; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.
@@ -128,10 +135,9 @@ packages:
 ```
 
 The wrapper (`ota_server/devices/<yaml-stem>.yaml`) sets `ota_device`, the
-OTA entities, and `esphome.project` (`name: local.<stem>`, `version` copied
-from this device YAML's `project.version` when that block exists). You do
-not paste a project block. Bump `esphome.project.version` in the device YAML
-when you publish a new build; the add-on rewrites the wrapper to match.
+OTA entities, and `esphome.project`. You do not paste a project block or
+bump a version in the device YAML. Opening the snippet after a publish
+raises the wrapper version so the next compile is a new update.
 
 For Update-only or button-only, include `livingroom.update.yaml` or
 `livingroom.button.yaml` in the same folder. The older form
@@ -150,11 +156,12 @@ no version tracking. Want both entities on one device? Use the stem wrapper
 ### Update entity
 
 The device reports `ESPHOME_PROJECT_VERSION` as its current version and
-compares it with the manifest's `version`. **Without an `esphome.project`
-block** the device falls back to reporting the ESPHome release string, so the
-add-on publishes that as the manifest version too — meaning an update only ever
-appears when you upgrade ESPHome itself, not when you change your config. The
-UI flags devices in that state. The button still works either way.
+compares it with the manifest's `version`. The generated wrapper always
+supplies `esphome.project`, so you do not add that block to the device YAML.
+If a config still uses the legacy `ota_device` include and has no project
+block, the device falls back to the ESPHome release string — an update then
+only appears when you upgrade ESPHome itself. The button still works either
+way.
 
 Pressing Install only downloads if the device's `update:` state is already
 `AVAILABLE` — that state only comes from a prior successful manifest fetch

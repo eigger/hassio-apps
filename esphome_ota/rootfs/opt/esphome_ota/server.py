@@ -147,21 +147,35 @@ class App:
             )
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
-    def sync_device_wrappers(self) -> list[dict[str, Any]]:
+    def sync_device_wrappers(
+        self,
+        bump_nodes: set[str] | None = None,
+        overrides: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
         configs, stems = metadata.scan_esphome_dir(self.settings.esphome_config_dir)
+        published = self.publisher.list_published()
+        bump_nodes = bump_nodes or set()
+        overrides = overrides or {}
         devices = []
         for row in configs:
             if not row.get("publishable"):
                 continue
-            devices.append({"node": row["node"], "version": row.get("own_project_version") or ""})
+            node = row["node"]
+            override = overrides.get(node)
+            version = packages.next_firmware_version(
+                row.get("own_project_version"),
+                (published.get(node) or {}).get("version"),
+                metadata.wrapper_project_version(self.settings.esphome_config_dir, node),
+                bump=node in bump_nodes and not override,
+                override=override,
+            )
+            devices.append({"node": node, "version": version})
+            row["project_version"] = version
         packages.write_device_wrappers(
             self.settings.esphome_config_dir,
             devices,
             keep_stems=stems,
         )
-        for row in configs:
-            if not row.get("own_project_version"):
-                row["project_version"] = None
         return configs
 
     async def _dashboard_esphome_version(self) -> str:
@@ -192,7 +206,7 @@ class App:
                 for device in await client.devices():
                     configuration = device.get("configuration", "")
                     node = metadata.node_from_configuration(configuration)
-                    family, _ = metadata.chip_family(
+                    family = metadata.chip_family_from_platform(
                         device.get("target_platform", "") or local.get(node, {}).get("target_platform", "")
                     )
                     dashboard_by_node[node] = {
@@ -382,24 +396,59 @@ async def snippet(request: web.Request) -> web.Response:
     node = request.query.get("node", "")
     if not node:
         return web.json_response({"error": "node required"}, status=400)
+    override = packages.normalize_version(request.query.get("version", ""))
+    configs = app.sync_device_wrappers(
+        bump_nodes=set() if override else {node},
+        overrides={node: override} if override else None,
+    )
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
     has_wrapper = packages.device_wrapper_exists(app.settings.esphome_config_dir, node)
-    has_project = bool(
-        has_wrapper and metadata.wrapper_project_version(app.settings.esphome_config_dir, node)
-    )
+    version = next(
+        (row.get("project_version") for row in configs if row.get("node") == node),
+        None,
+    ) or metadata.wrapper_project_version(app.settings.esphome_config_dir, node)
     return web.json_response(
         {
             "snippet": packages.snippet(
-                node, published_version, has_wrapper=has_wrapper, has_project=has_project
+                node, published_version, has_wrapper=has_wrapper
             ),
             "legacy": packages.single_entity_snippets(
-                node, published_version, has_wrapper=has_wrapper, has_project=has_project
+                node, published_version, has_wrapper=has_wrapper
             ),
             "uses_wrapper": has_wrapper,
-            "has_project": has_project,
+            "has_project": bool(has_wrapper and version),
+            "version": version or packages.next_firmware_version(
+                None, published_version, published_version, bump=True
+            ),
         }
     )
+
+
+@routes.post("/api/wrapper-version")
+async def wrapper_version(request: web.Request) -> web.Response:
+    """Set the wrapper's esphome.project.version so the next compile uses it."""
+    app: App = request.app["app"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid json"}, status=400)
+    node = (body.get("node") or "").strip()
+    version = packages.normalize_version(body.get("version") or "")
+    if not metadata.NODE_RE.match(node):
+        return web.json_response({"error": "invalid node"}, status=400)
+    if not version:
+        return web.json_response({"error": "invalid version"}, status=400)
+    configs = app.sync_device_wrappers(overrides={node: version})
+    written = next(
+        (row.get("project_version") for row in configs if row.get("node") == node),
+        None,
+    )
+    return web.json_response({
+        "node": node,
+        "version": written or version,
+        "wrapper": bool(written),
+    })
 
 
 NODE_RE = metadata.NODE_RE

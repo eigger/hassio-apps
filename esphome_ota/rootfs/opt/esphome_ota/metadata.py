@@ -126,6 +126,17 @@ def chip_family_from_binary(blob: bytes) -> str | None:
     return CHIP_IDS.get(chip_id) if chip_id is not None else None
 
 
+def chip_family_from_platform(target_platform: str) -> str | None:
+    """chipFamily from a YAML/dashboard platform key, with no image to sniff.
+
+    ``esp32:`` is every ESP32 variant — mapping that to classic ``ESP32``
+    locks the manual form until upload. Leave it unknown; ESP8266/RP2040
+    have no header chip_id, so those mappings are kept.
+    """
+    family, _ = chip_family(target_platform)
+    return None if family == "ESP32" else family
+
+
 def chip_family(target_platform: str, blob: bytes | None = None) -> tuple[str | None, str]:
     """Return ``(chipFamily, how_it_was_determined)``."""
     mapped = VARIANTS.get(normalise_platform(target_platform))
@@ -406,8 +417,8 @@ def effective_project_version(
 
     A wrapper file on disk is not enough — legacy configs that still use
     ``substitutions.ota_device`` + ``!include ota_server/ota.yaml`` never
-    compile that wrapper, so they report ``ESPHOME_VERSION``. A wrapper
-    with no ``project:`` block (device YAML has none either) is the same.
+    compile that wrapper, so they report ``ESPHOME_VERSION``. Wrappers
+    always carry ``esphome.project`` so included devices report that.
     """
     origin = origin or config_dir / f"{node}.yaml"
     merged, uses_wrapper = merge_config(
@@ -505,7 +516,7 @@ def scan_esphome_dir(config_dir: Path) -> tuple[list[dict[str, Any]], set[str]]:
 
         publishable = bool(NODE_RE.match(node))
         platform = target_platform_from_config(merged)
-        family, _ = chip_family(platform) if platform else (None, "unknown")
+        family = chip_family_from_platform(platform) if platform else None
         own_version = project_version(merged)
         firmware_version = own_version or (
             wrapper_project_version(config_dir, node) if uses_wrapper else None

@@ -26,11 +26,11 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
 
 ## A. 수동 게시 — 별도 설정 필요 없음
 
-ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), **Manual
-publish**에서 기기 YAML을 고르고 업로드하세요. 게시 이름은 YAML
-파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩은 이미지에서
-읽고, 버전은 `esphome.project.version`이 있으면 그걸 씁니다. 테이블에는
-게시된 항목만 남습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
+ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), **기기 YAML ·
+게시**에서 YAML을 고르고 스니펫을 붙여넣은 다음 컴파일하고, 그 bin을
+올리세요. 게시 이름은 YAML 파일명입니다(`livingroom.yaml` →
+`livingroom.ota.bin`). 칩은 이미지에서 읽고, 버전은 래퍼가 넣습니다.
+테이블에는 게시된 항목만 남습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
 
 ![Manual publish 폼](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -62,13 +62,13 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 
 | 파일 | 얻는 것 | 필요한 것 |
 |---|---|---|
-| `update.yaml` — 추천 | HA에 Install 버튼이 달린 **Update 엔티티** | 버전을 올릴 `esphome.project` 블록 |
-| `flash_button.yaml` — 대안 | 항상 최신 게시본을 설치하는 **버튼** | 없음 — `project.version` 없이도 동작 |
+| `update.yaml` — 추천 | HA에 Install 버튼이 달린 **Update 엔티티** | 없음 — 래퍼가 `esphome.project`를 넣음 |
+| `flash_button.yaml` — 대안 | 항상 최신 게시본을 설치하는 **버튼** | 없음 |
 | `ota.yaml` | 위 둘 다 함께 | `update.yaml`과 `flash_button.yaml`은 같이 `!include` 못 함 — 둘 다 `http_request:`/`ota:`를 정의하므로 |
 
 공통 파일 대신 기기별 래퍼를 include하세요:
 `packages: ota: !include ota_server/devices/livingroom.yaml` (슬러그 = YAML
-파일명). 래퍼가 `ota_device`를 넣습니다.
+파일명). 래퍼가 `ota_device`와 버전을 넣습니다.
 
 Update 엔티티는 먼저 JSON 매니페스트를 받아서 파싱합니다. 드물게 Home
 Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 처리

@@ -5,10 +5,8 @@ the filename *is* the choice, no need to open it to know what you're
 including:
 
 * ``update.yaml`` — an ``update:`` entity only. Recommended: version
-  tracking + an Install button in HA. The device reports
-  ESPHOME_PROJECT_VERSION as its current version, so the config should
-  declare an ``esphome.project`` block or HA will compare against the
-  ESPHome release string instead.
+  tracking + an Install button in HA. The per-device wrapper supplies
+  ``esphome.project`` so the device YAML does not.
 * ``flash_button.yaml`` — a force-install button only. No version
   comparison; press it and the current published firmware is installed.
   The fallback for the rare case a proxy/CDN in front of Home Assistant
@@ -24,6 +22,7 @@ including:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from metadata import NODE_RE
@@ -72,16 +71,9 @@ UPDATE_PACKAGE = """\
 # Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/livingroom.update.yaml
-# The wrapper sets ota_device; the device YAML does not need that substitution.
-# Legacy: substitutions.ota_device + !include {package_dir}/{update_file}
-#
-#   esphome:
-#     project:
-#       name: "you.something"
-#       version: "1.0.0"      # bump this to offer an update
-#
-# Without an esphome.project block this compares against the ESPHome
-# release string instead and will not flag config-only changes.
+# The wrapper sets ota_device and esphome.project; the device YAML does
+# not need those. Legacy: substitutions.ota_device + !include
+# {package_dir}/{update_file}
 #
 # If Install ever fails with "Failed to parse JSON..." in the device log
 # (ESPHome's http_request does not decompress gzip, and some proxy/CDN
@@ -184,17 +176,9 @@ OTA_PACKAGE = """\
 # Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/livingroom.yaml
-# The wrapper sets ota_device; the device YAML does not need that substitution.
-# Legacy: substitutions.ota_device + !include {package_dir}/{package_file}
-#
-#   esphome:
-#     project:
-#       name: "you.something"
-#       version: "1.0.0"      # bump this to offer an update
-#
-# Without an esphome.project block the Update entity compares against the
-# ESPHome release string and will not flag config-only changes. The button
-# still works either way.
+# The wrapper sets ota_device and esphome.project; the device YAML does
+# not need those. Legacy: substitutions.ota_device + !include
+# {package_dir}/{package_file}
 #
 # This button's id is `ota_flash_button` — press it programmatically from
 # anything else in the device YAML with the button.press action, instead of
@@ -275,9 +259,10 @@ DEVICE_WRAPPER = """\
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
 #
-# Sets ota_device from the YAML filename. esphome.project is copied from the
-# device YAML when it declares one; otherwise omitted so the firmware reports
-# ESPHOME_VERSION (bump project.version in the device YAML to offer updates).
+# Sets ota_device from the YAML filename and esphome.project so the device
+# YAML does not need either. Version is raised when the next compile is
+# prepared (snippet), after the previous build has been published.
+# Edit the version in the add-on UI to use a different value.
 substitutions:
   ota_device: {node}
 
@@ -293,11 +278,52 @@ esphome:
 
 """
 
-NO_PROJECT_BLOCK = """\
-# No esphome.project — the device YAML has none, so firmware reports the
-# ESPHome release. Add project.version there and rebuild to offer updates.
 
-"""
+def bump_version(version: str) -> str:
+    """Increment the last numeric run: 1.0.0 → 1.0.1, 2025.8.0 → 2025.8.1."""
+    text = (version or "").strip().replace('"', "")
+    if not text:
+        return "1.0.0"
+    parts = re.split(r"(\d+)", text)
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i].isdigit():
+            parts[i] = str(int(parts[i]) + 1)
+            return "".join(parts)
+    return f"{text}.1"
+
+
+def next_firmware_version(
+    own: str | None,
+    published: str | None,
+    current_wrapper: str | None,
+    bump: bool = False,
+    override: str | None = None,
+) -> str:
+    """Version compiled into firmware via the generated wrapper.
+
+    Device YAML does not need ``project.version``. The add-on fills this
+    automatically and the UI can override it. We only increment when
+    preparing the next compile (snippet) and the current wrapper version is
+    already published — so compile-then-upload still matches the bin, and
+    re-uploading the same bin does not jump the manifest ahead of it.
+    """
+    if override:
+        return override.replace('"', "").strip()
+    current = (current_wrapper or own or "").replace('"', "").strip()
+    published = (published or "").replace('"', "").strip() or None
+    if bump and published and (not current or current == published):
+        return bump_version(published)
+    return current or published or "1.0.0"
+
+
+def normalize_version(version: str) -> str | None:
+    """Return a wrapper-safe version string, or None if empty/invalid."""
+    text = (version or "").strip().replace('"', "").replace("'", "")
+    if not text or any(ch in text for ch in "\n\r\t"):
+        return None
+    if len(text) > 64:
+        return None
+    return text
 
 
 def write_device_wrappers(
@@ -323,13 +349,11 @@ def write_device_wrappers(
     written: list[Path] = []
     for item in devices:
         node = item["node"]
-        version = (item.get("version") or "").replace('"', "")
+        version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
         if not NODE_RE.match(node):
             continue
-        project_block = (
-            PROJECT_BLOCK.format(project_name=project_name(node), version=version)
-            if version
-            else NO_PROJECT_BLOCK
+        project_block = PROJECT_BLOCK.format(
+            project_name=project_name(node), version=version
         )
         for suffix, shared in kinds:
             wrapper_name = f"{node}{suffix}.yaml"
@@ -371,13 +395,12 @@ def _include_line(node: str, suffix: str = "") -> str:
 
 def _project_block(node: str, published_version: str | None) -> str:
     """esphome.project for the legacy ota_device snippet (no wrapper file)."""
-    version = published_version or "1.0.0"
-    comment = "  # bump this to publish a new update" if published_version else "   # bump to publish an update"
+    version = next_firmware_version(None, published_version, published_version, bump=True)
     return (
         f"esphome:\n"
         f"  project:\n"
         f'    name: "{project_name(node)}"\n'
-        f'    version: "{version}"{comment}\n'
+        f'    version: "{version}"\n'
     )
 
 
@@ -406,16 +429,11 @@ def single_entity_snippets(
     node: str,
     published_version: str | None = None,
     has_wrapper: bool = True,
-    has_project: bool = False,
+    has_project: bool = True,
 ) -> dict[str, str]:
     """Device-YAML snippets for update.yaml / flash_button.yaml alone."""
     if has_wrapper:
         update = _include_line(node, ".update")
-        if not has_project:
-            update += (
-                "\n# This wrapper has no esphome.project — firmware reports the ESPHome\n"
-                "# release. Add project.version to THIS device YAML and rebuild to offer updates.\n"
-            )
         button = _include_line(node, ".button") + _FLASH_HINT
         return {"update": update, "button": button}
     header = f"substitutions:\n  ota_device: {node}\n\npackages:\n"
@@ -432,22 +450,15 @@ def snippet(
     node: str,
     published_version: str | None = None,
     has_wrapper: bool = True,
-    has_project: bool = False,
+    has_project: bool = True,
 ) -> str:
     """The copy-paste block shown in the UI."""
     if has_wrapper:
-        project_note = (
-            "\n# ota_device, http_request/ota, Update + flash button, and esphome.project\n"
-            "# (name: local.<this YAML>, version from this file's project.version) are in that include.\n"
-            "# Bump esphome.project.version in THIS device YAML when you publish a new build.\n"
-            if has_project
-            else (
-                "\n# ota_device, http_request/ota, Update + flash button are in that include.\n"
-                "# No esphome.project — firmware reports the ESPHome release until you add\n"
-                "# project.version to THIS device YAML and rebuild.\n"
-            )
+        note = (
+            "\n# ota_device, http_request/ota, Update + flash button, and\n"
+            "# esphome.project are in that include. Nothing else to paste.\n"
         )
-        return _include_line(node) + project_note + _FLASH_HINT + _SSL_HINT
+        return _include_line(node) + note + _FLASH_HINT + _SSL_HINT
     return (
         f"substitutions:\n"
         f"  ota_device: {node}\n"
