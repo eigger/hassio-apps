@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.2
+
+Register and publish are separate. The list is registered devices, not a
+scratch form that disappears when you go compile in ESPHome.
+
+- **Register** a YAML and version first — that row stays in the table.
+- Copy the snippet from the row, compile, then **Publish** the `.bin` on
+  the same row (or drop it there). Per-device wrapper YAML is created then
+  (and when you open the snippet to compile), not for every YAML on startup.
+  Deleting a device removes those files too.
+- Already-published devices are treated as registered, so existing lists
+  keep working.
+
 ## 0.5.1
 
 The easy path is pick YAML → paste snippet → compile → upload. You do not

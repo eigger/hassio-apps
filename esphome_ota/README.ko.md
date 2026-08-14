@@ -26,11 +26,11 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
 
 ## A. 수동 게시 — 별도 설정 필요 없음
 
-ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), **기기 YAML ·
-게시**에서 YAML을 고르고 스니펫을 붙여넣은 다음 컴파일하고, 그 bin을
-올리세요. 게시 이름은 YAML 파일명입니다(`livingroom.yaml` →
-`livingroom.ota.bin`). 칩은 이미지에서 읽고, 버전은 래퍼가 넣습니다.
-테이블에는 게시된 항목만 남습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
+ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), 아래에서
+YAML을 고르고 버전을 적어 **등록**하세요. 목록 행에서 스니펫을 복사하고
+컴파일한 다음, 같은 행에서 bin을 게시합니다. 게시 이름은 YAML
+파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩은 이미지에서
+읽고, 버전은 등록할 때 정합니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
 
 ![Manual publish 폼](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 

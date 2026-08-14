@@ -326,6 +326,42 @@ def normalize_version(version: str) -> str | None:
     return text
 
 
+def write_one_device_wrapper(
+    esphome_config_dir: Path,
+    node: str,
+    version: str,
+) -> list[Path]:
+    """Write the three wrappers for one published/snippet device. Does not touch others."""
+    if not NODE_RE.match(node):
+        return []
+    target = esphome_config_dir / PACKAGE_DIR / DEVICES_DIR
+    target.mkdir(parents=True, exist_ok=True)
+    version = (version or "1.0.0").replace('"', "") or "1.0.0"
+    project_block = PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+    written: list[Path] = []
+    for suffix, shared in (
+        ("", PACKAGE_FILE),
+        (".update", UPDATE_FILE),
+        (".button", BUTTON_FILE),
+    ):
+        wrapper_name = f"{node}{suffix}.yaml"
+        path = target / wrapper_name
+        path.write_text(
+            DEVICE_WRAPPER.format(
+                header=HEADER,
+                node=node,
+                project_block=project_block,
+                package_dir=PACKAGE_DIR,
+                devices_dir=DEVICES_DIR,
+                wrapper_name=wrapper_name,
+                shared_include=f"../{shared}",
+            ),
+            encoding="utf-8",
+        )
+        written.append(path)
+    return written
+
+
 def write_device_wrappers(
     esphome_config_dir: Path,
     devices: list[dict[str, str]],
@@ -387,6 +423,14 @@ def write_device_wrappers(
 
 def device_wrapper_exists(esphome_config_dir: Path, node: str) -> bool:
     return (esphome_config_dir / PACKAGE_DIR / DEVICES_DIR / f"{node}.yaml").is_file()
+
+
+def delete_device_wrappers(esphome_config_dir: Path, node: str) -> None:
+    target = esphome_config_dir / PACKAGE_DIR / DEVICES_DIR
+    if not target.is_dir():
+        return
+    for suffix in ("", ".update", ".button"):
+        (target / f"{node}{suffix}.yaml").unlink(missing_ok=True)
 
 
 def _include_line(node: str, suffix: str = "") -> str:

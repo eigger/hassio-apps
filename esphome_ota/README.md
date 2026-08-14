@@ -27,11 +27,11 @@ There are two ways to get firmware in there:
 ## A. Manual publish — no other setup required
 
 Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
-pick the device YAML under **Device YAML & publish**, paste the snippet,
-compile, and upload the file. The published name is the YAML filename
-(`livingroom.yaml` → `livingroom.ota.bin`). Chip family is read from the
-image; version is set by the generated wrapper. Only published firmware
-stays in the table. Nothing on the ESPHome add-on needs to change for this.
+**Register** the device YAML and version. Copy the snippet from that row,
+compile, and publish the file on the same row. The published name is the
+YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip family is
+read from the image; version is what you set at register. Nothing on the
+ESPHome add-on needs to change for this.
 
 ![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 

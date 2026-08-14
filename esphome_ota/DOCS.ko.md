@@ -4,18 +4,19 @@
 
 ## 수동 게시
 
-테이블에는 **이미 게시된** 펌웨어만 나옵니다. 추가하려면 아래 순서입니다.
+테이블에는 **등록한** 기기가 나옵니다. 펌웨어를 아직 올리지 않아도
+행이 남아서, ESPHome에 다녀와도 사라지지 않습니다.
 
-1. **기기 YAML · 게시**에서 `/config/esphome`의 YAML을 고릅니다 — 스니펫이 바로 나옵니다.
-2. 그 include를 기기 YAML에 **한 번** 붙여넣습니다. `ota_device`나 `project.version`은 적지 않습니다.
+1. 아래에서 YAML을 고르고 버전을 적은 뒤 **등록**합니다.
+2. 그 행에서 스니펫을 복사해 기기 YAML에 붙여넣습니다. `ota_device`나
+   `project.version`은 적지 않습니다.
 3. ESPHome에서 컴파일합니다.
-4. `firmware.ota.bin`(OTA format)을 올리거나 폼에 놓습니다.
+4. 같은 행에서 `firmware.ota.bin`(OTA format)을 게시합니다.
 
 게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
-`livingroom.json`). 칩은 이미지 헤더에서 읽습니다(직접 고르는 건
-ESP8266/RP2040만). 버전은 래퍼의 `esphome.project`가 넣고, 다음 빌드를
-위해 스니펫을 다시 보면 올라갑니다. 컴파일 전에 폼에서 직접 바꿔도
-됩니다.
+`livingroom.json`). 칩은 이미지 헤더에서 읽습니다. 버전은 등록할 때
+정한 값이 래퍼의 `esphome.project`로 들어갑니다. 스니펫 칸에서 바꿀 수
+있습니다.
 
 ESPHome 연결은 필요 없습니다 — `Publisher.publish`로 가며, 자동 경로가
 마지막에 쓰는 코드와 같습니다.
@@ -135,8 +136,9 @@ packages:
 
 래퍼(`ota_server/devices/<yaml-stem>.yaml`)가 `ota_device`, OTA 엔티티,
 `esphome.project`를 넣습니다. project 블록을 기기 YAML에 적거나 버전을
-올릴 필요는 없습니다. 게시한 뒤 스니펫을 다시 보면 래퍼 버전이 올라가서
-다음 컴파일이 새 업데이트가 됩니다.
+올릴 필요는 없습니다. 버전은 등록할 때 정하고, 스니펫 칸에서 바꿀 수
+있습니다. 게시 후에는 래퍼 버전이 올라가서 다음 컴파일이 새 업데이트가
+됩니다.
 
 Update만 또는 버튼만이면 같은 폴더의 `livingroom.update.yaml` /
 `livingroom.button.yaml`을 include하세요. 예전 방식
