@@ -35,7 +35,7 @@
      make left columns taller than the actions cell and the shared border
      looked stepped across the row. */
   td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
-  td.next-cell input { width: 100%; max-width: 7.5em; vertical-align: middle; }
+  td.yaml-ver-cell input { width: 100%; max-width: 7.5em; vertical-align: middle; }
   .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
           border:1px solid var(--line); color:var(--muted); vertical-align:middle;
           white-space:nowrap; }
@@ -109,16 +109,15 @@
     .formgrid { grid-template-columns:1fr; }
     thead { display:none; }
     .table-wrap { overflow:visible; }
-    table, tbody { display:block; width:100%; }
     tbody tr {
       display:grid;
       grid-template-columns:1fr 1fr;
       grid-template-areas:
         "name name"
-        "chip status"
-        "ver next"
+        "chip yaml-config"
+        "yaml-ver firmware"
         "actions actions";
-      gap:4px 12px;
+      gap:6px 12px;
       border:1px solid var(--line);
       border-radius:10px;
       padding:12px;
@@ -139,11 +138,11 @@
       padding-bottom:4px;
     }
     td.chip-cell { grid-area:chip; }
-    td.status-cell { grid-area:status; }
-    td.ver-cell { grid-area:ver; overflow-wrap:anywhere; }
-    td.next-cell { grid-area:next; }
-    td.next-cell input { max-width: none; }
-    td.name .subline, td.ver-cell .subline { min-height:0; }
+    td.yaml-config-cell { grid-area:yaml-config; }
+    td.yaml-ver-cell { grid-area:yaml-ver; }
+    td.yaml-ver-cell input { max-width: none; }
+    td.firmware-cell { grid-area:firmware; overflow-wrap:anywhere; }
+    td.name .subline, td.firmware-cell .subline { min-height:0; }
     td[data-label]::before {
       content: attr(data-label);
       display:block;
@@ -191,9 +190,9 @@
       <tr>
         <th id="t-col-device">Device</th>
         <th id="t-col-chip">Chip</th>
-        <th id="t-col-version">Version</th>
-        <th id="t-col-next">Next</th>
-        <th id="t-col-status">Status</th>
+        <th id="t-col-yaml-config">YAML Config</th>
+        <th id="t-col-yaml-ver">YAML Version</th>
+        <th id="t-col-firmware">Published Firmware</th>
         <th></th>
       </tr>
     </thead>
@@ -238,7 +237,11 @@ const STRINGS = {
   en: {
     title: 'ESPHome OTA Publisher',
     sub: 'Pulls firmware from the ESPHome dashboard and publishes it to /local.',
-    colDevice: 'Device', colChip: 'Chip', colVersion: 'Version', colNext: 'Next', colStatus: 'Status',
+    colDevice: 'Device',
+    colChip: 'Chip',
+    colYamlConfig: 'YAML Config',
+    colYamlVer: 'YAML Version',
+    colFirmware: 'Published Firmware',
     loading: 'Loading…', noDevices: 'No registered devices yet.',
     restartTitle: 'Restart Home Assistant once.',
     restartBody: 'The www folder was just created. Home Assistant registers /local only at ' +
@@ -255,7 +258,14 @@ const STRINGS = {
     publish: 'Publish', publishTitleReady: 'Publish the binary already built on the dashboard',
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
-    nextCompileVersion: 'Next compile version',
+    nextCompileVersion: 'YAML project.version for next compile',
+    yamlVersionHint: 'esphome.project.version written into YAML/wrapper for the next compile',
+    yamlInjected: 'Applied ✓',
+    yamlNotInjected: 'Apply OTA',
+    yamlSnippetNeeded: 'Snippet only',
+    yamlSnippetNeededTitle: 'No local YAML found in /config/esphome — copy snippet manually',
+    firmwareNotPublished: 'Not published —',
+    firmwareRepublishNeeded: 'Needs republish',
     injectOta: 'Apply OTA',
     injectedOta: 'Applied ✓',
     ejectOta: 'Remove OTA',
@@ -305,8 +315,8 @@ const STRINGS = {
     manualPickYaml: 'Select a YAML…',
     manualCustom: 'Custom name…',
     manualCustomLabel: 'Publish name (legacy ota_device)',
-    manualVersion: 'Version',
-    manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the Next column.',
+    manualVersion: 'YAML Version',
+    manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the YAML Version column.',
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
@@ -329,7 +339,11 @@ const STRINGS = {
   ko: {
     title: 'ESPHome OTA Publisher',
     sub: 'ESPHome 대시보드에서 펌웨어를 받아 /local로 게시합니다.',
-    colDevice: '기기', colChip: '칩', colVersion: '버전', colNext: '다음', colStatus: '상태',
+    colDevice: '기기',
+    colChip: '칩',
+    colYamlConfig: 'YAML 설정',
+    colYamlVer: 'YAML 버전',
+    colFirmware: '게시된 펌웨어',
     loading: '불러오는 중…', noDevices: '등록된 기기가 없습니다.',
     restartTitle: 'Home Assistant를 한 번 재시작하세요.',
     restartBody: 'www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 /local 경로를 등록하므로, ' +
@@ -346,7 +360,14 @@ const STRINGS = {
     publish: '게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
-    nextCompileVersion: '다음 컴파일 버전',
+    nextCompileVersion: '다음 컴파일에 적용될 YAML project.version',
+    yamlVersionHint: '다음 컴파일 시 기기 YAML/래퍼에 적용되는 esphome.project.version',
+    yamlInjected: '적용됨 ✓',
+    yamlNotInjected: 'OTA 적용',
+    yamlSnippetNeeded: '스니펫 필요',
+    yamlSnippetNeededTitle: '/config/esphome에 해당 YAML이 없어 스니펫을 직접 복사해야 합니다',
+    firmwareNotPublished: '미게시 —',
+    firmwareRepublishNeeded: '재게시 필요',
     injectOta: 'OTA 적용',
     injectedOta: '적용됨 ✓',
     ejectOta: 'OTA 해제',
@@ -396,8 +417,8 @@ const STRINGS = {
     manualPickYaml: 'YAML 선택…',
     manualCustom: '직접 입력…',
     manualCustomLabel: '게시 이름 (예전 ota_device)',
-    manualVersion: '버전',
-    manualVersionHint: '래퍼가 다음 펌웨어에 넣습니다. 다음 칸에서도 바꿀 수 있습니다.',
+    manualVersion: 'YAML 버전',
+    manualVersionHint: '래퍼가 다음 펌웨어에 넣습니다. YAML 버전 칸에서도 바꿀 수 있습니다.',
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
@@ -442,9 +463,9 @@ function applyStaticText() {
   $('t-sub').textContent = T.sub;
   $('t-col-device').textContent = T.colDevice;
   $('t-col-chip').textContent = T.colChip;
-  $('t-col-version').textContent = T.colVersion;
-  $('t-col-next').textContent = T.colNext;
-  $('t-col-status').textContent = T.colStatus;
+  $('t-col-yaml-config').textContent = T.colYamlConfig;
+  $('t-col-yaml-ver').textContent = T.colYamlVer;
+  $('t-col-firmware').textContent = T.colFirmware;
   $('t-loading').textContent = T.loading;
   $('t-manual-title').textContent = T.manualTitle;
   $('t-manual-body').innerHTML = T.manualBody;
@@ -486,21 +507,11 @@ function row(d) {
   const stale = pub && d.own_project_version && pub.version !== d.own_project_version;
   const canDrop = d.publishable !== false;
 
-  const state = !pub
-    ? `<span class="chip">${T.notPublished}</span>`
-    : stale
-      ? `<span class="chip warn">${T.needsRepublish}</span>`
-      : `<span class="chip ok">${T.published}</span>`;
-
   const yamlVer = yamlVersion(d);
-  const version = pub
-    ? `${escapeHtml(pub.version)}<span class="subline tiny muted">` +
-      `${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`
-    : `<span class="muted">—</span><span class="subline tiny muted">&nbsp;</span>`;
   const nextId = `nextVersion-${d.node}`;
-  const next =
+  const yamlVerInput =
     `<input type="text" id="${escapeHtml(nextId)}" value="${escapeHtml(yamlVer)}" ` +
-    `title="${escapeHtml(T.nextCompileVersion)}">`;
+    `title="${escapeHtml(T.yamlVersionHint)}">`;
 
   let badge = '';
   if (d.source === 'published' || d.manual) {
@@ -510,24 +521,32 @@ function row(d) {
     ? `<span class="subline tiny muted">${escapeHtml(d.configuration)}</span>`
     : `<span class="subline tiny muted">&nbsp;</span>`;
 
+  let firmwareHtml = '';
+  if (pub) {
+    const chipState = stale ? `<span class="chip warn">${T.firmwareRepublishNeeded}</span> ` : '';
+    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}` +
+      `<span class="subline tiny muted">${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`;
+  } else {
+    firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span><span class="subline tiny muted">&nbsp;</span>`;
+  }
+
   tr.innerHTML = `
     <td class="name">${escapeHtml(d.friendly_name)}${badge}${subtitle}</td>
     <td class="chip-cell" data-label="${escapeHtml(T.colChip)}">${d.chip_family ? escapeHtml(d.chip_family) : '<span class="muted">?</span>'}</td>
-    <td class="ver-cell" data-label="${escapeHtml(T.colVersion)}">${version}</td>
-    <td class="next-cell" data-label="${escapeHtml(T.colNext)}">${next}</td>
-    <td class="status-cell" data-label="${escapeHtml(T.colStatus)}">${state}</td>
+    <td class="yaml-config-cell" data-label="${escapeHtml(T.colYamlConfig)}"></td>
+    <td class="yaml-ver-cell" data-label="${escapeHtml(T.colYamlVer)}">${yamlVerInput}</td>
+    <td class="firmware-cell" data-label="${escapeHtml(T.colFirmware)}">${firmwareHtml}</td>
     <td class="actions-cell"><div class="actions"></div></td>`;
   if (canDrop) tr.title = T.dropHere;
-  bindNextVersionInput(tr.querySelector('.next-cell input'), d);
+  bindNextVersionInput(tr.querySelector('.yaml-ver-cell input'), d);
 
-  const actions = tr.querySelector('.actions');
-
-  // One-click inject / eject OTA package button if device YAML is available
+  // YAML Config cell (inject/eject button or snippet badge)
+  const yamlConfigTd = tr.querySelector('.yaml-config-cell');
   if (d.has_yaml) {
     const injectBtn = document.createElement('button');
     if (d.injected) {
       injectBtn.className = 'applied';
-      injectBtn.textContent = T.injectedOta;
+      injectBtn.textContent = T.yamlInjected;
       injectBtn.title = T.ejectTitle;
       injectBtn.onclick = async (e) => {
         e.stopPropagation();
@@ -546,12 +565,12 @@ function row(d) {
         } catch (err) {
           alert(err.message);
           injectBtn.disabled = false;
-          injectBtn.textContent = T.injectedOta;
+          injectBtn.textContent = T.yamlInjected;
         }
       };
     } else {
       injectBtn.className = 'inject-btn';
-      injectBtn.textContent = '+ ' + T.injectOta;
+      injectBtn.textContent = '+ ' + T.yamlNotInjected;
       injectBtn.title = T.injectTitle;
       injectBtn.onclick = async (e) => {
         e.stopPropagation();
@@ -569,12 +588,17 @@ function row(d) {
         } catch (err) {
           alert(err.message);
           injectBtn.disabled = false;
-          injectBtn.textContent = '+ ' + T.injectOta;
+          injectBtn.textContent = '+ ' + T.yamlNotInjected;
         }
       };
     }
-    actions.append(injectBtn);
+    yamlConfigTd.appendChild(injectBtn);
+  } else {
+    yamlConfigTd.innerHTML = `<span class="chip" title="${escapeHtml(T.yamlSnippetNeededTitle)}">${escapeHtml(T.yamlSnippetNeeded)}</span>`;
   }
+
+  // Actions cell
+  const actions = tr.querySelector('.actions');
 
   const uploadBtn = document.createElement('button');
   uploadBtn.className = d.source === 'dashboard' ? 'jobctl' : 'jobctl primary';
