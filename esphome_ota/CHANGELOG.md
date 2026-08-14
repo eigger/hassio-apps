@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.1
+
+- **Form Alignment & Layout Polish**:
+  - Normalized height (`34px`) across `<select>`, `<input>`, and `<button>` elements in the device registration form for clean horizontal alignment.
+  - Expanded YAML Version column width (`min-width: 9em; max-width: 13em;`) to prevent truncation of longer semantic version strings.
+- **Action Button Disambiguation**:
+  - Split ambiguous "Publish" labels into explicit **Upload .bin** (local binary upload) and **Dashboard Publish** (publish already-built firmware from dashboard) buttons.
+- **Interactive UX & Tooltip Enhancements**:
+  - Added real-time visual save confirmation (green highlight animation) when editing YAML version values.
+  - Added comprehensive hover tooltips to all table headers (Device, Chip, YAML Config, YAML Version, Published Firmware).
+  - Added descriptive tooltips to the "Needs republish" badge indicating exact version mismatches.
+  - Enhanced drag & drop visual guide on table rows.
+
 ## 0.6.0
 
 - **Separated Table Columns for Clear State Visualization**:

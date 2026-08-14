@@ -11,12 +11,12 @@
 2. 그 행에서 **`+ OTA 적용`** 버튼을 클릭하여 기기 YAML에 OTA 패키지를 원클릭으로 자동 주입합니다 (또는 스니펫을 직접 복사할 수도 있습니다).
 3. ESPHome에서 컴파일합니다.
 4. ESPHome에서 **Install → Advanced options → Download firmware binary →
-   OTA update**로 받은 `.bin` 파일을 같은 행에 드래그 앤 드롭하거나 **`게시`** 버튼으로 업로드합니다.
+   OTA update**로 받은 `.bin` 파일을 같은 행에 드래그 앤 드롭하거나 **`바이너리 업로드`** 버튼으로 올립니다.
    Modern/Factory가 아니라 **OTA update**만 해당합니다.
 
 게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
 `livingroom.json`). 칩은 이미지 헤더에서 읽습니다. **YAML 설정**은 기기 YAML 파일에
-OTA 패키지가 주입되었는지 여부를 나타내며, **YAML 버전**은 다음 컴파일 시
+OTA 패키지가 주입되었는지 여부를 나타내며, **YAML 버전**은 컴파일 시
 기기 YAML/래퍼에 적용되는 `esphome.project.version`입니다 (그 칸이나 스니펫 패널에서 변경 가능).
 **게시된 펌웨어**는 `/local`에 실제로 배포된 바이너리 버전입니다. 새 펌웨어를 게시하면
 다음 컴파일을 위해 YAML 버전이 자동으로 1씩 올라갑니다.

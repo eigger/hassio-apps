@@ -11,7 +11,7 @@ firmware, so leaving to compile in ESPHome does not lose it.
 2. Click **`+ Apply OTA`** on that row to automatically inject the OTA package into the device YAML (or copy the snippet if you prefer manual editing).
 3. Compile in ESPHome.
 4. In ESPHome: **Install → Advanced options → Download firmware binary →
-   OTA update**. Drag & drop that `.bin` file onto the row or click **`Publish`** to upload.
+   OTA update**. Drag & drop that `.bin` file onto the row or click **`Upload .bin`** to upload.
    Use OTA update, not Modern/Factory.
 
 The published slug is the YAML filename (`livingroom.yaml` →
