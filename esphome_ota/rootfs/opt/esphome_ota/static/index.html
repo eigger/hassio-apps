@@ -34,6 +34,11 @@
      make left columns taller than the actions cell and the shared border
      looked stepped across the row. */
   td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
+  td.ver-cell.ver-clickable { cursor: pointer; }
+  td.ver-cell label { display: block; margin-bottom: 3px; }
+  .ver-next { border-bottom: 1px dashed currentColor; }
+  td.ver-cell.ver-clickable:hover .ver-next { color: var(--accent); }
+  td.ver-cell input { width: 100%; max-width: 160px; }
   .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
           border:1px solid var(--line); color:var(--muted); vertical-align:middle;
           white-space:nowrap; }
@@ -229,6 +234,10 @@ const STRINGS = {
     publish: 'Publish', publishTitleReady: 'Publish the binary already built on the dashboard',
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
+    nextCompileVersion: 'Next compile version',
+    nextCompile: (v) => `next ${v}`,
+    publishedAs: (v) => `published ${v}`,
+    editVersionTitle: 'Click to edit the next compile version',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
     yamlNote: 'Paste this include once. Then compile in ESPHome and publish the <code>.bin</code> from this row.',
     yamlNoteLegacy: 'No matching YAML in /config/esphome, so paste <code>ota_device</code> and the shared include. A device YAML is easier — the wrapper then keeps version for you.',
@@ -258,7 +267,8 @@ const STRINGS = {
     manualPickYaml: 'Select a YAML…',
     manualCustom: 'Custom name…',
     manualCustomLabel: 'Publish name (legacy ota_device)',
-    manualVersion: 'Version', manualVersionHint: 'Compiled into the firmware via the wrapper. You can change it here.',
+    manualVersion: 'Version',
+    manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the version column.',
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
@@ -297,6 +307,10 @@ const STRINGS = {
     publish: '게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
+    nextCompileVersion: '다음 컴파일 버전',
+    nextCompile: (v) => `다음 ${v}`,
+    publishedAs: (v) => `게시됨 ${v}`,
+    editVersionTitle: '클릭하면 다음 컴파일 버전을 바꿉니다',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
     yamlNote: '이 include만 한 번 넣으면 됩니다. 그다음 ESPHome에서 컴파일하고, 이 행에서 <code>.bin</code>을 게시하세요.',
     yamlNoteLegacy: '/config/esphome에 해당 YAML이 없어 <code>ota_device</code>와 공유 include를 붙여넣습니다. 기기 YAML이 있으면 래퍼가 버전을 넣습니다.',
@@ -325,7 +339,8 @@ const STRINGS = {
     manualPickYaml: 'YAML 선택…',
     manualCustom: '직접 입력…',
     manualCustomLabel: '게시 이름 (예전 ota_device)',
-    manualVersion: '버전', manualVersionHint: '래퍼가 펌웨어에 넣습니다. 여기서 바꿔도 됩니다.',
+    manualVersion: '버전',
+    manualVersionHint: '래퍼가 다음 펌웨어에 넣습니다. 버전 칸에서도 바꿀 수 있습니다.',
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
@@ -417,10 +432,17 @@ function row(d) {
       ? `<span class="chip warn">${T.needsRepublish}</span>`
       : `<span class="chip ok">${T.published}</span>`;
 
+  const yamlVer = yamlVersion(d);
+  const nextDiffers = !!(pub && yamlVer && pub.version !== yamlVer);
+  const meta = pub
+    ? T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))
+    : '';
   const version = pub
     ? `${escapeHtml(pub.version)}<span class="subline tiny muted">` +
-      `${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`
-    : `${escapeHtml(d.project_version || '1.0.0')}<span class="subline tiny muted">&nbsp;</span>`;
+      `${nextDiffers ? `<span class="ver-next">${escapeHtml(T.nextCompile(yamlVer))}</span> · ` : ''}` +
+      `${meta}</span>`
+    : `<span class="ver-next">${escapeHtml(yamlVer)}</span>` +
+      `<span class="subline tiny muted">&nbsp;</span>`;
 
   let badge = '';
   if (d.source === 'published' || d.manual) {
@@ -437,6 +459,7 @@ function row(d) {
     <td class="status-cell" data-label="${escapeHtml(T.colStatus)}">${state}</td>
     <td class="actions-cell"><div class="actions"></div></td>`;
   if (canDrop) tr.title = T.dropHere;
+  enableVersionEdit(tr.querySelector('.ver-cell'), d);
 
   const actions = tr.querySelector('.actions');
 
@@ -530,6 +553,101 @@ function syncNodeField() {
   const custom = yaml === '__custom__';
   $('mNodeField').hidden = !custom;
   if (!custom) $('mNode').value = yaml;
+}
+
+function yamlVersion(d) {
+  return (d && d.project_version) || '1.0.0';
+}
+
+function enableVersionEdit(td, d) {
+  if (!td) return;
+  td.classList.add('ver-clickable');
+  td.tabIndex = 0;
+  td.title = T.editVersionTitle;
+  td.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startVersionEdit(td, d);
+  });
+  td.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      startVersionEdit(td, d);
+    }
+  });
+}
+
+function startVersionEdit(td, d) {
+  if (td.dataset.editing === '1') return;
+  td.dataset.editing = '1';
+  td.classList.remove('ver-clickable');
+  td.removeAttribute('title');
+  td.tabIndex = -1;
+  const current = yamlVersion(d);
+  const pub = d.published;
+  const inputId = `inlineVersion-${d.node}`;
+  td.innerHTML =
+    `<label class="tiny muted" for="${escapeHtml(inputId)}">${T.nextCompileVersion}</label>` +
+    `<input type="text" id="${escapeHtml(inputId)}" value="${escapeHtml(current)}">` +
+    (pub
+      ? `<span class="subline tiny muted">${escapeHtml(T.publishedAs(pub.version))}</span>`
+      : `<span class="subline tiny muted">&nbsp;</span>`);
+  const input = td.querySelector('input');
+  input.title = T.manualVersionHint;
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    if (save) {
+      const next = input.value.trim();
+      if (next && next !== current) {
+        try {
+          await saveWrapperVersion(d, next);
+          return;
+        } catch (err) {
+          done = false;
+          let errEl = td.querySelector('.ver-err');
+          if (!errEl) {
+            errEl = document.createElement('div');
+            errEl.className = 'tiny ver-err';
+            errEl.style.color = 'var(--err)';
+            td.appendChild(errEl);
+          }
+          errEl.textContent = err.message;
+          input.focus();
+          return;
+        }
+      }
+    }
+    loadDevices();
+  };
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      input.blur();
+    } else if (e.key === 'Escape') {
+      done = true;
+      e.preventDefault();
+      loadDevices();
+    }
+  });
+}
+
+async function saveWrapperVersion(d, next) {
+  const saved = await api('api/wrapper-version', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ node: d.node, version: next }),
+  });
+  d.project_version = saved.version;
+  const snippetInput = $('rowVersion');
+  if (snippetInput) snippetInput.value = saved.version;
+  await loadDevices();
+  return saved;
 }
 
 function compiledVersion(d) {
@@ -701,7 +819,7 @@ async function showSnippet(d) {
   detail.innerHTML = `
     <b>${T.yamlHeader(d.friendly_name)}</b>
     <div class="field" style="margin-top:10px; max-width:220px">
-      <label class="tiny muted" for="rowVersion">${T.manualVersion}</label>
+      <label class="tiny muted" for="rowVersion">${T.nextCompileVersion}</label>
       <input type="text" id="rowVersion" value="${escapeHtml(version || d.project_version || '1.0.0')}">
     </div>
     <div class="snippetLabel tiny muted" style="margin-top:10px">
@@ -732,13 +850,7 @@ async function showSnippet(d) {
     const next = input.value.trim();
     if (!next) return;
     try {
-      const saved = await api('api/wrapper-version', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ node: d.node, version: next }),
-      });
-      d.project_version = saved.version;
-      loadDevices();
+      await saveWrapperVersion(d, next);
     } catch (err) {
       $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
     }

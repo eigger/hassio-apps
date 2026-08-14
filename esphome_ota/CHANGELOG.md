@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+The version column shows the published firmware and, when it differs, the
+next compile version from the wrapper. Click the column to edit that next
+version — you no longer have to open the snippet just to see or change it.
+The snippet panel labels the field **Next compile version**.
+
 ## 0.5.2
 
 Register and publish are separate. The list is registered devices, not a

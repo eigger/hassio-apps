@@ -30,8 +30,8 @@ Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
 **Register** the device YAML and version. Copy the snippet from that row,
 compile, and publish the file on the same row. The published name is the
 YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip family is
-read from the image; version is what you set at register. Nothing on the
-ESPHome add-on needs to change for this.
+read from the image; version is what you set at register, and later in
+the version column. Nothing on the ESPHome add-on needs to change for this.
 
 ![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
