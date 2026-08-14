@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.8
+
+The generated packages (`update.yaml`, `flash_button.yaml`, `ota.yaml`)
+now include `safe_mode:`. `http_request` OTA does not enable it the way
+`platform: esphome` does, so a crash loop on a remote device can be
+recovered. Already-included devices pick this up on the next compile.
+
 ## 0.5.7
 
 The snippet panel (and register steps) now spell out how to get the binary:

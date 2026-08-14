@@ -65,7 +65,8 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 
 공통 파일 대신 기기별 래퍼를 include하세요:
 `packages: ota: !include ota_server/devices/livingroom.yaml` (슬러그 = YAML
-파일명). 래퍼가 `ota_device`와 버전을 넣습니다.
+파일명). 래퍼가 `ota_device`와 버전을 넣습니다. 패키지가 `safe_mode:`도
+켭니다 (`http_request` OTA는 `platform: esphome`과 달리 자동으로 안 켭니다).
 
 Update 엔티티는 먼저 JSON 매니페스트를 받아서 파싱합니다. 드물게 Home
 Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 처리

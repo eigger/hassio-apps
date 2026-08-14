@@ -17,6 +17,9 @@ including:
   ``!include``d in the same device config — both declare ``http_request:``/
   ``ota:``, and ESPHome doesn't merge two packages' same-named top-level
   keys.
+
+All three also declare ``safe_mode:`` — ``http_request`` OTA does not
+enable it the way ``platform: esphome`` does.
 """
 
 from __future__ import annotations
@@ -91,6 +94,10 @@ http_request:
 ota:
   - platform: http_request
 
+# http_request OTA does not enable safe_mode the way platform: esphome does.
+# Empty block = defaults (recovery firmware after a boot crash loop).
+safe_mode:
+
 update:
   - platform: http_request
     id: ota_update
@@ -145,6 +152,10 @@ http_request:
 
 ota:
   - platform: http_request
+
+# http_request OTA does not enable safe_mode the way platform: esphome does.
+# Empty block = defaults (recovery firmware after a boot crash loop).
+safe_mode:
 
 button:
   - platform: template
@@ -201,6 +212,10 @@ http_request:
 
 ota:
   - platform: http_request
+
+# http_request OTA does not enable safe_mode the way platform: esphome does.
+# Empty block = defaults (recovery firmware after a boot crash loop).
+safe_mode:
 
 update:
   - platform: http_request
