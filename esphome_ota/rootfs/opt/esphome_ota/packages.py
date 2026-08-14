@@ -260,9 +260,8 @@ DEVICE_WRAPPER = """\
 #     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
 #
 # Sets ota_device from the YAML filename and esphome.project so the device
-# YAML does not need either. Version is raised when the next compile is
-# prepared (snippet), after the previous build has been published.
-# Edit the version in the add-on UI to use a different value.
+# YAML does not need either. Version is raised after a publish so the next
+# compile is a new update. Edit it in the add-on's version column.
 substitutions:
   ota_device: {node}
 
