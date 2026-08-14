@@ -20,21 +20,17 @@ tunnel, with nothing to open on this add-on's side.
                                                  your remote devices
 ```
 
-![The add-on's panel: device list with chip, published version, next compile version, and status](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
-
 There are two ways to get firmware in there:
 
 ## A. Manual publish — no other setup required
 
-Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
 **Register** the device YAML and version. Copy the snippet from that row,
-compile, and publish the file on the same row. The published name is the
-YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip family is
-read from the image. **Version** is the published firmware; **Next** is
-what the next compile will report — edit it in that column. Nothing on
-the ESPHome add-on needs to change for this.
-
-![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
+compile in ESPHome, then **Install → Advanced options → Download firmware
+binary → OTA update**. Publish that `.bin` on the same row. The published
+name is the YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip
+family is read from the image. **Version** is the published firmware;
+**Next** is what the next compile will report — edit it in that column.
+Nothing on the ESPHome add-on needs to change for this.
 
 ## B. Build & publish from here — needs a setting on ESPHome's side
 
@@ -101,9 +97,8 @@ the fix.
    you haven't set one there, set `base_url` in this add-on's options directly
 5. Register a YAML, copy the snippet from that row into the device config
    (include path `ota_server/devices/<yaml-filename>.yaml`), compile, then
-   publish the `.bin` on the same row — or drop it there. For Build &
-   publish from this panel, enable ESPHome's public port — see above.
-
-![The YAML snippet shown for a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
+   **Install → Advanced options → Download firmware binary → OTA update**
+   and publish that `.bin` on the same row. For Build & publish from this
+   panel, enable ESPHome's public port — see above.
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.

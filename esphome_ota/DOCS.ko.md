@@ -11,7 +11,9 @@
 2. 그 행에서 스니펫을 복사해 기기 YAML에 붙여넣습니다. `ota_device`나
    `project.version`은 적지 않습니다.
 3. ESPHome에서 컴파일합니다.
-4. 같은 행에서 `firmware.ota.bin`(OTA format)을 게시합니다.
+4. ESPHome에서 **Install → Advanced options → Download firmware binary →
+   OTA update**로 받은 `.bin`을 같은 행에서 게시하거나 놓습니다.
+   Modern/Factory가 아니라 **OTA update**만 해당합니다.
 
 게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
 `livingroom.json`). 칩은 이미지 헤더에서 읽습니다. **버전**은 게시된

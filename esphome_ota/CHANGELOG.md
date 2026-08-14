@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.7
+
+The snippet panel (and register steps) now spell out how to get the binary:
+ESPHome **Install → Advanced options → Download firmware binary → OTA
+update**, then upload that `.bin` on the row. Stale README screenshots are
+removed. The Ingress title shows this add-on's version when the Supervisor
+reports it.
+
 ## 0.5.6
 
 Publishing a `.bin` no longer shows the register-success toast (copy the

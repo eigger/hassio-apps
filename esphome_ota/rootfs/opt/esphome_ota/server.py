@@ -85,6 +85,7 @@ class App:
         self.jobs: dict[str, Job] = {}
         self.lock = asyncio.Lock()
         self.esphome_version: str = ""
+        self.addon_version: str = ""
         self.registered: dict[str, dict[str, Any]] = {}
 
     # -- startup -----------------------------------------------------------
@@ -93,6 +94,7 @@ class App:
         self.restart_required = self.publisher.ensure_dirs()
 
         async with aiohttp.ClientSession() as session:
+            self.addon_version = await supervisor.find_self_version(session) or ""
             if self.settings.dashboard_url:
                 self.resolved_dashboard = self.settings.dashboard_url.rstrip("/")
             else:
@@ -390,6 +392,7 @@ async def status(request: web.Request) -> web.Response:
             "package_dir": packages.PACKAGE_DIR,
             "chip_families": metadata.CHIP_FAMILIES,
             "esphome_version": app.esphome_version,
+            "addon_version": app.addon_version,
         }
     )
 

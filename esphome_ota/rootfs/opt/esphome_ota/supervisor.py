@@ -116,6 +116,17 @@ async def find_dashboard_url(session: ClientSession) -> str | None:
     return None
 
 
+async def find_self_version(session: ClientSession) -> str | None:
+    """Return this add-on's version from the Supervisor, if available."""
+    try:
+        info = await _get(session, "/addons/self/info")
+    except Exception as err:  # noqa: BLE001
+        LOG.warning("Could not read this add-on's info: %s", err)
+        return None
+    version = (info or {}).get("version") or ""
+    return str(version).strip() or None
+
+
 async def find_external_url(session: ClientSession) -> str | None:
     """Return HA's configured external URL (Settings → System → Network), if set.
 
