@@ -11,8 +11,9 @@ firmware, so leaving to compile in ESPHome does not lose it.
 2. Copy the snippet from that row into the device YAML **once**. Do not add
    `ota_device` or `project.version` there.
 3. Compile in ESPHome.
-4. Publish `firmware.ota.bin` (OTA format) from the same row — or drop it
-   there.
+4. In ESPHome: **Install → Advanced options → Download firmware binary →
+   OTA update**. Publish that `.bin` on the same row — or drop it there.
+   Use OTA update, not Modern/Factory.
 
 The published slug is the YAML filename (`livingroom.yaml` →
 `livingroom.ota.bin` / `livingroom.json`). Chip family is read from the

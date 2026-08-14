@@ -18,6 +18,7 @@
          font:14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
   h1 { font-size:20px; margin:0 0 4px; }
   .sub { color:var(--muted); margin-bottom:18px; }
+  #t-addon-ver { font-weight:400; margin-left:8px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
           padding:14px 16px; margin-bottom:14px; }
   .banner { border-left:4px solid var(--warn); }
@@ -75,6 +76,8 @@
   details[open] summary { margin-bottom:4px; }
   .steps { margin:8px 0 0; padding-left:1.25em; }
   .steps li { margin:3px 0; }
+  .howto { margin-top:10px; }
+  .howto .steps { margin-top:4px; }
   tr.drop-target td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   #manualForm.drop-target, details.drop-target { outline: 2px dashed var(--accent); outline-offset: 4px; }
   .toast { color: var(--ok); font-size: 12px; margin-top: 4px; }
@@ -149,7 +152,7 @@
 <body>
 <div class="topbar">
   <div>
-    <h1 id="t-title">ESPHome OTA Publisher</h1>
+    <h1><span id="t-title">ESPHome OTA Publisher</span> <span id="t-addon-ver" class="tiny muted"></span></h1>
     <div class="sub" id="t-sub">Pulls firmware from the ESPHome dashboard and publishes it to /local.</div>
   </div>
   <select id="langSelect" title="Language">
@@ -235,7 +238,15 @@ const STRINGS = {
     buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
     nextCompileVersion: 'Next compile version',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
-    yamlNote: 'Paste this include once. Then compile in ESPHome and publish the <code>.bin</code> from this row.',
+    yamlHowto: '<ol class="steps">' +
+      '<li>Copy the include below into the device YAML <b>once</b>. Do not add ' +
+      '<code>ota_device</code> or <code>project.version</code>.</li>' +
+      '<li>Compile the device in ESPHome.</li>' +
+      '<li>In ESPHome: <b>Install</b> → <b>Advanced options</b> → ' +
+      '<b>Download firmware binary</b> → <b>OTA update</b>. Upload that ' +
+      '<code>.bin</code> on this row, or drop it here. Use OTA update, not Modern/Factory.</li>' +
+      '</ol>',
+    yamlSnippetLabel: 'YAML include',
     yamlNoteLegacy: 'No matching YAML in /config/esphome, so paste <code>ota_device</code> and the shared include. A device YAML is easier — the wrapper then keeps version for you.',
     copyTitle: 'Copy to clipboard', copied: 'Copied',
     building: 'Building…', publishing: 'Publishing…',
@@ -257,7 +268,9 @@ const STRINGS = {
     manualBody: '<ol class="steps">' +
       '<li>Pick the YAML and set the version, then Register — it stays in the list.</li>' +
       '<li>Copy the snippet from that row and paste it into the device YAML.</li>' +
-      '<li>Compile in ESPHome, then Publish the <code>firmware.ota.bin</code> on the same row.</li>' +
+      '<li>Compile in ESPHome. Then <b>Install</b> → <b>Advanced options</b> → ' +
+      '<b>Download firmware binary</b> → <b>OTA update</b>, and publish that ' +
+      '<code>.bin</code> on the same row.</li>' +
       '</ol>',
     manualNode: 'Device YAML',
     manualPickYaml: 'Select a YAML…',
@@ -274,9 +287,9 @@ const STRINGS = {
     manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
     yamlBadge: 'YAML', yamlBadgeTitle: 'From /config/esphome — dashboard not required',
     reupload: 'Publish',
-    reuploadTitle: 'Upload firmware.ota.bin for this device',
-    dropHere: 'Drop firmware.ota.bin to publish',
-    notBin: 'Choose a .bin file (OTA format from the ESPHome dashboard).',
+    reuploadTitle: 'Upload the OTA update .bin from ESPHome',
+    dropHere: 'Drop the OTA update .bin to publish',
+    notBin: 'Choose the OTA update .bin from ESPHome (Install → Advanced options → Download firmware binary → OTA update).',
     fileTooBig: 'File is too large (8 MB max).',
     versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
     notPublishable: 'This YAML filename cannot be used as a publish name',
@@ -306,7 +319,16 @@ const STRINGS = {
     buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
     nextCompileVersion: '다음 컴파일 버전',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
-    yamlNote: '이 include만 한 번 넣으면 됩니다. 그다음 ESPHome에서 컴파일하고, 이 행에서 <code>.bin</code>을 게시하세요.',
+    yamlHowto: '<ol class="steps">' +
+      '<li>아래 include를 기기 YAML에 <b>한 번만</b> 넣습니다. ' +
+      '<code>ota_device</code>나 <code>project.version</code>은 적지 않습니다.</li>' +
+      '<li>ESPHome에서 해당 기기를 컴파일합니다.</li>' +
+      '<li>ESPHome에서 <b>Install</b> → <b>Advanced options</b> → ' +
+      '<b>Download firmware binary</b> → <b>OTA update</b>를 눌러 받은 ' +
+      '<code>.bin</code>을 이 행에 올리거나 놓습니다. Modern/Factory가 아니라 ' +
+      '<b>OTA update</b>만 해당합니다.</li>' +
+      '</ol>',
+    yamlSnippetLabel: 'YAML include',
     yamlNoteLegacy: '/config/esphome에 해당 YAML이 없어 <code>ota_device</code>와 공유 include를 붙여넣습니다. 기기 YAML이 있으면 래퍼가 버전을 넣습니다.',
     copyTitle: '클립보드에 복사', copied: '복사됨',
     building: '빌드 중…', publishing: '게시 중…',
@@ -327,7 +349,9 @@ const STRINGS = {
     manualBody: '<ol class="steps">' +
       '<li>YAML을 고르고 버전을 적은 뒤 등록합니다 — 목록에 남습니다.</li>' +
       '<li>그 행에서 스니펫을 복사해 기기 YAML에 붙여넣습니다.</li>' +
-      '<li>ESPHome에서 컴파일한 다음, 같은 행에서 <code>firmware.ota.bin</code>을 게시합니다.</li>' +
+      '<li>ESPHome에서 컴파일한 다음, <b>Install</b> → <b>Advanced options</b> → ' +
+      '<b>Download firmware binary</b> → <b>OTA update</b>로 받은 <code>.bin</code>을 ' +
+      '같은 행에서 게시합니다.</li>' +
       '</ol>',
     manualNode: '기기 YAML',
     manualPickYaml: 'YAML 선택…',
@@ -344,9 +368,9 @@ const STRINGS = {
     manualBadge: '게시만', manualBadgeTitle: '디스크에만 있음 — /config/esphome에 해당 YAML 없음',
     yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome에서 읽음 — 대시보드 불필요',
     reupload: '게시',
-    reuploadTitle: '이 기기의 firmware.ota.bin을 올립니다',
-    dropHere: 'firmware.ota.bin을 놓으면 게시됩니다',
-    notBin: 'ESPHome 대시보드의 OTA format .bin 파일을 선택하세요.',
+    reuploadTitle: 'ESPHome의 OTA update .bin을 올립니다',
+    dropHere: 'OTA update .bin을 놓으면 게시됩니다',
+    notBin: 'ESPHome에서 Install → Advanced options → Download firmware binary → OTA update로 받은 .bin을 선택하세요.',
     fileTooBig: '파일이 너무 큽니다 (최대 8 MB).',
     versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
@@ -414,6 +438,7 @@ async function loadStatus() {
   if (!status.dashboard) banner(T.noDashboardTitle, T.noDashboardBody, 'warn');
   if (!status.base_url) banner(T.noBaseUrlTitle, T.noBaseUrlBody, 'err');
   else if (status.base_url_source === 'lan_ip_fallback') banner(T.lanFallbackTitle, T.lanFallbackBody, 'warn');
+  $('t-addon-ver').textContent = status.addon_version || '';
 }
 
 function row(d) {
@@ -753,7 +778,6 @@ async function showSnippet(d) {
   const body = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
   const { snippet, legacy, uses_wrapper, version } = body;
   if (version) d.project_version = version;
-  const note = uses_wrapper === false ? T.yamlNoteLegacy : T.yamlNote;
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
@@ -762,8 +786,12 @@ async function showSnippet(d) {
       <label class="tiny muted" for="rowVersion">${T.nextCompileVersion}</label>
       <input type="text" id="rowVersion" value="${escapeHtml(version || d.project_version || '1.0.0')}">
     </div>
+    <div class="howto tiny">${T.yamlHowto}</div>
+    ${uses_wrapper === false
+      ? `<div class="tiny muted" style="margin-top:8px">${T.yamlNoteLegacy}</div>`
+      : ''}
     <div class="snippetLabel tiny muted" style="margin-top:10px">
-      <span>${note}</span>
+      <span>${T.yamlSnippetLabel}</span>
       <button type="button" class="copyBtn" title="${T.copyTitle}"
               onclick="copySnippet('snippetA', this)">${COPY_ICON}</button>
     </div>
