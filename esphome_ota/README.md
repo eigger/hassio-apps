@@ -22,15 +22,14 @@ tunnel, with nothing to open on this add-on's side.
 
 There are two ways to get firmware in there:
 
-## A. Manual publish — no other setup required
+## A. Easy manual publish — no other setup required (Recommended)
 
-**Register** the device YAML and version. Copy the snippet from that row,
-compile in ESPHome, then **Install → Advanced options → Download firmware
-binary → OTA update**. Publish that `.bin` on the same row. The published
-name is the YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip
-family is read from the image. **Version** is the published firmware;
-**Next** is what the next compile will report — edit it in that column.
-Nothing on the ESPHome add-on needs to change for this.
+1. **Register** the device YAML and version below.
+2. Click **`+ Apply OTA`** on the device row to automatically inject the package into the device YAML (no manual copy/paste needed).
+3. Compile in ESPHome.
+4. Download the firmware binary (**Install → Advanced options → Download firmware binary → OTA update**), then **drag & drop** that `.bin` onto the row or click **`Publish`** to upload.
+
+The published name is the YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip family is read from the image header, and version automatically advances for the next compile. Nothing on the ESPHome add-on needs to change for this.
 
 ## B. Build & publish from here — needs a setting on ESPHome's side
 
@@ -97,10 +96,6 @@ the fix.
 4. Check the add-on's panel for a banner about `base_url` — it auto-fills from
    Home Assistant's configured external URL (Settings → System → Network); if
    you haven't set one there, set `base_url` in this add-on's options directly
-5. Register a YAML, copy the snippet from that row into the device config
-   (include path `ota_server/devices/<yaml-filename>.yaml`), compile, then
-   **Install → Advanced options → Download firmware binary → OTA update**
-   and publish that `.bin` on the same row. For Build & publish from this
-   panel, enable ESPHome's public port — see above.
+5. Register a YAML, click **`+ Apply OTA`** on that row to automatically inject the package into the device config, compile, then download the binary (**Install → Advanced options → Download firmware binary → OTA update**) and drag & drop or click **`Publish`** to upload. For Build & publish from this panel, enable ESPHome's public port — see above.
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.

@@ -22,14 +22,14 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
 
 펌웨어를 저기에 올리는 방법은 두 가지입니다:
 
-## A. 수동 게시 — 별도 설정 필요 없음
+## A. 간편 수동 게시 — 별도 설정 필요 없음 (추천)
 
-YAML을 고르고 버전을 적어 **등록**하세요. 목록 행에서 스니펫을 복사하고
-ESPHome에서 컴파일한 다음, **Install → Advanced options → Download firmware
-binary → OTA update**로 받은 `.bin`을 같은 행에서 게시합니다. 게시 이름은 YAML
-파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩은 이미지에서
-읽고, **버전**은 게시된 펌웨어, **다음**은 다음 컴파일이 보고할 값입니다
-— 그 칸에서 바로 바꿀 수 있습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
+1. 아래에서 기기 YAML을 고르고 버전을 적어 **등록**합니다.
+2. 목록 행에서 **`+ OTA 적용`** 버튼을 클릭하여 기기 YAML에 패키지를 원클릭으로 자동 주입합니다 (직접 복사/붙여넣기 불필요).
+3. ESPHome에서 기기를 컴파일합니다.
+4. **Install → Advanced options → Download firmware binary → OTA update**로 받은 `.bin` 파일을 목록 행에 **드래그 앤 드롭**하거나 **`게시`** 버튼으로 업로드합니다.
+
+게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩셋은 바이너리 헤더에서 자동 감지하며, 버전은 다음 컴파일 시 자동 증가합니다. ESPHome 대시보드 포트를 열 필요가 없습니다.
 
 ## B. 여기서 빌드 & 게시 — ESPHome 쪽 설정이 필요함
 
@@ -95,10 +95,6 @@ Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 
 4. add-on 패널에서 `base_url` 관련 배너를 확인하세요 — Home Assistant의
    설정된 외부 URL(설정 → 시스템 → 네트워크)에서 자동으로 채워집니다;
    거기 설정된 게 없다면 이 add-on 옵션에서 `base_url`을 직접 설정하세요
-5. YAML을 등록하고, 그 행의 스니펫을 기기 설정에 붙여넣으세요(include
-   경로는 `ota_server/devices/<yaml 파일명>.yaml`). 컴파일한 뒤
-   **Install → Advanced options → Download firmware binary → OTA update**로
-   받은 `.bin`을 같은 행에서 게시하세요. 이 패널에서 빌드 & 게시하려면
-   위에서처럼 ESPHome public 포트를 켜세요.
+5. YAML을 등록하고, 그 행의 **`+ OTA 적용`** 버튼을 클릭하여 기기 설정에 패키지를 자동 주입합니다. 컴파일한 뒤 **Install → Advanced options → Download firmware binary → OTA update**로 받은 `.bin`을 같은 행에 드래그 앤 드롭하거나 **`게시`** 버튼으로 업로드하세요. 이 패널에서 직접 빌드 & 게시하려면 위 B처럼 ESPHome public 포트를 켜세요.
 
 옵션과 문제 해결은 [DOCS.ko.md](DOCS.ko.md)를 참고하세요.

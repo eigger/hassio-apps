@@ -2,17 +2,16 @@
 
 [English](DOCS.md)
 
-## 수동 게시
+## 수동 게시 (추천)
 
 테이블에는 **등록한** 기기가 나옵니다. 펌웨어를 아직 올리지 않아도
 행이 남아서, ESPHome에 다녀와도 사라지지 않습니다.
 
 1. 아래에서 YAML을 고르고 버전을 적은 뒤 **등록**합니다.
-2. 그 행에서 스니펫을 복사해 기기 YAML에 붙여넣습니다. `ota_device`나
-   `project.version`은 적지 않습니다.
+2. 그 행에서 **`+ OTA 적용`** 버튼을 클릭하여 기기 YAML에 OTA 패키지를 원클릭으로 자동 주입합니다 (또는 스니펫을 직접 복사할 수도 있습니다).
 3. ESPHome에서 컴파일합니다.
 4. ESPHome에서 **Install → Advanced options → Download firmware binary →
-   OTA update**로 받은 `.bin`을 같은 행에서 게시하거나 놓습니다.
+   OTA update**로 받은 `.bin` 파일을 같은 행에 드래그 앤 드롭하거나 **`게시`** 버튼으로 업로드합니다.
    Modern/Factory가 아니라 **OTA update**만 해당합니다.
 
 게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
@@ -26,7 +25,7 @@ ESPHome 연결은 필요 없습니다 — `Publisher.publish`로 가며, 자동 
 
 ESPHome public 포트를 열고 싶지 않거나, 일회성 기기만 게시할 때 쓰세요.
 
-게시된 행에서 다시 업로드, YAML 스니펫 복사, **Delete**가 됩니다. 대시보드에
+게시된 행에서 다시 업로드, 원클릭 OTA 적용/해제, YAML 스니펫 확인, **Delete**가 됩니다. 대시보드에
 닿는 게시 기기면 그 행에 Build & publish도 남습니다.
 
 ## 필요한 ESPHome add-on 설정 (자동 빌드 & 게시 경로에만 해당)

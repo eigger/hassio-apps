@@ -2,17 +2,16 @@
 
 [한국어 문서](DOCS.ko.md)
 
-## Manual publish
+## Manual publish (Recommended)
 
 The table shows **registered** devices. A row stays even before you upload
 firmware, so leaving to compile in ESPHome does not lose it.
 
 1. Pick the YAML, set the version, and **Register**.
-2. Copy the snippet from that row into the device YAML **once**. Do not add
-   `ota_device` or `project.version` there.
+2. Click **`+ Apply OTA`** on that row to automatically inject the OTA package into the device YAML (or copy the snippet if you prefer manual editing).
 3. Compile in ESPHome.
 4. In ESPHome: **Install → Advanced options → Download firmware binary →
-   OTA update**. Publish that `.bin` on the same row — or drop it there.
+   OTA update**. Drag & drop that `.bin` file onto the row or click **`Publish`** to upload.
    Use OTA update, not Modern/Factory.
 
 The published slug is the YAML filename (`livingroom.yaml` →
@@ -28,7 +27,7 @@ No connection to ESPHome is needed for this; it goes straight to
 Use this if you don't want to open ESPHome's public port (see below), or just
 for a one-off device.
 
-Published rows can be uploaded again, copied as a YAML snippet, or
+Published rows can be uploaded again, injected/ejected via one click, copied as a YAML snippet, or
 **Delete**d. If the dashboard is reachable for a published node, Build &
 publish stays available on that row.
 
