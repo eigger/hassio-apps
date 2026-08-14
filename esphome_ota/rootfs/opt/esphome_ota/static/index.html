@@ -268,7 +268,8 @@ const STRINGS = {
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
-    manualOk: (n) => `Registered ${n}. Copy the snippet from the list, compile, then publish on that row.`,
+    manualOk: (n) => `Registered ${n}. Copy the snippet below, then compile and publish on that row.`,
+    publishedOk: (n) => `Published ${n}.`,
     alreadyRegistered: 'Already in the list — publish from that row.',
     manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
     yamlBadge: 'YAML', yamlBadgeTitle: 'From /config/esphome — dashboard not required',
@@ -337,7 +338,8 @@ const STRINGS = {
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
-    manualOk: (n) => `${n} 등록됨. 목록에서 스니펫을 복사하고, 컴파일한 뒤 그 행에서 게시하세요.`,
+    manualOk: (n) => `${n} 등록됨. 아래 스니펫을 복사한 뒤 컴파일하고, 그 행에서 게시하세요.`,
+    publishedOk: (n) => `${n} 게시됨.`,
     alreadyRegistered: '이미 목록에 있습니다 — 그 행에서 게시하세요.',
     manualBadge: '게시만', manualBadgeTitle: '디스크에만 있음 — /config/esphome에 해당 YAML 없음',
     yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome에서 읽음 — 대시보드 불필요',
@@ -671,7 +673,7 @@ async function publishFile(d, file) {
     const body = await api('api/publish/manual', { method: 'POST', body: form });
     if (result) {
       const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
-      result.innerHTML = `<span class="toast">${T.manualOk(body.node)}${extra}</span>`;
+      result.innerHTML = `<span class="toast">${T.publishedOk(escapeHtml(d.friendly_name || body.node))}${extra}</span>`;
     }
   } catch (err) {
     if (result) result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;

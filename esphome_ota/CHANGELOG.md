@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.6
+
+Publishing a `.bin` no longer shows the register-success toast (copy the
+snippet, compile, then publish). It reports that the firmware was published.
+
 ## 0.5.5
 
 The Next column's input is vertically centered in the row. The empty
