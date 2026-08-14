@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.1
+
+The easy path is pick YAML → paste snippet → compile → upload. You do not
+set `project.version` (or `ota_device`) on the device.
+
+- Generated wrappers always include `esphome.project`. Version starts at
+  `1.0.0` and is raised when you open the snippet after that build is
+  already published, so the next compile is a new update. You can edit the
+  version in the form before compile; that value is written to the wrapper.
+  Re-uploading the same `.bin` does not jump the manifest ahead of the
+  firmware.
+- The snippet is only the include. Copy lives in the publish form, in the
+  same order as the work.
+- Generic `esp32:` YAML no longer locks the chip dropdown to classic ESP32;
+  the image header still decides C3/S3/….
+
 ## 0.5.0
 
 Manual publish no longer asks you to type a node name or set `ota_device` on

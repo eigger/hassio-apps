@@ -27,11 +27,11 @@ There are two ways to get firmware in there:
 ## A. Manual publish — no other setup required
 
 Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
-open **Manual publish**, pick the device YAML, and upload the file. The
-published name is the YAML filename (`livingroom.yaml` → `livingroom.ota.bin`).
-Chip family is read from the image; version comes from `esphome.project.version`
-when that block is set. Only published firmware stays in the table. Nothing
-on the ESPHome add-on needs to change for this.
+pick the device YAML under **Device YAML & publish**, paste the snippet,
+compile, and upload the file. The published name is the YAML filename
+(`livingroom.yaml` → `livingroom.ota.bin`). Chip family is read from the
+image; version is set by the generated wrapper. Only published firmware
+stays in the table. Nothing on the ESPHome add-on needs to change for this.
 
 ![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -63,13 +63,13 @@ each named for exactly what it contains:
 
 | File | You get | Needs |
 |---|---|---|
-| `update.yaml` — recommended | An **Update entity** in Home Assistant with an Install button | An `esphome.project` block with a `version` you bump |
-| `flash_button.yaml` — fallback | A **button** that always installs the latest published build | Nothing — works even without `project.version` |
+| `update.yaml` — recommended | An **Update entity** in Home Assistant with an Install button | Nothing — the wrapper supplies `esphome.project` |
+| `flash_button.yaml` — fallback | A **button** that always installs the latest published build | Nothing |
 | `ota.yaml` | Both of the above together | Can't `!include` `update.yaml` and `flash_button.yaml` together — both declare `http_request:`/`ota:` |
 
 Include the per-device wrapper instead of those files directly:
 `packages: ota: !include ota_server/devices/livingroom.yaml` (slug = YAML
-filename). The wrapper sets `ota_device` for you.
+filename). The wrapper sets `ota_device` and the firmware version for you.
 
 The Update entity fetches and parses a JSON manifest first; on the rare setup
 where a proxy/CDN in front of Home Assistant compresses that response in a
