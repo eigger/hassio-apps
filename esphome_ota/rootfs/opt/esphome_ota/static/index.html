@@ -46,6 +46,25 @@
   button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
   button:disabled { opacity:.45; cursor:default; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#04121a; }
+  button.applied {
+    color: var(--ok);
+    border-color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 8%, transparent);
+  }
+  button.applied:hover:not(:disabled) {
+    color: var(--err);
+    border-color: var(--err);
+    background: color-mix(in srgb, var(--err) 10%, transparent);
+  }
+  button.inject-btn {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    font-weight: 500;
+  }
+  button.inject-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
   /* Never put display:flex on a <td> — it drops table-cell layout and the
      row's bottom border stops lining up across columns. */
   .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
@@ -237,6 +256,17 @@ const STRINGS = {
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
     nextCompileVersion: 'Next compile version',
+    injectOta: 'Apply OTA',
+    injectedOta: 'Applied ✓',
+    ejectOta: 'Remove OTA',
+    injecting: 'Applying…',
+    ejecting: 'Removing…',
+    injectTitle: 'Automatically inject OTA package into the device YAML',
+    ejectTitle: 'Click to remove OTA package from device YAML',
+    injectConfirm: (n) => `Apply OTA package into "${n}" YAML configuration?`,
+    ejectConfirm: (n) => `Remove OTA package from "${n}" YAML configuration?`,
+    injectSuccess: (n) => `OTA package applied to "${n}".`,
+    ejectSuccess: (n) => `OTA package removed from "${n}".`,
     yamlHeader: (name) => `${name} — paste into the device YAML`,
     yamlHowto: '<ol class="steps">' +
       '<li>Copy the include below into the device YAML <b>once</b>. Do not add ' +
@@ -266,11 +296,10 @@ const STRINGS = {
       'configure HA\'s external URL, for devices outside the LAN.',
     manualTitle: 'Register a device',
     manualBody: '<ol class="steps">' +
-      '<li>Pick the YAML and set the version, then Register — it stays in the list.</li>' +
-      '<li>Copy the snippet from that row and paste it into the device YAML.</li>' +
-      '<li>Compile in ESPHome. Then <b>Install</b> → <b>Advanced options</b> → ' +
-      '<b>Download firmware binary</b> → <b>OTA update</b>, and publish that ' +
-      '<code>.bin</code> on the same row.</li>' +
+      '<li>Select your remote device YAML and click <b>Register</b>.</li>' +
+      '<li>Click <b>+ Apply OTA</b> on the device row to automatically inject the package into the YAML.</li>' +
+      '<li>Compile in ESPHome and download the OTA binary (<b>Install → Advanced options → Download firmware binary → OTA update</b>).</li>' +
+      '<li>Drop the <code>.bin</code> file onto the row or click <b>Publish</b> to upload.</li>' +
       '</ol>',
     manualNode: 'Device YAML',
     manualPickYaml: 'Select a YAML…',
@@ -281,7 +310,7 @@ const STRINGS = {
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
-    manualOk: (n) => `Registered ${n}. Copy the snippet below, then compile and publish on that row.`,
+    manualOk: (n) => `Registered ${n}. Click "+ Apply OTA" or copy the snippet, then compile and publish on that row.`,
     publishedOk: (n) => `Published ${n}.`,
     alreadyRegistered: 'Already in the list — publish from that row.',
     manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
@@ -318,6 +347,17 @@ const STRINGS = {
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
     nextCompileVersion: '다음 컴파일 버전',
+    injectOta: 'OTA 적용',
+    injectedOta: '적용됨 ✓',
+    ejectOta: 'OTA 해제',
+    injecting: '적용 중…',
+    ejecting: '해제 중…',
+    injectTitle: '기기 YAML 파일에 OTA 패키지를 원클릭으로 자동 주입합니다',
+    ejectTitle: '클릭 시 기기 YAML에서 OTA 패키지를 제거합니다',
+    injectConfirm: (n) => `"${n}" 기기 YAML에 OTA 패키지를 적용할까요?`,
+    ejectConfirm: (n) => `"${n}" 기기 YAML에서 OTA 설정을 제거할까요?`,
+    injectSuccess: (n) => `"${n}" 기기 YAML에 OTA 패키지가 적용되었습니다.`,
+    ejectSuccess: (n) => `"${n}" 기기 YAML에서 OTA 패키지가 제거되었습니다.`,
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
     yamlHowto: '<ol class="steps">' +
       '<li>아래 include를 기기 YAML에 <b>한 번만</b> 넣습니다. ' +
@@ -347,11 +387,10 @@ const STRINGS = {
       '애드온 옵션의 <code>base_url</code>을 직접 지정하거나 HA 외부 주소를 설정하세요.',
     manualTitle: '기기 등록',
     manualBody: '<ol class="steps">' +
-      '<li>YAML을 고르고 버전을 적은 뒤 등록합니다 — 목록에 남습니다.</li>' +
-      '<li>그 행에서 스니펫을 복사해 기기 YAML에 붙여넣습니다.</li>' +
-      '<li>ESPHome에서 컴파일한 다음, <b>Install</b> → <b>Advanced options</b> → ' +
-      '<b>Download firmware binary</b> → <b>OTA update</b>로 받은 <code>.bin</code>을 ' +
-      '같은 행에서 게시합니다.</li>' +
+      '<li>아래에서 외부 기기 YAML을 선택하고 <b>등록</b>합니다.</li>' +
+      '<li>목록에서 <b>+ OTA 적용</b>을 클릭하여 기기 YAML에 패키지를 자동 주입합니다.</li>' +
+      '<li>ESPHome에서 컴파일 후 <b>Install → Advanced options → Download firmware binary → OTA update</b>로 <code>.bin</code>을 다운로드합니다.</li>' +
+      '<li>받은 <code>.bin</code> 파일을 목록 행에 드래그 앤 드롭하거나 <b>게시</b> 버튼으로 올립니다.</li>' +
       '</ol>',
     manualNode: '기기 YAML',
     manualPickYaml: 'YAML 선택…',
@@ -362,7 +401,7 @@ const STRINGS = {
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
-    manualOk: (n) => `${n} 등록됨. 아래 스니펫을 복사한 뒤 컴파일하고, 그 행에서 게시하세요.`,
+    manualOk: (n) => `${n} 등록됨. "+ OTA 적용"을 누르거나 스니펫을 복사한 뒤 컴파일하고, 그 행에서 게시하세요.`,
     publishedOk: (n) => `${n} 게시됨.`,
     alreadyRegistered: '이미 목록에 있습니다 — 그 행에서 게시하세요.',
     manualBadge: '게시만', manualBadgeTitle: '디스크에만 있음 — /config/esphome에 해당 YAML 없음',
@@ -482,6 +521,60 @@ function row(d) {
   bindNextVersionInput(tr.querySelector('.next-cell input'), d);
 
   const actions = tr.querySelector('.actions');
+
+  // One-click inject / eject OTA package button if device YAML is available
+  if (d.has_yaml) {
+    const injectBtn = document.createElement('button');
+    if (d.injected) {
+      injectBtn.className = 'applied';
+      injectBtn.textContent = T.injectedOta;
+      injectBtn.title = T.ejectTitle;
+      injectBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm(T.ejectConfirm(d.friendly_name))) return;
+        injectBtn.disabled = true;
+        injectBtn.textContent = T.ejecting;
+        try {
+          await api('api/device/eject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node: d.node }),
+          });
+          const result = $('manualResult');
+          if (result) result.innerHTML = `<span class="toast">${T.ejectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          loadDevices();
+        } catch (err) {
+          alert(err.message);
+          injectBtn.disabled = false;
+          injectBtn.textContent = T.injectedOta;
+        }
+      };
+    } else {
+      injectBtn.className = 'inject-btn';
+      injectBtn.textContent = '+ ' + T.injectOta;
+      injectBtn.title = T.injectTitle;
+      injectBtn.onclick = async (e) => {
+        e.stopPropagation();
+        injectBtn.disabled = true;
+        injectBtn.textContent = T.injecting;
+        try {
+          await api('api/device/inject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node: d.node }),
+          });
+          const result = $('manualResult');
+          if (result) result.innerHTML = `<span class="toast">${T.injectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          loadDevices();
+        } catch (err) {
+          alert(err.message);
+          injectBtn.disabled = false;
+          injectBtn.textContent = '+ ' + T.injectOta;
+        }
+      };
+    }
+    actions.append(injectBtn);
+  }
 
   const uploadBtn = document.createElement('button');
   uploadBtn.className = d.source === 'dashboard' ? 'jobctl' : 'jobctl primary';

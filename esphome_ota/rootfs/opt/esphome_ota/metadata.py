@@ -536,3 +536,155 @@ def scan_esphome_dir(config_dir: Path) -> tuple[list[dict[str, Any]], set[str]]:
         )
     result.sort(key=lambda row: row["friendly_name"].lower())
     return result, stems
+
+
+def is_injected(config_dir: Path, node: str) -> bool:
+    """Check if the device YAML file directly includes this add-on's wrapper."""
+    filename = find_configuration(config_dir, node)
+    if not filename:
+        return False
+    path = config_dir / filename
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    pattern = rf"!include\s+ota_server/devices/{re.escape(node)}(\.update|\.button)?\.ya?ml"
+    return bool(re.search(pattern, content))
+
+
+def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
+    """Inject `packages: ota: !include ota_server/devices/{node}.yaml` into the device YAML."""
+    filename = find_configuration(config_dir, node)
+    if not filename:
+        return False, f"Configuration file not found for {node}"
+    path = config_dir / filename
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as err:
+        return False, f"Could not read {filename}: {err}"
+
+    include_stmt = f"ota: !include ota_server/devices/{node}.yaml"
+    target_pattern = rf"!include\s+ota_server/devices/{re.escape(node)}(\.update|\.button)?\.ya?ml"
+
+    if re.search(target_pattern, content):
+        return True, f"OTA package is already applied to {filename}"
+
+    lines = content.splitlines(keepends=True)
+    pkg_line_idx = -1
+    pkg_indent = ""
+
+    for i, line in enumerate(lines):
+        match = re.match(r"^(\s*)packages:\s*(#.*)?$", line)
+        if match and len(match.group(1)) == 0:  # Top-level packages
+            pkg_line_idx = i
+            pkg_indent = match.group(1)
+            break
+
+    if pkg_line_idx != -1:
+        # Find if an `ota:` key already exists under `packages:`
+        ota_idx = -1
+        next_top_idx = len(lines)
+        for i in range(pkg_line_idx + 1, len(lines)):
+            l = lines[i]
+            if not l.strip() or l.strip().startswith("#"):
+                continue
+            # If line is not indented, it's the next top-level key
+            if not l.startswith(" ") and not l.startswith("\t"):
+                next_top_idx = i
+                break
+            if re.match(r"^\s+ota:\s*", l):
+                ota_idx = i
+                break
+
+        if ota_idx != -1:
+            # Replace existing ota line
+            indent = re.match(r"^(\s*)", lines[ota_idx]).group(1) or "  "
+            lines[ota_idx] = f"{indent}{include_stmt}\n"
+        else:
+            # Insert right after `packages:`
+            lines.insert(pkg_line_idx + 1, f"  {include_stmt}\n")
+        new_content = "".join(lines)
+    else:
+        # No top-level packages block exists; append at end
+        addition = f"\npackages:\n  {include_stmt}\n"
+        if content and not content.endswith("\n"):
+            addition = "\n" + addition
+        new_content = content + addition
+
+    # Backup and atomic write
+    try:
+        bak_path = path.with_suffix(path.suffix + ".bak")
+        bak_path.write_text(content, encoding="utf-8")
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(new_content, encoding="utf-8")
+        import os
+        os.replace(tmp_path, path)
+    except OSError as err:
+        return False, f"Failed to write {filename}: {err}"
+
+    return True, f"Successfully injected OTA package into {filename}"
+
+
+def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
+    """Remove the OTA package include from the device YAML."""
+    filename = find_configuration(config_dir, node)
+    if not filename:
+        return False, f"Configuration file not found for {node}"
+    path = config_dir / filename
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as err:
+        return False, f"Could not read {filename}: {err}"
+
+    target_pattern = rf"^\s*(ota:\s*)?!include\s+ota_server/devices/{re.escape(node)}(\.update|\.button)?\.ya?ml\s*$"
+    if not re.search(rf"!include\s+ota_server/devices/{re.escape(node)}", content):
+        return True, f"OTA package was not found in {filename}"
+
+    lines = content.splitlines(keepends=True)
+    new_lines: list[str] = []
+    removed_any = False
+
+    for line in lines:
+        if re.search(target_pattern, line.strip()):
+            removed_any = True
+            continue
+        new_lines.append(line)
+
+    # Clean up empty `packages:` section if nothing left under it
+    cleaned_lines: list[str] = []
+    i = 0
+    while i < len(new_lines):
+        line = new_lines[i]
+        if re.match(r"^packages:\s*$", line.strip()):
+            # Check if there are indented lines following it
+            has_children = False
+            j = i + 1
+            while j < len(new_lines):
+                next_l = new_lines[j]
+                if not next_l.strip():
+                    j += 1
+                    continue
+                if next_l.startswith(" ") or next_l.startswith("\t"):
+                    has_children = True
+                break
+            if not has_children:
+                # Skip the packages: line and any immediate blank line
+                i = j
+                continue
+        cleaned_lines.append(line)
+        i += 1
+
+    new_content = "".join(cleaned_lines)
+
+    try:
+        bak_path = path.with_suffix(path.suffix + ".bak")
+        bak_path.write_text(content, encoding="utf-8")
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(new_content, encoding="utf-8")
+        import os
+        os.replace(tmp_path, path)
+    except OSError as err:
+        return False, f"Failed to write {filename}: {err}"
+
+    return True, f"Successfully removed OTA package from {filename}"
+

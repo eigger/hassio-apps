@@ -261,6 +261,8 @@ class App:
                 if packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
                 else None
             )
+            has_yaml = bool(node in local or metadata.find_configuration(self.settings.esphome_config_dir, node))
+            injected = metadata.is_injected(self.settings.esphome_config_dir, node)
             rows.append(
                 {
                     "node": node,
@@ -286,6 +288,8 @@ class App:
                         if node in dashboard_by_node
                         else ("yaml" if node in local else "published")
                     ),
+                    "has_yaml": has_yaml,
+                    "injected": injected,
                     "publishable": True,
                 }
             )
@@ -497,6 +501,47 @@ async def wrapper_version(request: web.Request) -> web.Response:
     rec = app.register_device(node, version)
     app.write_device_wrapper(node, version)
     return web.json_response({"node": node, "version": rec["version"], "wrapper": True})
+
+
+@routes.post("/api/device/inject")
+async def inject_device(request: web.Request) -> web.Response:
+    """One-click inject OTA package include into the device YAML."""
+    app: App = request.app["app"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid json"}, status=400)
+    node = (body.get("node") or "").strip()
+    if not metadata.NODE_RE.match(node):
+        return web.json_response({"error": "invalid node"}, status=400)
+
+    # Ensure wrapper exists
+    version = app.wrapper_version_for(node)
+    app.write_device_wrapper(node, version)
+
+    ok, msg = metadata.inject_device_wrapper(app.settings.esphome_config_dir, node)
+    if not ok:
+        return web.json_response({"error": msg}, status=400)
+    return web.json_response({"ok": True, "node": node, "injected": True, "message": msg})
+
+
+@routes.post("/api/device/eject")
+async def eject_device(request: web.Request) -> web.Response:
+    """Remove OTA package include from the device YAML."""
+    app: App = request.app["app"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid json"}, status=400)
+    node = (body.get("node") or "").strip()
+    if not metadata.NODE_RE.match(node):
+        return web.json_response({"error": "invalid node"}, status=400)
+
+    ok, msg = metadata.eject_device_wrapper(app.settings.esphome_config_dir, node)
+    if not ok:
+        return web.json_response({"error": msg}, status=400)
+    return web.json_response({"ok": True, "node": node, "injected": False, "message": msg})
+
 
 
 NODE_RE = metadata.NODE_RE

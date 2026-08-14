@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9
+
+- **One-Click YAML Injection**: Added `+ Apply OTA` / `Applied ✓` buttons to device rows in the web UI. Automatically injects and removes `packages: ota: !include ota_server/devices/{node}.yaml` in the device YAML with automatic `.bak` backups.
+- **Dual Publish Workflow**: Reinforced both drag-and-drop `.bin` publishing and manual file dialog picker upload for seamless firmware distribution.
+- **UI & Documentation Polish**: Simplified workflow descriptions and multilingual strings (Korean & English) for effortless setup of remote ESPHome devices.
+
 ## 0.5.8
 
 The generated packages (`update.yaml`, `flash_button.yaml`, `ota.yaml`)
