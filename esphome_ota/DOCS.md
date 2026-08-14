@@ -4,21 +4,20 @@
 
 ## Manual publish
 
-The table shows firmware that is already published. To add one, follow this
-order:
+The table shows **registered** devices. A row stays even before you upload
+firmware, so leaving to compile in ESPHome does not lose it.
 
-1. Pick the device YAML under **Device YAML & publish** — the snippet appears.
-2. Paste that include into the device YAML **once**. Do not add `ota_device`
-   or `project.version` there.
+1. Pick the YAML, set the version, and **Register**.
+2. Copy the snippet from that row into the device YAML **once**. Do not add
+   `ota_device` or `project.version` there.
 3. Compile in ESPHome.
-4. Upload `firmware.ota.bin` (OTA format) or drop it on the form.
+4. Publish `firmware.ota.bin` (OTA format) from the same row — or drop it
+   there.
 
 The published slug is the YAML filename (`livingroom.yaml` →
 `livingroom.ota.bin` / `livingroom.json`). Chip family is read from the
-image header (pick one by hand only for ESP8266/RP2040). Version comes from
-the wrapper's `esphome.project` and is raised when you open the snippet
-again to prepare the next build. You can edit it in the form before
-compile.
+image header. Version is what you set at register; the wrapper compiles it
+in. You can change it on the snippet panel.
 
 No connection to ESPHome is needed for this; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.
@@ -136,8 +135,9 @@ packages:
 
 The wrapper (`ota_server/devices/<yaml-stem>.yaml`) sets `ota_device`, the
 OTA entities, and `esphome.project`. You do not paste a project block or
-bump a version in the device YAML. Opening the snippet after a publish
-raises the wrapper version so the next compile is a new update.
+bump a version in the device YAML. Version is set when you register (and
+can be edited on the snippet panel). After a publish the wrapper is raised
+so the next compile is a new update.
 
 For Update-only or button-only, include `livingroom.update.yaml` or
 `livingroom.button.yaml` in the same folder. The older form

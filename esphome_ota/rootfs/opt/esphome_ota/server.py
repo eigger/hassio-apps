@@ -16,6 +16,7 @@ from aiohttp import web
 
 import metadata
 import packages
+import registry
 import supervisor
 from dashboard import DashboardClient, DashboardError
 from publisher import Publisher
@@ -84,6 +85,7 @@ class App:
         self.jobs: dict[str, Job] = {}
         self.lock = asyncio.Lock()
         self.esphome_version: str = ""
+        self.registered: dict[str, dict[str, Any]] = {}
 
     # -- startup -----------------------------------------------------------
 
@@ -130,7 +132,7 @@ class App:
             packages.write_packages(
                 self.settings.esphome_config_dir, self.resolved_base_url, self.settings.publish_dir
             )
-            self.sync_device_wrappers()
+            self.load_registry()
         else:
             LOG.error(
                 "Could not determine Home Assistant's address. Set 'base_url' in the add-on "
@@ -147,36 +149,57 @@ class App:
             )
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
-    def sync_device_wrappers(
-        self,
-        bump_nodes: set[str] | None = None,
-        overrides: dict[str, str] | None = None,
-    ) -> list[dict[str, Any]]:
-        configs, stems = metadata.scan_esphome_dir(self.settings.esphome_config_dir)
-        published = self.publisher.list_published()
-        bump_nodes = bump_nodes or set()
-        overrides = overrides or {}
-        devices = []
-        for row in configs:
-            if not row.get("publishable"):
+    def load_registry(self) -> None:
+        data = registry.load(self.settings.esphome_config_dir)
+        changed = False
+        for node, rec in self.publisher.list_published().items():
+            if node in data:
                 continue
-            node = row["node"]
-            override = overrides.get(node)
-            version = packages.next_firmware_version(
-                row.get("own_project_version"),
-                (published.get(node) or {}).get("version"),
-                metadata.wrapper_project_version(self.settings.esphome_config_dir, node),
-                bump=node in bump_nodes and not override,
-                override=override,
-            )
-            devices.append({"node": node, "version": version})
-            row["project_version"] = version
-        packages.write_device_wrappers(
-            self.settings.esphome_config_dir,
-            devices,
-            keep_stems=stems,
+            registry.upsert(data, node, rec.get("version") or "1.0.0", rec.get("title") or node)
+            changed = True
+        if changed:
+            registry.save(self.settings.esphome_config_dir, data)
+        self.registered = data
+
+    def save_registry(self) -> None:
+        registry.save(self.settings.esphome_config_dir, self.registered)
+
+    def register_device(self, node: str, version: str, title: str = "") -> dict[str, Any]:
+        rec = registry.upsert(self.registered, node, version, title)
+        self.save_registry()
+        return rec
+
+    def unregister_device(self, node: str) -> None:
+        self.registered.pop(node, None)
+        self.save_registry()
+        self.publisher.unpublish(node)
+        packages.delete_device_wrappers(self.settings.esphome_config_dir, node)
+
+    def wrapper_version_for(self, node: str) -> str:
+        rec = self.registered.get(node) or {}
+        return packages.normalize_version(rec.get("version") or "") or "1.0.0"
+
+    def write_device_wrapper(self, node: str, version: str | None = None) -> str:
+        """Create/update this device's snippet YAML. Not called until publish or snippet."""
+        ver = packages.normalize_version(version or "") or self.wrapper_version_for(node)
+        if node in self.registered:
+            self.registered[node]["version"] = ver
+            self.save_registry()
+        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver)
+        return ver
+
+    def advance_registered_version(self, node: str, published_version: str) -> None:
+        """After a publish, raise the wrapper so the next compile is a new update."""
+        rec = self.registered.get(node)
+        current = (rec or {}).get("version") or published_version
+        nxt = (
+            current
+            if current != published_version
+            else packages.bump_version(published_version)
         )
-        return configs
+        registry.upsert(self.registered, node, nxt, (rec or {}).get("title") or "")
+        self.save_registry()
+        self.write_device_wrapper(node, nxt)
 
     async def _dashboard_esphome_version(self) -> str:
         if self.esphome_version:
@@ -189,12 +212,13 @@ class App:
         return self.esphome_version
 
     async def list_devices(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
-        """Published firmware for the table; local YAML only for the manual form.
+        """Registered devices for the table; unpublished YAML only for the register form.
 
-        Unpublished YAML files are not table rows. After a successful publish
-        they show up because a manifest exists on disk.
+        Register first (YAML + version). That row stays after you leave to
+        compile. Publish the .bin from the row.
         """
-        configs = self.sync_device_wrappers()
+        self.load_registry()
+        configs, _stems = metadata.scan_esphome_dir(self.settings.esphome_config_dir)
         published = self.publisher.list_published()
         local = {row["node"]: row for row in configs}
 
@@ -220,35 +244,47 @@ class App:
         except DashboardError as err:
             dashboard_error = str(err)
 
+        nodes = set(self.registered) | set(published)
         rows: list[dict[str, Any]] = []
-        for node, record in published.items():
+        for node in nodes:
+            if not metadata.NODE_RE.match(node):
+                continue
+            record = published.get(node)
             local_row = local.get(node, {})
             dash = dashboard_by_node.get(node, {})
+            rec = self.registered.get(node, {})
             own_version = local_row.get("own_project_version")
+            project_version = rec.get("version") or own_version or (
+                metadata.wrapper_project_version(self.settings.esphome_config_dir, node)
+                if packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
+                else None
+            )
             rows.append(
                 {
                     "node": node,
                     "configuration": dash.get("configuration") or local_row.get("configuration"),
                     "friendly_name": dash.get("friendly_name")
                     or local_row.get("friendly_name")
-                    or record.get("title")
+                    or rec.get("title")
+                    or (record.get("title") if record else None)
                     or node,
                     "target_platform": dash.get("target_platform") or local_row.get("target_platform", ""),
-                    "chip_family": record.get("chip_family")
+                    "chip_family": (record or {}).get("chip_family")
                     or dash.get("chip_family")
                     or local_row.get("chip_family"),
-                    "project_version": own_version,
+                    "project_version": project_version,
                     "own_project_version": own_version,
                     "device_version": dash.get("device_version", ""),
                     "has_binary": bool(dash.get("has_binary")),
                     "published": record,
+                    "registered": node in self.registered,
                     "manual": node not in dashboard_by_node and node not in local,
                     "source": (
                         "dashboard"
                         if node in dashboard_by_node
                         else ("yaml" if node in local else "published")
                     ),
-                    "publishable": bool(metadata.NODE_RE.match(node)),
+                    "publishable": True,
                 }
             )
 
@@ -270,6 +306,7 @@ class App:
             try:
                 async with self._client() as client:
                     if compile_first:
+                        self.write_device_wrapper(job.node)
                         job.log(f"Building {configuration} ...")
                         await client.compile(configuration, on_output=job.log)
                         job.log("Build finished.")
@@ -322,6 +359,7 @@ class App:
                     f"Published {record['size']} bytes, md5 {record['md5'][:8]} — "
                     f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{job.node}.json"
                 )
+                self.advance_registered_version(job.node, version)
                 job.status = "completed"
             except Exception as err:  # noqa: BLE001 - surfaced to the UI verbatim
                 LOG.exception("Job %s failed", job.id)
@@ -397,32 +435,44 @@ async def snippet(request: web.Request) -> web.Response:
     if not node:
         return web.json_response({"error": "node required"}, status=400)
     override = packages.normalize_version(request.query.get("version", ""))
-    configs = app.sync_device_wrappers(
-        bump_nodes=set() if override else {node},
-        overrides={node: override} if override else None,
-    )
+    if not override and node in app.registered:
+        override = packages.normalize_version(app.registered[node].get("version") or "")
+    version = app.write_device_wrapper(node, override)
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
-    has_wrapper = packages.device_wrapper_exists(app.settings.esphome_config_dir, node)
-    version = next(
-        (row.get("project_version") for row in configs if row.get("node") == node),
-        None,
-    ) or metadata.wrapper_project_version(app.settings.esphome_config_dir, node)
     return web.json_response(
         {
-            "snippet": packages.snippet(
-                node, published_version, has_wrapper=has_wrapper
-            ),
+            "snippet": packages.snippet(node, published_version, has_wrapper=True),
             "legacy": packages.single_entity_snippets(
-                node, published_version, has_wrapper=has_wrapper
+                node, published_version, has_wrapper=True
             ),
-            "uses_wrapper": has_wrapper,
-            "has_project": bool(has_wrapper and version),
-            "version": version or packages.next_firmware_version(
-                None, published_version, published_version, bump=True
-            ),
+            "uses_wrapper": True,
+            "has_project": True,
+            "version": version,
         }
     )
+
+
+@routes.post("/api/register")
+async def register_device(request: web.Request) -> web.Response:
+    app: App = request.app["app"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid json"}, status=400)
+    node = (body.get("node") or "").strip()
+    version = packages.normalize_version(body.get("version") or "") or "1.0.0"
+    title = (body.get("title") or "").strip()
+    if not metadata.NODE_RE.match(node):
+        return web.json_response(
+            {"error": "node must be the YAML filename without extension (letters, digits, hyphen, underscore)"},
+            status=400,
+        )
+    app.load_registry()
+    if node in app.registered:
+        return web.json_response({"error": "already registered — publish from the list"}, status=409)
+    rec = app.register_device(node, version, title)
+    return web.json_response({"node": node, "version": rec["version"], "title": rec.get("title") or node})
 
 
 @routes.post("/api/wrapper-version")
@@ -439,16 +489,11 @@ async def wrapper_version(request: web.Request) -> web.Response:
         return web.json_response({"error": "invalid node"}, status=400)
     if not version:
         return web.json_response({"error": "invalid version"}, status=400)
-    configs = app.sync_device_wrappers(overrides={node: version})
-    written = next(
-        (row.get("project_version") for row in configs if row.get("node") == node),
-        None,
-    )
-    return web.json_response({
-        "node": node,
-        "version": written or version,
-        "wrapper": bool(written),
-    })
+    if node not in app.registered:
+        return web.json_response({"error": "register this device first"}, status=404)
+    rec = app.register_device(node, version)
+    app.write_device_wrapper(node, version)
+    return web.json_response({"node": node, "version": rec["version"], "wrapper": True})
 
 
 NODE_RE = metadata.NODE_RE
@@ -573,6 +618,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         record["version_overridden"] = True
         record["requested_version"] = requested
     LOG.info("Manually published %s (%s, %s bytes, %s)", node, chip_family, record["size"], version)
+    app.advance_registered_version(node, version)
     return web.json_response(record)
 
 
@@ -582,7 +628,7 @@ async def unpublish(request: web.Request) -> web.Response:
     node = request.match_info["node"]
     if "/" in node or node.startswith("."):
         return web.json_response({"error": "invalid node"}, status=400)
-    app.publisher.unpublish(node)
+    app.unregister_device(node)
     return web.json_response({"ok": True})
 
 
