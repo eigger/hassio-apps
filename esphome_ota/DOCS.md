@@ -16,10 +16,10 @@ firmware, so leaving to compile in ESPHome does not lose it.
 
 The published slug is the YAML filename (`livingroom.yaml` →
 `livingroom.ota.bin` / `livingroom.json`). Chip family is read from the
-image header. **Version** is the published firmware (or — until the first
-upload). **Next** is the wrapper version for the next compile — type a new
-value there, or on the snippet panel. After a publish, Next is raised so
-the next compile is a new update.
+image header. **YAML Config** shows whether the OTA package is injected into the device YAML.
+**YAML Version** is the `esphome.project.version` that will be compiled into the firmware via the wrapper
+(editable directly in that column or snippet panel). **Published Firmware** is the version currently
+served on `/local`. After a publish, YAML Version automatically advances so the next compile is a new update.
 
 No connection to ESPHome is needed for this; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.

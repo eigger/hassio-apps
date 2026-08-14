@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- **Separated Table Columns for Clear State Visualization**:
+  - Divided dashboard columns into **YAML Config** (`[+ Apply OTA]` / `[Applied ✓]`), **YAML Version** (the `esphome.project.version` for the next compile), and **Published Firmware** (current version & MD5 on `/local`, or `Not published —`).
+  - Clear separation eliminates ambiguity between YAML injection state and firmware binary publication state.
+
 ## 0.5.9
 
 - **One-Click YAML Injection**: Added `+ Apply OTA` / `Applied ✓` buttons to device rows in the web UI. Automatically injects and removes `packages: ota: !include ota_server/devices/{node}.yaml` in the device YAML with automatic `.bak` backups.
