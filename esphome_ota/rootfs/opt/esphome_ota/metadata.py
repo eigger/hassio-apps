@@ -12,6 +12,7 @@ otherwise. Mirroring that rule here is what makes the update entity behave.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -617,7 +618,6 @@ def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
         bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
-        import os
         os.replace(tmp_path, path)
     except OSError as err:
         return False, f"Failed to write {filename}: {err}"
@@ -681,7 +681,6 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
         bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
-        import os
         os.replace(tmp_path, path)
     except OSError as err:
         return False, f"Failed to write {filename}: {err}"

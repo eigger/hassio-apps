@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2
+
+- **Button Hover Contrast Fix**:
+  - Fixed an issue where text on highlighted primary buttons (`Upload .bin`, `Register`) became invisible on hover due to matching text and background colors.
+
 ## 0.6.1
 
 - **Form Alignment & Layout Polish**:
