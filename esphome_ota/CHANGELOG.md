@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5
+
+The Next column's input is vertically centered in the row. The empty
+spacer line under it is gone.
+
 ## 0.5.4
 
 The **Next** column is a plain field for the wrapper's next compile

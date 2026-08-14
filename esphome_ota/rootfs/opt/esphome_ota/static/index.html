@@ -34,7 +34,7 @@
      make left columns taller than the actions cell and the shared border
      looked stepped across the row. */
   td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
-  td.next-cell input { width: 100%; max-width: 7.5em; }
+  td.next-cell input { width: 100%; max-width: 7.5em; vertical-align: middle; }
   .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
           border:1px solid var(--line); color:var(--muted); vertical-align:middle;
           white-space:nowrap; }
@@ -121,7 +121,7 @@
     td.ver-cell { grid-area:ver; overflow-wrap:anywhere; }
     td.next-cell { grid-area:next; }
     td.next-cell input { max-width: none; }
-    td.name .subline, td.ver-cell .subline, td.next-cell .subline { min-height:0; }
+    td.name .subline, td.ver-cell .subline { min-height:0; }
     td[data-label]::before {
       content: attr(data-label);
       display:block;
@@ -434,8 +434,7 @@ function row(d) {
   const nextId = `nextVersion-${d.node}`;
   const next =
     `<input type="text" id="${escapeHtml(nextId)}" value="${escapeHtml(yamlVer)}" ` +
-    `title="${escapeHtml(T.nextCompileVersion)}">` +
-    `<span class="subline tiny muted">&nbsp;</span>`;
+    `title="${escapeHtml(T.nextCompileVersion)}">`;
 
   let badge = '';
   if (d.source === 'published' || d.manual) {
