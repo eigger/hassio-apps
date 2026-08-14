@@ -34,11 +34,7 @@
      make left columns taller than the actions cell and the shared border
      looked stepped across the row. */
   td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
-  td.ver-cell.ver-clickable { cursor: pointer; }
-  td.ver-cell label { display: block; margin-bottom: 3px; }
-  .ver-next { border-bottom: 1px dashed currentColor; }
-  td.ver-cell.ver-clickable:hover .ver-next { color: var(--accent); }
-  td.ver-cell input { width: 100%; max-width: 160px; }
+  td.next-cell input { width: 100%; max-width: 7.5em; }
   .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
           border:1px solid var(--line); color:var(--muted); vertical-align:middle;
           white-space:nowrap; }
@@ -98,7 +94,7 @@
       grid-template-areas:
         "name name"
         "chip status"
-        "ver ver"
+        "ver next"
         "actions actions";
       gap:4px 12px;
       border:1px solid var(--line);
@@ -123,7 +119,9 @@
     td.chip-cell { grid-area:chip; }
     td.status-cell { grid-area:status; }
     td.ver-cell { grid-area:ver; overflow-wrap:anywhere; }
-    td.name .subline, td.ver-cell .subline { min-height:0; }
+    td.next-cell { grid-area:next; }
+    td.next-cell input { max-width: none; }
+    td.name .subline, td.ver-cell .subline, td.next-cell .subline { min-height:0; }
     td[data-label]::before {
       content: attr(data-label);
       display:block;
@@ -172,11 +170,12 @@
         <th id="t-col-device">Device</th>
         <th id="t-col-chip">Chip</th>
         <th id="t-col-version">Version</th>
+        <th id="t-col-next">Next</th>
         <th id="t-col-status">Status</th>
         <th></th>
       </tr>
     </thead>
-    <tbody id="rows"><tr class="empty-row"><td colspan="5" class="muted" id="t-loading">Loading…</td></tr></tbody>
+    <tbody id="rows"><tr class="empty-row"><td colspan="6" class="muted" id="t-loading">Loading…</td></tr></tbody>
   </table>
   </div>
 </div>
@@ -217,7 +216,7 @@ const STRINGS = {
   en: {
     title: 'ESPHome OTA Publisher',
     sub: 'Pulls firmware from the ESPHome dashboard and publishes it to /local.',
-    colDevice: 'Device', colChip: 'Chip', colVersion: 'Version', colStatus: 'Status',
+    colDevice: 'Device', colChip: 'Chip', colVersion: 'Version', colNext: 'Next', colStatus: 'Status',
     loading: 'Loading…', noDevices: 'No registered devices yet.',
     restartTitle: 'Restart Home Assistant once.',
     restartBody: 'The www folder was just created. Home Assistant registers /local only at ' +
@@ -235,9 +234,6 @@ const STRINGS = {
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
     nextCompileVersion: 'Next compile version',
-    nextCompile: (v) => `next ${v}`,
-    publishedAs: (v) => `published ${v}`,
-    editVersionTitle: 'Click to edit the next compile version',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
     yamlNote: 'Paste this include once. Then compile in ESPHome and publish the <code>.bin</code> from this row.',
     yamlNoteLegacy: 'No matching YAML in /config/esphome, so paste <code>ota_device</code> and the shared include. A device YAML is easier — the wrapper then keeps version for you.',
@@ -268,7 +264,7 @@ const STRINGS = {
     manualCustom: 'Custom name…',
     manualCustomLabel: 'Publish name (legacy ota_device)',
     manualVersion: 'Version',
-    manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the version column.',
+    manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the Next column.',
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
@@ -290,7 +286,7 @@ const STRINGS = {
   ko: {
     title: 'ESPHome OTA Publisher',
     sub: 'ESPHome 대시보드에서 펌웨어를 받아 /local로 게시합니다.',
-    colDevice: '기기', colChip: '칩', colVersion: '버전', colStatus: '상태',
+    colDevice: '기기', colChip: '칩', colVersion: '버전', colNext: '다음', colStatus: '상태',
     loading: '불러오는 중…', noDevices: '등록된 기기가 없습니다.',
     restartTitle: 'Home Assistant를 한 번 재시작하세요.',
     restartBody: 'www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 /local 경로를 등록하므로, ' +
@@ -308,9 +304,6 @@ const STRINGS = {
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
     nextCompileVersion: '다음 컴파일 버전',
-    nextCompile: (v) => `다음 ${v}`,
-    publishedAs: (v) => `게시됨 ${v}`,
-    editVersionTitle: '클릭하면 다음 컴파일 버전을 바꿉니다',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
     yamlNote: '이 include만 한 번 넣으면 됩니다. 그다음 ESPHome에서 컴파일하고, 이 행에서 <code>.bin</code>을 게시하세요.',
     yamlNoteLegacy: '/config/esphome에 해당 YAML이 없어 <code>ota_device</code>와 공유 include를 붙여넣습니다. 기기 YAML이 있으면 래퍼가 버전을 넣습니다.',
@@ -340,7 +333,7 @@ const STRINGS = {
     manualCustom: '직접 입력…',
     manualCustomLabel: '게시 이름 (예전 ota_device)',
     manualVersion: '버전',
-    manualVersionHint: '래퍼가 다음 펌웨어에 넣습니다. 버전 칸에서도 바꿀 수 있습니다.',
+    manualVersionHint: '래퍼가 다음 펌웨어에 넣습니다. 다음 칸에서도 바꿀 수 있습니다.',
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
@@ -385,6 +378,7 @@ function applyStaticText() {
   $('t-col-device').textContent = T.colDevice;
   $('t-col-chip').textContent = T.colChip;
   $('t-col-version').textContent = T.colVersion;
+  $('t-col-next').textContent = T.colNext;
   $('t-col-status').textContent = T.colStatus;
   $('t-loading').textContent = T.loading;
   $('t-manual-title').textContent = T.manualTitle;
@@ -433,16 +427,15 @@ function row(d) {
       : `<span class="chip ok">${T.published}</span>`;
 
   const yamlVer = yamlVersion(d);
-  const nextDiffers = !!(pub && yamlVer && pub.version !== yamlVer);
-  const meta = pub
-    ? T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))
-    : '';
   const version = pub
     ? `${escapeHtml(pub.version)}<span class="subline tiny muted">` +
-      `${nextDiffers ? `<span class="ver-next">${escapeHtml(T.nextCompile(yamlVer))}</span> · ` : ''}` +
-      `${meta}</span>`
-    : `<span class="ver-next">${escapeHtml(yamlVer)}</span>` +
-      `<span class="subline tiny muted">&nbsp;</span>`;
+      `${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`
+    : `<span class="muted">—</span><span class="subline tiny muted">&nbsp;</span>`;
+  const nextId = `nextVersion-${d.node}`;
+  const next =
+    `<input type="text" id="${escapeHtml(nextId)}" value="${escapeHtml(yamlVer)}" ` +
+    `title="${escapeHtml(T.nextCompileVersion)}">` +
+    `<span class="subline tiny muted">&nbsp;</span>`;
 
   let badge = '';
   if (d.source === 'published' || d.manual) {
@@ -456,10 +449,11 @@ function row(d) {
     <td class="name">${escapeHtml(d.friendly_name)}${badge}${subtitle}</td>
     <td class="chip-cell" data-label="${escapeHtml(T.colChip)}">${d.chip_family ? escapeHtml(d.chip_family) : '<span class="muted">?</span>'}</td>
     <td class="ver-cell" data-label="${escapeHtml(T.colVersion)}">${version}</td>
+    <td class="next-cell" data-label="${escapeHtml(T.colNext)}">${next}</td>
     <td class="status-cell" data-label="${escapeHtml(T.colStatus)}">${state}</td>
     <td class="actions-cell"><div class="actions"></div></td>`;
   if (canDrop) tr.title = T.dropHere;
-  enableVersionEdit(tr.querySelector('.ver-cell'), d);
+  bindNextVersionInput(tr.querySelector('.next-cell input'), d);
 
   const actions = tr.querySelector('.actions');
 
@@ -559,80 +553,24 @@ function yamlVersion(d) {
   return (d && d.project_version) || '1.0.0';
 }
 
-function enableVersionEdit(td, d) {
-  if (!td) return;
-  td.classList.add('ver-clickable');
-  td.tabIndex = 0;
-  td.title = T.editVersionTitle;
-  td.addEventListener('click', (e) => {
-    e.stopPropagation();
-    startVersionEdit(td, d);
-  });
-  td.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      startVersionEdit(td, d);
-    }
-  });
-}
-
-function startVersionEdit(td, d) {
-  if (td.dataset.editing === '1') return;
-  td.dataset.editing = '1';
-  td.classList.remove('ver-clickable');
-  td.removeAttribute('title');
-  td.tabIndex = -1;
-  const current = yamlVersion(d);
-  const pub = d.published;
-  const inputId = `inlineVersion-${d.node}`;
-  td.innerHTML =
-    `<label class="tiny muted" for="${escapeHtml(inputId)}">${T.nextCompileVersion}</label>` +
-    `<input type="text" id="${escapeHtml(inputId)}" value="${escapeHtml(current)}">` +
-    (pub
-      ? `<span class="subline tiny muted">${escapeHtml(T.publishedAs(pub.version))}</span>`
-      : `<span class="subline tiny muted">&nbsp;</span>`);
-  const input = td.querySelector('input');
-  input.title = T.manualVersionHint;
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = async (save) => {
-    if (done) return;
-    done = true;
-    if (save) {
-      const next = input.value.trim();
-      if (next && next !== current) {
-        try {
-          await saveWrapperVersion(d, next);
-          return;
-        } catch (err) {
-          done = false;
-          let errEl = td.querySelector('.ver-err');
-          if (!errEl) {
-            errEl = document.createElement('div');
-            errEl.className = 'tiny ver-err';
-            errEl.style.color = 'var(--err)';
-            td.appendChild(errEl);
-          }
-          errEl.textContent = err.message;
-          input.focus();
-          return;
-        }
-      }
-    }
-    loadDevices();
-  };
+function bindNextVersionInput(input, d) {
+  if (!input) return;
   input.addEventListener('click', (e) => e.stopPropagation());
-  input.addEventListener('blur', () => finish(true));
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();
     if (e.key === 'Enter') {
       e.preventDefault();
       input.blur();
-    } else if (e.key === 'Escape') {
-      done = true;
-      e.preventDefault();
-      loadDevices();
+    }
+  });
+  input.addEventListener('change', async () => {
+    const next = input.value.trim();
+    if (!next || next === yamlVersion(d)) return;
+    try {
+      await saveWrapperVersion(d, next);
+    } catch (err) {
+      input.value = yamlVersion(d);
+      $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
     }
   });
 }
@@ -645,8 +583,9 @@ async function saveWrapperVersion(d, next) {
   });
   d.project_version = saved.version;
   const snippetInput = $('rowVersion');
-  if (snippetInput) snippetInput.value = saved.version;
-  await loadDevices();
+  if (snippetInput && snippetInput !== document.activeElement) snippetInput.value = saved.version;
+  const rowInput = $(`nextVersion-${d.node}`);
+  if (rowInput && rowInput !== document.activeElement) rowInput.value = saved.version;
   return saved;
 }
 
@@ -763,12 +702,12 @@ async function loadDevices() {
     const tbody = $('rows');
     tbody.innerHTML = '';
     if (!devicesCache.length) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="5" class="muted">${T.noDevices}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6" class="muted">${T.noDevices}</td></tr>`;
       return;
     }
     devicesCache.forEach((d) => tbody.appendChild(row(d)));
   } catch (err) {
-    $('rows').innerHTML = `<tr class="empty-row"><td colspan="5" class="muted">${escapeHtml(err.message)}</td></tr>`;
+    $('rows').innerHTML = `<tr class="empty-row"><td colspan="6" class="muted">${escapeHtml(err.message)}</td></tr>`;
   }
 }
 

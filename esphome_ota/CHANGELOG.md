@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4
+
+The **Next** column is a plain field for the wrapper's next compile
+version. Published firmware stays in **Version**. No more click-to-edit
+that swaps the cell into a form.
+
 ## 0.5.3
 
 The version column shows the published firmware and, when it differs, the
