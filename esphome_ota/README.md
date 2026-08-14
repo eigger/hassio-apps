@@ -26,10 +26,12 @@ There are two ways to get firmware in there:
 
 ## A. Manual publish — no other setup required
 
-Download `firmware.ota.bin` from the ESPHome dashboard yourself (its "OTA
-format" download), then open this add-on's panel → **Manual publish** →
-fill in the node name, chip family, and version, and upload the file. Nothing
-on the ESPHome side needs to change for this.
+Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
+open **Manual publish**, pick the device YAML, and upload the file. The
+published name is the YAML filename (`livingroom.yaml` → `livingroom.ota.bin`).
+Chip family is read from the image; version comes from `esphome.project.version`
+when that block is set. Only published firmware stays in the table. Nothing
+on the ESPHome add-on needs to change for this.
 
 ![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -65,6 +67,10 @@ each named for exactly what it contains:
 | `flash_button.yaml` — fallback | A **button** that always installs the latest published build | Nothing — works even without `project.version` |
 | `ota.yaml` | Both of the above together | Can't `!include` `update.yaml` and `flash_button.yaml` together — both declare `http_request:`/`ota:` |
 
+Include the per-device wrapper instead of those files directly:
+`packages: ota: !include ota_server/devices/livingroom.yaml` (slug = YAML
+filename). The wrapper sets `ota_device` for you.
+
 The Update entity fetches and parses a JSON manifest first; on the rare setup
 where a proxy/CDN in front of Home Assistant compresses that response in a
 way ESPHome's `http_request` can't handle, it logs
@@ -92,8 +98,9 @@ the fix.
 4. Check the add-on's panel for a banner about `base_url` — it auto-fills from
    Home Assistant's configured external URL (Settings → System → Network); if
    you haven't set one there, set `base_url` in this add-on's options directly
-5. Publish a device (manually, or after enabling ESPHome's public port — see
-   above), then paste the shown YAML snippet into that device's config
+5. Publish a device (drop a bin on its YAML row, or after enabling ESPHome's
+   public port — see above), then paste the shown YAML snippet into that
+   device's config. The include path is `ota_server/devices/<yaml-filename>.yaml`.
 
 ![The YAML snippet shown after publishing a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 

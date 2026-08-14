@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+Manual publish no longer asks you to type a node name or set `ota_device` on
+the device.
+
+- Manual publish picks a YAML file, or **Custom name** for the previous
+  typed `ota_device` slug. Unpublished configs are not table rows.
+- Generated per-device wrappers set `ota_device`. `esphome.project` is copied
+  from the device YAML when present; otherwise omitted so firmware reports
+  the ESPHome release (the row tooltip says so). The snippet is
+  `packages: ota: !include ota_server/devices/<stem>.yaml`.
+  Names with no local YAML still get the legacy `ota_device` snippet.
+- Publish version is what the firmware reports when the device YAML has
+  `project.version`. Otherwise the dashboard ESPHome release is only a
+  default — a typed version (old compiler, published-only, Custom name)
+  is kept. The Version field is read-only only when the YAML declares
+  `project.version`.
+
 ## 0.4.3
 
 **`update.yaml` and `flash_button.yaml` are genuinely single-entity again.**

@@ -4,28 +4,24 @@
 
 ## Manual publish
 
-Settings → this add-on's panel → **Manual publish**. Fields: node name (must
-match the `ota_device` substitution in the device's YAML), chip family (leave
-it on **Auto** — the add-on reads it out of the uploaded image's header, and
-overrides the dropdown when the two disagree; picking one by hand only matters
-for targets that carry no chip id in the header, i.e. ESP8266/RP2040), version,
-optional title, and the `firmware.ota.bin` file itself (download it from the ESPHome dashboard's own UI — "OTA format").
-No connection to ESPHome is needed for this path at all; it goes straight to
+The table shows firmware that is already published. To add one, open
+**Manual publish**, pick the device YAML (from `/config/esphome`), and
+upload `firmware.ota.bin` from the ESPHome dashboard (OTA format) — or drop
+the file on that form. The published slug is the YAML filename
+(`livingroom.yaml` → `livingroom.ota.bin` / `livingroom.json`). Chip family
+is read from the image header (pick one by hand only for ESP8266/RP2040).
+Version comes from `esphome.project.version` when that block is present;
+otherwise the form asks.
+
+No connection to ESPHome is needed for this; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.
 
 Use this if you don't want to open ESPHome's public port (see below), or just
 for a one-off device.
 
-Manually published nodes appear in the device table too, marked with a
-"manual" badge — the table is a merge of the ESPHome dashboard's device list
-(when reachable) with whatever is actually published on disk
-(`Publisher.list_published`, a directory scan, no separate tracking file to
-drift from reality). From that row you can **Upload** again (opens Manual
-publish pre-filled for that node — replaces the bin/manifest in place), copy
-the YAML snippet, or **Delete**. If the ESPHome dashboard can't be reached at
-all, the table still renders — just the manually published rows, with a banner
-explaining why the rest is missing — instead of failing outright the way it
-used to (`GET /api/devices` no longer 502s for this).
+Published rows can be uploaded again, copied as a YAML snippet, or
+**Delete**d. If the dashboard is reachable for a published node, Build &
+publish stays available on that row.
 
 ## Required ESPHome add-on setting (only for the automatic Build & publish path)
 
@@ -127,27 +123,29 @@ Three files, each named for exactly what it contains:
 | `ota.yaml` | Both — only exists because `update.yaml` and `flash_button.yaml` can't be `!include`d together (both declare `http_request:`/`ota:`, and ESPHome doesn't merge two packages' same-named top-level keys) |
 
 ```yaml
-substitutions:
-  ota_device: livingroom
-
 packages:
-  ota: !include ota_server/update.yaml
-
-esphome:
-  project:
-    name: "you.something"
-    version: "1.0.0"      # bump to publish an update
+  ota: !include ota_server/devices/livingroom.yaml
 ```
+
+The wrapper (`ota_server/devices/<yaml-stem>.yaml`) sets `ota_device`, the
+OTA entities, and `esphome.project` (`name: local.<stem>`, `version` copied
+from this device YAML's `project.version` when that block exists). You do
+not paste a project block. Bump `esphome.project.version` in the device YAML
+when you publish a new build; the add-on rewrites the wrapper to match.
+
+For Update-only or button-only, include `livingroom.update.yaml` or
+`livingroom.button.yaml` in the same folder. The older form
+(`substitutions.ota_device` + `!include ota_server/update.yaml`) still works.
 
 **The Update entity is the recommended default** — version tracking, and an
 Install button in Home Assistant. It fetches and parses a JSON manifest
 first, which is one more thing a proxy/CDN in front of Home Assistant can
 interfere with on some configurations (see
 [Troubleshooting](#failed-to-parse-json-from-the-manifest-update-entity-only)).
-If you hit that specific failure, switch the `!include` to
-`ota_server/flash_button.yaml` — it never parses anything, at the cost of
-no version tracking. Want both entities on one device? Use
-`ota_server/ota.yaml` instead of either.
+If you hit that specific failure, switch the `!include` to the `.button.yaml`
+wrapper — it never parses anything, at the cost of
+no version tracking. Want both entities on one device? Use the stem wrapper
+(`devices/livingroom.yaml`) instead of either.
 
 ### Update entity
 
@@ -215,8 +213,10 @@ files:
 
 ```yaml
 substitutions:
-  ota_device: livingroom
   ota_base_url: https://second-site.example
+
+packages:
+  ota: !include ota_server/devices/livingroom.yaml
 ```
 
 ## Troubleshooting

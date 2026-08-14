@@ -4,28 +4,21 @@
 
 ## 수동 게시
 
-설정 → 이 add-on 패널 → **Manual publish**. 입력 항목: 노드 이름(기기
-YAML의 `ota_device` substitution과 일치해야 함), 칩 종류(**자동**으로
-두세요 — 업로드한 이미지 헤더에서 읽어내고, 드롭다운과 다르면 헤더를
-따릅니다. 직접 고르는 건 헤더에 칩 ID가 없는 타겟, 즉 ESP8266/RP2040만
-해당합니다), 버전, 선택적 제목, 그리고 `firmware.ota.bin` 파일
-자체(ESPHome 대시보드 UI에서 받으세요 — "OTA format"). 이 경로는
-ESPHome과의 연결이 아예 필요 없습니다 — 곧바로 `Publisher.publish`로
-가는데, 이건 자동 경로가 마지막에 쓰는 것과 같은 코드입니다.
+테이블에는 **이미 게시된** 펌웨어만 나옵니다. 추가하려면 **Manual publish**에서
+`/config/esphome`의 기기 YAML을 고르고, ESPHome 대시보드의
+`firmware.ota.bin`(OTA format)을 올리거나 그 폼에 놓으세요. 게시 슬러그는
+YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
+`livingroom.json`). 칩은 이미지 헤더에서 읽습니다(직접 고르는 건
+ESP8266/RP2040만). 버전은 `esphome.project.version`이 있으면 그걸 쓰고,
+없으면 폼에서 묻습니다.
 
-ESPHome의 public 포트를 열고 싶지 않거나(아래 참고), 그냥 일회성 기기
-하나만 게시할 때 이 방법을 쓰세요.
+ESPHome 연결은 필요 없습니다 — `Publisher.publish`로 가며, 자동 경로가
+마지막에 쓰는 코드와 같습니다.
 
-수동으로 게시한 노드도 기기 테이블에 "manual" 배지와 함께 표시됩니다 —
-이 테이블은 ESPHome 대시보드의 기기 목록(닿을 때)과 실제로 디스크에
-게시된 것(`Publisher.list_published`, 디렉터리 스캔이라 실제 상태와
-어긋나는 별도 추적 파일이 없음)을 합친 겁니다. 이 행에서 **Upload**를
-다시 눌러(그 노드용 Manual publish 폼이 미리 채워진 채로 열려서 bin/
-매니페스트를 그 자리에서 교체) YAML 스니펫을 복사하거나 **Delete**할 수
-있습니다. ESPHome 대시보드에 아예 닿지 않아도 테이블은 계속
-렌더링됩니다 — 수동 게시된 행만이라도, 나머지가 왜 없는지 설명하는
-배너와 함께 — 예전처럼 아예 실패하지 않습니다(`GET /api/devices`가 이
-경우엔 더 이상 502를 내지 않습니다).
+ESPHome public 포트를 열고 싶지 않거나, 일회성 기기만 게시할 때 쓰세요.
+
+게시된 행에서 다시 업로드, YAML 스니펫 복사, **Delete**가 됩니다. 대시보드에
+닿는 게시 기기면 그 행에 Build & publish도 남습니다.
 
 ## 필요한 ESPHome add-on 설정 (자동 빌드 & 게시 경로에만 해당)
 
@@ -131,25 +124,27 @@ URL을 가리킵니다.
 | `ota.yaml` | 둘 다 — `update.yaml`과 `flash_button.yaml`을 같이 `!include` 못 해서 있는 파일입니다(둘 다 `http_request:`/`ota:`를 정의하는데, ESPHome은 두 패키지의 같은 최상위 키를 병합하지 않습니다) |
 
 ```yaml
-substitutions:
-  ota_device: livingroom
-
 packages:
-  ota: !include ota_server/update.yaml
-
-esphome:
-  project:
-    name: "you.something"
-    version: "1.0.0"      # bump this to offer an update
+  ota: !include ota_server/devices/livingroom.yaml
 ```
+
+래퍼(`ota_server/devices/<yaml-stem>.yaml`)가 `ota_device`, OTA 엔티티,
+`esphome.project`(이름은 `local.<stem>`, 버전은 이 기기 YAML의
+`project.version`)를 넣습니다. project 블록을 따로 붙여 넣을 필요는
+없습니다. 새 빌드를 게시할 때 기기 YAML의 `esphome.project.version`을
+올리면 add-on이 래퍼에 그대로 반영합니다.
+
+Update만 또는 버튼만이면 같은 폴더의 `livingroom.update.yaml` /
+`livingroom.button.yaml`을 include하세요. 예전 방식
+(`substitutions.ota_device` + `!include ota_server/update.yaml`)도 동작합니다.
 
 **Update 엔티티가 기본 추천 방식입니다** — 버전 추적이 되고, HA에
 Install 버튼이 생깁니다. 먼저 JSON 매니페스트를 받아서 파싱하는데,
 일부 환경에서는 Home Assistant 앞단의 프록시/CDN이 여기 개입할 수
 있습니다([문제 해결](#매니페스트에서-json-파싱-실패-update-엔티티에서만)
-참고). 이 특정 증상을 겪으면 `!include`를 `ota_server/flash_button.yaml`로
+참고). 이 특정 증상을 겪으면 `!include`를 `.button.yaml` 래퍼로
 바꾸세요 — 아무것도 파싱하지 않는 대신 버전 추적은 없습니다. 한 기기에
-둘 다 필요하면 둘 중 하나 대신 `ota_server/ota.yaml`을 쓰세요.
+둘 다 필요하면 stem 래퍼(`devices/livingroom.yaml`)를 쓰세요.
 
 ### 업데이트 엔티티
 
@@ -216,8 +211,10 @@ add-on에 설정된 `base_url`입니다. ESPHome은 메인 설정의
 
 ```yaml
 substitutions:
-  ota_device: livingroom
   ota_base_url: https://second-site.example
+
+packages:
+  ota: !include ota_server/devices/livingroom.yaml
 ```
 
 ## 문제 해결

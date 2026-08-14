@@ -83,6 +83,7 @@ class App:
         self.restart_required = False
         self.jobs: dict[str, Job] = {}
         self.lock = asyncio.Lock()
+        self.esphome_version: str = ""
 
     # -- startup -----------------------------------------------------------
 
@@ -129,6 +130,7 @@ class App:
             packages.write_packages(
                 self.settings.esphome_config_dir, self.resolved_base_url, self.settings.publish_dir
             )
+            self.sync_device_wrappers()
         else:
             LOG.error(
                 "Could not determine Home Assistant's address. Set 'base_url' in the add-on "
@@ -145,66 +147,99 @@ class App:
             )
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
-    async def list_devices(self) -> tuple[list[dict[str, Any]], str | None]:
-        """Dashboard-known devices merged with whatever is actually published.
+    def sync_device_wrappers(self) -> list[dict[str, Any]]:
+        configs, stems = metadata.scan_esphome_dir(self.settings.esphome_config_dir)
+        devices = []
+        for row in configs:
+            if not row.get("publishable"):
+                continue
+            devices.append({"node": row["node"], "version": row.get("own_project_version") or ""})
+        packages.write_device_wrappers(
+            self.settings.esphome_config_dir,
+            devices,
+            keep_stems=stems,
+        )
+        for row in configs:
+            if not row.get("own_project_version"):
+                row["project_version"] = None
+        return configs
 
-        The merge — not just the dashboard's list — is what makes manually
-        published nodes (no ESPHome connection involved at all) show up
-        too, and it's why this never raises: a manual-only user's dashboard
-        is expected to be unreachable, and that must not blank the table.
-        """
-        published = self.publisher.list_published()
-        rows: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        dashboard_error: str | None = None
-
+    async def _dashboard_esphome_version(self) -> str:
+        if self.esphome_version:
+            return self.esphome_version
         try:
             async with self._client() as client:
-                devices = await client.devices()
-                for device in devices:
+                self.esphome_version = client.server_info.get("esphome_version", "") or ""
+        except DashboardError:
+            pass
+        return self.esphome_version
+
+    async def list_devices(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+        """Published firmware for the table; local YAML only for the manual form.
+
+        Unpublished YAML files are not table rows. After a successful publish
+        they show up because a manifest exists on disk.
+        """
+        configs = self.sync_device_wrappers()
+        published = self.publisher.list_published()
+        local = {row["node"]: row for row in configs}
+
+        dashboard_by_node: dict[str, dict[str, Any]] = {}
+        dashboard_error: str | None = None
+        try:
+            async with self._client() as client:
+                self.esphome_version = client.server_info.get("esphome_version", "") or self.esphome_version
+                for device in await client.devices():
                     configuration = device.get("configuration", "")
-                    node = configuration[:-5] if configuration.endswith(".yaml") else configuration
-                    seen.add(node)
-                    config = metadata.read_config(self.settings.esphome_config_dir, configuration)
-                    version = metadata.project_version(config)
-                    family, _ = metadata.chip_family(device.get("target_platform", ""))
-                    rows.append(
-                        {
-                            "node": node,
-                            "configuration": configuration,
-                            "friendly_name": device.get("friendly_name") or node,
-                            "target_platform": device.get("target_platform", ""),
-                            "chip_family": family,
-                            "project_version": version,
-                            "device_version": device.get("current_version", ""),
-                            "has_binary": await client.has_ota_binary(configuration),
-                            "published": published.get(node),
-                            "manual": False,
-                        }
+                    node = metadata.node_from_configuration(configuration)
+                    family, _ = metadata.chip_family(
+                        device.get("target_platform", "") or local.get(node, {}).get("target_platform", "")
                     )
+                    dashboard_by_node[node] = {
+                        "configuration": configuration,
+                        "friendly_name": device.get("friendly_name") or node,
+                        "target_platform": device.get("target_platform", ""),
+                        "chip_family": family,
+                        "device_version": device.get("current_version", ""),
+                        "has_binary": await client.has_ota_binary(configuration),
+                    }
         except DashboardError as err:
             dashboard_error = str(err)
 
+        rows: list[dict[str, Any]] = []
         for node, record in published.items():
-            if node in seen:
-                continue
+            local_row = local.get(node, {})
+            dash = dashboard_by_node.get(node, {})
+            own_version = local_row.get("own_project_version")
             rows.append(
                 {
                     "node": node,
-                    "configuration": None,
-                    "friendly_name": record.get("title") or node,
-                    "target_platform": "",
-                    "chip_family": record.get("chip_family", ""),
-                    "project_version": None,
-                    "device_version": "",
-                    "has_binary": False,
+                    "configuration": dash.get("configuration") or local_row.get("configuration"),
+                    "friendly_name": dash.get("friendly_name")
+                    or local_row.get("friendly_name")
+                    or record.get("title")
+                    or node,
+                    "target_platform": dash.get("target_platform") or local_row.get("target_platform", ""),
+                    "chip_family": record.get("chip_family")
+                    or dash.get("chip_family")
+                    or local_row.get("chip_family"),
+                    "project_version": own_version,
+                    "own_project_version": own_version,
+                    "device_version": dash.get("device_version", ""),
+                    "has_binary": bool(dash.get("has_binary")),
                     "published": record,
-                    "manual": True,
+                    "manual": node not in dashboard_by_node and node not in local,
+                    "source": (
+                        "dashboard"
+                        if node in dashboard_by_node
+                        else ("yaml" if node in local else "published")
+                    ),
+                    "publishable": bool(metadata.NODE_RE.match(node)),
                 }
             )
 
         rows.sort(key=lambda r: r["friendly_name"].lower())
-        return rows, dashboard_error
+        return rows, configs, dashboard_error
 
     # -- jobs --------------------------------------------------------------
 
@@ -233,12 +268,15 @@ class App:
                     blob = await client.download_ota(configuration)
                     job.log(f"Downloaded {len(blob)} bytes.")
                     esphome_version = client.server_info.get("esphome_version", "")
+                    if esphome_version:
+                        self.esphome_version = esphome_version
                     device = next(
                         (d for d in await client.devices() if d.get("configuration") == configuration),
                         {},
                     )
 
                 config = metadata.read_config(self.settings.esphome_config_dir, configuration)
+                origin = self.settings.esphome_config_dir / configuration
                 family, source = metadata.chip_family(device.get("target_platform", ""), blob)
                 if not family:
                     raise DashboardError(
@@ -247,7 +285,9 @@ class App:
                     )
                 job.log(f"chipFamily: {family} (from {source})")
 
-                version = metadata.project_version(config)
+                version = metadata.effective_project_version(
+                    self.settings.esphome_config_dir, job.node, config, origin
+                )
                 if version:
                     job.log(f"version: {version} (esphome.project.version)")
                 else:
@@ -297,6 +337,7 @@ async def status(request: web.Request) -> web.Response:
             "restart_required": app.restart_required,
             "package_dir": packages.PACKAGE_DIR,
             "chip_families": metadata.CHIP_FAMILIES,
+            "esphome_version": app.esphome_version,
         }
     )
 
@@ -304,10 +345,12 @@ async def status(request: web.Request) -> web.Response:
 @routes.get("/api/devices")
 async def devices(request: web.Request) -> web.Response:
     app: App = request.app["app"]
-    rows, dashboard_error = await app.list_devices()
+    rows, configs, dashboard_error = await app.list_devices()
     if dashboard_error:
         LOG.warning("Listing dashboard devices failed (showing published-only rows): %s", dashboard_error)
-    return web.json_response({"devices": rows, "dashboard_error": dashboard_error})
+    return web.json_response(
+        {"devices": rows, "configs": configs, "dashboard_error": dashboard_error, "esphome_version": app.esphome_version}
+    )
 
 
 @routes.post("/api/publish")
@@ -315,9 +358,11 @@ async def publish(request: web.Request) -> web.Response:
     app: App = request.app["app"]
     body = await request.json()
     configuration = body.get("configuration", "")
-    if not configuration or "/" in configuration or not configuration.endswith(".yaml"):
+    if not configuration or "/" in configuration or not (
+        configuration.endswith(".yaml") or configuration.endswith(".yml")
+    ):
         return web.json_response({"error": "invalid configuration"}, status=400)
-    node = configuration[:-5]
+    node = metadata.node_from_configuration(configuration)
     job = app.start_job(node, configuration, bool(body.get("compile")))
     return web.json_response(job.as_dict())
 
@@ -339,15 +384,25 @@ async def snippet(request: web.Request) -> web.Response:
         return web.json_response({"error": "node required"}, status=400)
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
+    has_wrapper = packages.device_wrapper_exists(app.settings.esphome_config_dir, node)
+    has_project = bool(
+        has_wrapper and metadata.wrapper_project_version(app.settings.esphome_config_dir, node)
+    )
     return web.json_response(
         {
-            "snippet": packages.snippet(node, published_version),
-            "legacy": packages.single_entity_snippets(node, published_version),
+            "snippet": packages.snippet(
+                node, published_version, has_wrapper=has_wrapper, has_project=has_project
+            ),
+            "legacy": packages.single_entity_snippets(
+                node, published_version, has_wrapper=has_wrapper, has_project=has_project
+            ),
+            "uses_wrapper": has_wrapper,
+            "has_project": has_project,
         }
     )
 
 
-NODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$")
+NODE_RE = metadata.NODE_RE
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # generous for any ESPHome target; caps abuse
 
 
@@ -391,13 +446,56 @@ async def publish_manual(request: web.Request) -> web.Response:
 
     if not NODE_RE.match(node):
         return web.json_response(
-            {"error": "node must be letters/digits/hyphen/underscore, matching the device's ota_device"},
+            {"error": "node must be the YAML filename without extension (letters, digits, hyphen, underscore)"},
             status=400,
         )
-    if not version:
-        return web.json_response({"error": "version required"}, status=400)
     if not blob:
         return web.json_response({"error": "file required"}, status=400)
+
+    filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
+    config: dict = {}
+    origin = app.settings.esphome_config_dir / (filename or f"{node}.yaml")
+    merged: dict = {}
+    uses_wrapper = False
+    cache: dict = {}
+    if filename:
+        config = metadata.read_config(app.settings.esphome_config_dir, filename)
+        merged, uses_wrapper = metadata.merge_config(
+            app.settings.esphome_config_dir, config, origin, skip_wrapper_node=node, cache=cache
+        )
+    own = metadata.project_version(merged)
+    compiled = own or (
+        metadata.wrapper_project_version(app.settings.esphome_config_dir, node) if uses_wrapper else None
+    )
+    requested = version
+    version_source = "supplied"
+    if compiled:
+        if requested and requested != compiled:
+            LOG.info(
+                "Manual publish %s: ignoring form version %s — firmware reports %s",
+                node,
+                requested,
+                compiled,
+            )
+        version = compiled
+        version_source = "project"
+    elif not requested:
+        esphome_version = await app._dashboard_esphome_version()
+        if esphome_version:
+            version = esphome_version
+            version_source = "esphome"
+    if not version:
+        return web.json_response(
+            {
+                "error": "version required — firmware has no project.version; "
+                "pass the ESPHome release this binary was compiled with"
+            },
+            status=400,
+        )
+    if filename and not title:
+        title = metadata.friendly_name(merged, node)
+    elif not title:
+        title = node
 
     # The image header knows the chip; the operator only has a dropdown and a
     # memory of which board this .bin came from. Read it out and let the form
@@ -421,7 +519,11 @@ async def publish_manual(request: web.Request) -> web.Response:
     record = app.publisher.publish(
         node=node, blob=blob, chip_family=chip_family, version=version, title=title or node
     )
-    LOG.info("Manually published %s (%s, %s bytes)", node, chip_family, record["size"])
+    record["version_source"] = version_source
+    if requested and requested != version:
+        record["version_overridden"] = True
+        record["requested_version"] = requested
+    LOG.info("Manually published %s (%s, %s bytes, %s)", node, chip_family, record["size"], version)
     return web.json_response(record)
 
 

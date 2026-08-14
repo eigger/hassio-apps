@@ -26,9 +26,29 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from metadata import NODE_RE
+
+# ESPHome project.name is "{author}.{project}" and capped at 32 characters.
+_PROJECT_NAME_MAX = 32
+
+
+def project_name(node: str) -> str:
+    """``local.<stem>`` trimmed to ESPHome's 32-character project.name limit."""
+    name = f"local.{node}"
+    return name if len(name) <= _PROJECT_NAME_MAX else name[:_PROJECT_NAME_MAX]
+
+
+def _wrapper_node(filename: str) -> str:
+    for suffix in (".update.yaml", ".button.yaml", ".yaml"):
+        if filename.endswith(suffix):
+            return filename[: -len(suffix)]
+    return filename
+
+
 LOG = logging.getLogger("packages")
 
 PACKAGE_DIR = "ota_server"
+DEVICES_DIR = "devices"
 PACKAGE_FILE = "ota.yaml"
 UPDATE_FILE = "update.yaml"
 BUTTON_FILE = "flash_button.yaml"
@@ -49,18 +69,16 @@ UPDATE_PACKAGE = """\
 #
 # Adds an "Update" entity: version comparison, Install button in HA.
 #
-# Requires, in the device YAML:
-#   substitutions:
-#     ota_device: <name of this YAML file without .yaml>
-#     # ota_base_url: https://something-else.example  # only to override the
-#     #   add-on's configured base_url for this one device
+# Include the per-device wrapper (slug = YAML filename without .yaml):
+#   packages:
+#     ota: !include {package_dir}/{devices_dir}/livingroom.update.yaml
+# The wrapper sets ota_device; the device YAML does not need that substitution.
+# Legacy: substitutions.ota_device + !include {package_dir}/{update_file}
+#
 #   esphome:
 #     project:
 #       name: "you.something"
 #       version: "1.0.0"      # bump this to offer an update
-#
-#   packages:
-#     ota: !include {package_dir}/{update_file}
 #
 # Without an esphome.project block this compares against the ESPHome
 # release string instead and will not flag config-only changes.
@@ -99,14 +117,11 @@ BUTTON_PACKAGE = """\
 # Adds a "Firmware Update" button: no version tracking, no project.version
 # needed — pressing it always installs whatever is currently published.
 #
-# Requires, in the device YAML:
-#   substitutions:
-#     ota_device: <name of this YAML file without .yaml>
-#     # ota_base_url: https://something-else.example  # only to override the
-#     #   add-on's configured base_url for this one device
-#
+# Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
-#     ota: !include {package_dir}/{button_file}
+#     ota: !include {package_dir}/{devices_dir}/livingroom.button.yaml
+# The wrapper sets ota_device; the device YAML does not need that substitution.
+# Legacy: substitutions.ota_device + !include {package_dir}/{button_file}
 #
 # url/md5_url carry a random ?r= on every press (random_uint32(), evaluated
 # fresh each call) so a caching proxy in front of Home Assistant — a
@@ -166,18 +181,16 @@ OTA_PACKAGE = """\
 # {package_dir}/{button_file} instead — smaller, and the filename says
 # exactly what you're getting.
 #
-# Requires, in the device YAML:
-#   substitutions:
-#     ota_device: <name of this YAML file without .yaml>
-#     # ota_base_url: https://something-else.example  # only to override the
-#     #   add-on's configured base_url for this one device
+# Include the per-device wrapper (slug = YAML filename without .yaml):
+#   packages:
+#     ota: !include {package_dir}/{devices_dir}/livingroom.yaml
+# The wrapper sets ota_device; the device YAML does not need that substitution.
+# Legacy: substitutions.ota_device + !include {package_dir}/{package_file}
+#
 #   esphome:
 #     project:
 #       name: "you.something"
 #       version: "1.0.0"      # bump this to offer an update
-#
-#   packages:
-#     ota: !include {package_dir}/{package_file}
 #
 # Without an esphome.project block the Update entity compares against the
 # ESPHome release string and will not flag config-only changes. The button
@@ -236,6 +249,7 @@ def write_packages(esphome_config_dir: Path, base_url: str, publish_dir: str) ->
         "base_url": base_url.rstrip("/"),
         "publish_dir": publish_dir,
         "package_dir": PACKAGE_DIR,
+        "devices_dir": DEVICES_DIR,
         "package_file": PACKAGE_FILE,
         "update_file": UPDATE_FILE,
         "button_file": BUTTON_FILE,
@@ -254,71 +268,192 @@ def write_packages(esphome_config_dir: Path, base_url: str, publish_dir: str) ->
     return written
 
 
-def _project_block(node: str, published_version: str | None) -> str:
-    """The esphome.project block, shared by the update-only and combined snippets.
+DEVICE_WRAPPER = """\
+{header}
+# Per-device wrapper. Include this from {node}.yaml:
+#
+#   packages:
+#     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
+#
+# Sets ota_device from the YAML filename. esphome.project is copied from the
+# device YAML when it declares one; otherwise omitted so the firmware reports
+# ESPHOME_VERSION (bump project.version in the device YAML to offer updates).
+substitutions:
+  ota_device: {node}
 
-    ``name`` defaults to the device's own node name rather than a fixed
-    placeholder — every device gets a distinct one for free, nothing to
-    remember to change. ``version`` mirrors whatever's actually published
-    for this node when there is one (the number to bump *from*), instead of
-    always resetting to 1.0.0 and silently un-doing whatever version scheme
-    is already in use.
+{project_block}packages:
+  ota: !include {shared_include}
+"""
+
+PROJECT_BLOCK = """\
+esphome:
+  project:
+    name: "{project_name}"
+    version: "{version}"
+
+"""
+
+NO_PROJECT_BLOCK = """\
+# No esphome.project — the device YAML has none, so firmware reports the
+# ESPHome release. Add project.version there and rebuild to offer updates.
+
+"""
+
+
+def write_device_wrappers(
+    esphome_config_dir: Path,
+    devices: list[dict[str, str]],
+    keep_stems: set[str] | None = None,
+) -> list[Path]:
+    """Write one wrapper per device YAML stem so include path == publish slug.
+
+    Wrappers for *keep_stems* that we could not refresh (parse failed) are
+    left in place so a transient YAML error cannot delete them.
     """
+    target = esphome_config_dir / PACKAGE_DIR / DEVICES_DIR
+    target.mkdir(parents=True, exist_ok=True)
+    keep_stems = keep_stems or set()
+
+    kinds = (
+        ("", PACKAGE_FILE),
+        (".update", UPDATE_FILE),
+        (".button", BUTTON_FILE),
+    )
+    wanted: set[str] = set()
+    written: list[Path] = []
+    for item in devices:
+        node = item["node"]
+        version = (item.get("version") or "").replace('"', "")
+        if not NODE_RE.match(node):
+            continue
+        project_block = (
+            PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+            if version
+            else NO_PROJECT_BLOCK
+        )
+        for suffix, shared in kinds:
+            wrapper_name = f"{node}{suffix}.yaml"
+            wanted.add(wrapper_name)
+            path = target / wrapper_name
+            path.write_text(
+                DEVICE_WRAPPER.format(
+                    header=HEADER,
+                    node=node,
+                    project_block=project_block,
+                    package_dir=PACKAGE_DIR,
+                    devices_dir=DEVICES_DIR,
+                    wrapper_name=wrapper_name,
+                    shared_include=f"../{shared}",
+                ),
+                encoding="utf-8",
+            )
+            written.append(path)
+
+    for existing in target.glob("*.yaml"):
+        if existing.name in wanted:
+            continue
+        if _wrapper_node(existing.name) in keep_stems:
+            continue
+        existing.unlink()
+        LOG.info("Removed stale device wrapper %s", existing.name)
+
+    LOG.info("Wrote %s device wrappers under %s", len(written), target)
+    return written
+
+
+def device_wrapper_exists(esphome_config_dir: Path, node: str) -> bool:
+    return (esphome_config_dir / PACKAGE_DIR / DEVICES_DIR / f"{node}.yaml").is_file()
+
+
+def _include_line(node: str, suffix: str = "") -> str:
+    return f"packages:\n  ota: !include {PACKAGE_DIR}/{DEVICES_DIR}/{node}{suffix}.yaml\n"
+
+
+def _project_block(node: str, published_version: str | None) -> str:
+    """esphome.project for the legacy ota_device snippet (no wrapper file)."""
     version = published_version or "1.0.0"
     comment = "  # bump this to publish a new update" if published_version else "   # bump to publish an update"
     return (
         f"esphome:\n"
         f"  project:\n"
-        f'    name: "local.{node}"\n'
+        f'    name: "{project_name(node)}"\n'
         f'    version: "{version}"{comment}\n'
     )
 
 
-def single_entity_snippets(node: str, published_version: str | None = None) -> dict[str, str]:
+_FLASH_HINT = (
+    "\n# This button's id is ota_flash_button. Trigger the same flash from\n"
+    "# another button (e.g. a physical GPIO button) instead of duplicating\n"
+    "# the ota.http_request.flash call:\n"
+    "#\n"
+    "# button:\n"
+    "#   - platform: gpio\n"
+    "#     pin: GPIO0\n"
+    "#     name: Flash Button\n"
+    "#     on_press:\n"
+    "#       - button.press: ota_flash_button\n"
+)
+
+_SSL_HINT = (
+    "\n# On a memory-constrained board (typically ESP8266), TLS certificate\n"
+    "# verification can be too much for its RAM. Uncomment to skip it:\n"
+    "# http_request:\n"
+    "#   verify_ssl: false\n"
+)
+
+
+def single_entity_snippets(
+    node: str,
+    published_version: str | None = None,
+    has_wrapper: bool = True,
+    has_project: bool = False,
+) -> dict[str, str]:
     """Device-YAML snippets for update.yaml / flash_button.yaml alone."""
+    if has_wrapper:
+        update = _include_line(node, ".update")
+        if not has_project:
+            update += (
+                "\n# This wrapper has no esphome.project — firmware reports the ESPHome\n"
+                "# release. Add project.version to THIS device YAML and rebuild to offer updates.\n"
+            )
+        button = _include_line(node, ".button") + _FLASH_HINT
+        return {"update": update, "button": button}
     header = f"substitutions:\n  ota_device: {node}\n\npackages:\n"
     update = (
         header
         + f"  ota: !include {PACKAGE_DIR}/{UPDATE_FILE}\n\n"
         + _project_block(node, published_version)
     )
-    button = (
-        header
-        + f"  ota: !include {PACKAGE_DIR}/{BUTTON_FILE}\n\n"
-        + f"# This button's id is ota_flash_button. Trigger the same flash from\n"
-        f"# another button (e.g. a physical GPIO button) instead of duplicating\n"
-        f"# the ota.http_request.flash call:\n"
-        f"#\n"
-        f"# button:\n"
-        f"#   - platform: gpio\n"
-        f"#     pin: GPIO0\n"
-        f"#     name: Flash Button\n"
-        f"#     on_press:\n"
-        f"#       - button.press: ota_flash_button\n"
-    )
+    button = header + f"  ota: !include {PACKAGE_DIR}/{BUTTON_FILE}\n" + _FLASH_HINT
     return {"update": update, "button": button}
 
 
-def snippet(node: str, published_version: str | None = None) -> str:
-    """The copy-paste block shown in the UI for one device — both entities."""
+def snippet(
+    node: str,
+    published_version: str | None = None,
+    has_wrapper: bool = True,
+    has_project: bool = False,
+) -> str:
+    """The copy-paste block shown in the UI."""
+    if has_wrapper:
+        project_note = (
+            "\n# ota_device, http_request/ota, Update + flash button, and esphome.project\n"
+            "# (name: local.<this YAML>, version from this file's project.version) are in that include.\n"
+            "# Bump esphome.project.version in THIS device YAML when you publish a new build.\n"
+            if has_project
+            else (
+                "\n# ota_device, http_request/ota, Update + flash button are in that include.\n"
+                "# No esphome.project — firmware reports the ESPHome release until you add\n"
+                "# project.version to THIS device YAML and rebuild.\n"
+            )
+        )
+        return _include_line(node) + project_note + _FLASH_HINT + _SSL_HINT
     return (
         f"substitutions:\n"
         f"  ota_device: {node}\n"
         f"\npackages:\n"
         f"  ota: !include {PACKAGE_DIR}/{PACKAGE_FILE}\n"
         f"\n{_project_block(node, published_version)}"
-        f"\n# This button's id is ota_flash_button. Trigger the same flash from\n"
-        f"# another button (e.g. a physical GPIO button) instead of duplicating\n"
-        f"# the ota.http_request.flash call:\n"
-        f"#\n"
-        f"# button:\n"
-        f"#   - platform: gpio\n"
-        f"#     pin: GPIO0\n"
-        f"#     name: Flash Button\n"
-        f"#     on_press:\n"
-        f"#       - button.press: ota_flash_button\n"
-        f"\n# On a memory-constrained board (typically ESP8266), TLS certificate\n"
-        f"# verification can be too much for its RAM. Uncomment to skip it:\n"
-        f"# http_request:\n"
-        f"#   verify_ssl: false\n"
+        + _FLASH_HINT
+        + _SSL_HINT
     )

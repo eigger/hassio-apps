@@ -26,10 +26,11 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
 
 ## A. 수동 게시 — 별도 설정 필요 없음
 
-ESPHome 대시보드에서 직접 `firmware.ota.bin`을 받은 뒤("OTA format"
-다운로드), 이 add-on 패널 → **Manual publish** → 노드 이름, 칩 종류,
-버전을 입력하고 파일을 업로드하세요. ESPHome 쪽은 아무것도 바꿀 필요
-없습니다.
+ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), **Manual
+publish**에서 기기 YAML을 고르고 업로드하세요. 게시 이름은 YAML
+파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩은 이미지에서
+읽고, 버전은 `esphome.project.version`이 있으면 그걸 씁니다. 테이블에는
+게시된 항목만 남습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
 
 ![Manual publish 폼](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -65,6 +66,10 @@ UI가 쓰는 것과 같은 API) 원클릭으로 빌드 & 게시할 수 있습니
 | `flash_button.yaml` — 대안 | 항상 최신 게시본을 설치하는 **버튼** | 없음 — `project.version` 없이도 동작 |
 | `ota.yaml` | 위 둘 다 함께 | `update.yaml`과 `flash_button.yaml`은 같이 `!include` 못 함 — 둘 다 `http_request:`/`ota:`를 정의하므로 |
 
+공통 파일 대신 기기별 래퍼를 include하세요:
+`packages: ota: !include ota_server/devices/livingroom.yaml` (슬러그 = YAML
+파일명). 래퍼가 `ota_device`를 넣습니다.
+
 Update 엔티티는 먼저 JSON 매니페스트를 받아서 파싱합니다. 드물게 Home
 Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 처리
 못 하는 방식으로 압축하는 환경에서는 `Failed to parse JSON from
@@ -92,8 +97,9 @@ Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 
 4. add-on 패널에서 `base_url` 관련 배너를 확인하세요 — Home Assistant의
    설정된 외부 URL(설정 → 시스템 → 네트워크)에서 자동으로 채워집니다;
    거기 설정된 게 없다면 이 add-on 옵션에서 `base_url`을 직접 설정하세요
-5. 기기를 게시하고(수동으로, 또는 위에서처럼 ESPHome의 public 포트를 켠
-   뒤), 화면에 뜨는 YAML 스니펫을 그 기기의 설정에 붙여넣으세요
+5. 기기를 게시하고(행에 bin을 놓거나, 위에서처럼 ESPHome의 public 포트를 켠
+   뒤), 화면에 뜨는 YAML 스니펫을 그 기기의 설정에 붙여넣으세요. include
+   경로는 `ota_server/devices/<yaml 파일명>.yaml`입니다.
 
 ![기기 게시 후 뜨는 YAML 스니펫, 복사 버튼 포함](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 

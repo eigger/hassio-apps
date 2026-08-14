@@ -66,6 +66,9 @@
   .field input, .field select { width:100%; }
   details summary { cursor:pointer; font-weight:600; }
   details[open] summary { margin-bottom:4px; }
+  tr.drop-target td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  #manualForm.drop-target, details.drop-target { outline: 2px dashed var(--accent); outline-offset: 4px; }
+  .toast { color: var(--ok); font-size: 12px; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -108,8 +111,12 @@
   </div>
   <form id="manualForm" class="formgrid">
     <div class="field">
-      <label id="t-manual-node" for="mNode">Node name</label>
-      <input type="text" id="mNode" name="node" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}" required>
+      <label id="t-manual-node" for="mYaml">Device YAML</label>
+      <select id="mYaml"></select>
+    </div>
+    <div class="field" id="mNodeField" hidden>
+      <label id="t-manual-custom" for="mNode">Publish name</label>
+      <input type="text" id="mNode" name="node" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,62}">
     </div>
     <div class="field">
       <label id="t-manual-chip" for="mChip">Chip family</label>
@@ -117,7 +124,7 @@
     </div>
     <div class="field">
       <label id="t-manual-version" for="mVersion">Version</label>
-      <input type="text" id="mVersion" name="version" required>
+      <input type="text" id="mVersion" name="version">
     </div>
     <div class="field">
       <label id="t-manual-titlefield" for="mTitle">Title</label>
@@ -140,23 +147,26 @@ const STRINGS = {
     title: 'ESPHome OTA Publisher',
     sub: 'Pulls firmware from the ESPHome dashboard and publishes it to /local.',
     colDevice: 'Device', colChip: 'Chip', colVersion: 'Published version', colStatus: 'Status',
-    loading: 'Loading…', noDevices: 'No devices.',
+    loading: 'Loading…', noDevices: 'Nothing published yet.',
     restartTitle: 'Restart Home Assistant once.',
     restartBody: 'The www folder was just created. Home Assistant registers /local only at ' +
       'startup, so devices can\'t fetch firmware until you restart it once.',
     noDashboardTitle: 'Could not find the ESPHome dashboard.',
-    noDashboardBody: 'Make sure the ESPHome Device Builder add-on is running, or set ' +
-      '<code>dashboard_url</code> in this add-on\'s options.',
+    noDashboardBody: 'Build &amp; publish from the dashboard needs ESPHome\'s public port. ' +
+      'Manual publish below does not — pick a YAML and upload a <code>firmware.ota.bin</code>. ' +
+      'Or set <code>dashboard_url</code> in this add-on\'s options.',
     noBaseUrlTitle: 'Could not determine Home Assistant\'s address.',
     noBaseUrlBody: 'Set <code>base_url</code> in this add-on\'s options, e.g. ' +
       '<code>http://192.168.0.10:8123</code>, so the device packages can be generated.',
     notPublished: 'Not published', needsRepublish: 'Needs republish', published: 'Published',
-    noProjectVersion: 'no project.version',
+    noProjectVersion: 'no project.version — Update compares the ESPHome release until you add one',
     publish: 'Publish', publishTitleReady: 'Publish the binary already built on the dashboard',
     publishTitleMissing: 'No built binary yet',
     buildPublish: 'Build & publish', yaml: 'YAML',
     yamlHeader: (name) => `${name} — paste into the device YAML`,
-    yamlNote: 'An Update entity (recommended — Install button in HA) plus a force-install button as fallback. Set <code>esphome.project.version</code> so the Update entity can see new builds; the button works either way.',
+    yamlNote: 'Paste this include. The file already has ota_device, the Update entity, the flash button, and <code>esphome.project</code> (name from the YAML filename, version from this device\'s <code>project.version</code>). Bump <code>esphome.project.version</code> in the device YAML when you publish a new build.',
+    yamlNoteNoProject: 'Paste this include for ota_device and the OTA entities. The wrapper has no <code>esphome.project</code> — add <code>project.version</code> to the device YAML and rebuild to offer updates.',
+    yamlNoteLegacy: 'No per-device wrapper for this name (no matching YAML in /config/esphome). Paste <code>ota_device</code> and the shared package include instead.',
     copyTitle: 'Copy to clipboard', copied: 'Copied',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
@@ -174,42 +184,56 @@ const STRINGS = {
       'devices on the same network — set <code>base_url</code> in the add-on options, or ' +
       'configure HA\'s external URL, for devices outside the LAN.',
     manualTitle: 'Manual publish',
-    manualBody: 'Publish a <code>firmware.ota.bin</code> you downloaded from the ESPHome ' +
-      'dashboard yourself — no connection to ESPHome needed for this.',
-    manualNode: 'Node name (matches ota_device in the YAML)',
+    manualBody: 'Pick the device YAML, then a <code>firmware.ota.bin</code> from the ESPHome ' +
+      'dashboard (OTA format). The published name is the YAML filename. After that the device ' +
+      'stays in the table. No dashboard connection needed.',
+    manualNode: 'Device YAML',
+    manualPickYaml: 'Select a YAML…',
+    manualCustom: 'Custom name…',
+    manualCustomLabel: 'Publish name (legacy ota_device)',
     manualChip: 'Chip family', manualChipAuto: 'Auto — read from the firmware',
-    manualVersion: 'Version', manualTitleField: 'Title (optional)',
+    manualVersion: 'Version', manualVersionLocked: 'From the firmware (project.version or ESPHome release)',
+    manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
+    manualTitleField: 'Title (optional)',
     manualFile: 'firmware.ota.bin', manualSubmit: 'Publish', manualUploading: 'Uploading…',
     manualOk: (n) => `Published ${n}.`,
-    manualBadge: 'manual', manualBadgeTitle: 'Published manually — not known to the ESPHome dashboard',
+    manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
+    yamlBadge: 'YAML', yamlBadgeTitle: 'From /config/esphome — dashboard not required',
     reupload: 'Upload',
     reuploadTitle: 'Replace the published firmware.ota.bin for this device',
-    reuploadHint: (n) => `Re-upload for ${n} — pick a new firmware.ota.bin below.`,
+    dropHere: 'Drop firmware.ota.bin to publish',
+    notBin: 'Choose a .bin file (OTA format from the ESPHome dashboard).',
+    fileTooBig: 'File is too large (8 MB max).',
+    versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
+    notPublishable: 'This YAML filename cannot be used as a publish name',
     deleteBtn: 'Delete', deleteConfirm: (n) => `Delete the published firmware for "${n}"?`,
     dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
-    dashboardErrorBody: (msg) => `Showing manually published devices only. ${msg}`,
+    dashboardErrorBody: (msg) => `Published firmware is still listed. ${msg}`,
   },
   ko: {
     title: 'ESPHome OTA Publisher',
     sub: 'ESPHome 대시보드에서 펌웨어를 받아 /local로 게시합니다.',
     colDevice: '기기', colChip: '칩', colVersion: '게시된 버전', colStatus: '상태',
-    loading: '불러오는 중…', noDevices: '기기가 없습니다.',
+    loading: '불러오는 중…', noDevices: '게시된 펌웨어가 없습니다.',
     restartTitle: 'Home Assistant를 한 번 재시작하세요.',
     restartBody: 'www 폴더를 방금 만들었습니다. HA는 시작할 때 한 번만 /local 경로를 등록하므로, ' +
       '재시작 전에는 기기가 펌웨어를 받을 수 없습니다.',
     noDashboardTitle: 'ESPHome 대시보드를 찾지 못했습니다.',
-    noDashboardBody: 'ESPHome Device Builder 애드온이 실행 중인지 확인하거나, 이 애드온 옵션의 ' +
-      '<code>dashboard_url</code>을 직접 지정하세요.',
+    noDashboardBody: '대시보드에서 빌드·게시하려면 ESPHome public 포트가 필요합니다. ' +
+      '아래 수동 게시는 필요 없습니다 — YAML을 고르고 <code>firmware.ota.bin</code>을 올리세요. ' +
+      '또는 애드온 옵션의 <code>dashboard_url</code>을 지정하세요.',
     noBaseUrlTitle: 'Home Assistant 주소를 알 수 없습니다.',
     noBaseUrlBody: '애드온 옵션의 <code>base_url</code>에 <code>http://192.168.0.10:8123</code> ' +
       '형태로 입력하면 패키지 파일이 생성됩니다.',
     notPublished: '미게시', needsRepublish: '재게시 필요', published: '게시됨',
-    noProjectVersion: 'project.version 없음',
+    noProjectVersion: 'project.version 없음 — 추가하기 전까지 Update는 ESPHome 릴리스와 비교합니다',
     publish: '게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
     publishTitleMissing: '빌드된 바이너리가 없습니다',
     buildPublish: '빌드 후 게시', yaml: 'YAML',
     yamlHeader: (name) => `${name} — 기기 YAML에 붙여넣기`,
-    yamlNote: '업데이트 엔티티(추천 — HA에 Install 버튼)와 대안용 강제 설치 버튼이 함께 들어갑니다. 업데이트 엔티티가 새 빌드를 보려면 <code>esphome.project.version</code>을 설정하세요. 버튼은 버전 없이도 동작합니다.',
+    yamlNote: '이 include만 넣으면 됩니다. 파일 안에 ota_device, Update 엔티티, 강제 설치 버튼, <code>esphome.project</code>(이름은 YAML 파일명, 버전은 이 기기의 <code>project.version</code>)가 들어 있습니다. 새 빌드를 게시할 때 기기 YAML의 <code>esphome.project.version</code>을 올리세요.',
+    yamlNoteNoProject: '이 include에 ota_device와 OTA 엔티티가 있습니다. 래퍼에 <code>esphome.project</code>는 없습니다 — 기기 YAML에 <code>project.version</code>을 넣고 다시 빌드해야 업데이트가 제안됩니다.',
+    yamlNoteLegacy: '이 이름에는 기기 래퍼가 없습니다 (/config/esphome에 해당 YAML 없음). <code>ota_device</code>와 공유 패키지 include를 붙여넣으세요.',
     copyTitle: '클립보드에 복사', copied: '복사됨',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
@@ -226,20 +250,30 @@ const STRINGS = {
       '호스트의 LAN 주소로 대체했습니다. 같은 네트워크의 기기에만 동작합니다 — LAN 밖 기기라면 ' +
       '애드온 옵션의 <code>base_url</code>을 직접 지정하거나 HA 외부 주소를 설정하세요.',
     manualTitle: '수동 게시',
-    manualBody: 'ESPHome 대시보드에서 직접 받은 <code>firmware.ota.bin</code>을 게시합니다 — ' +
-      'ESPHome 연결이 필요 없습니다.',
-    manualNode: '기기 이름 (YAML의 ota_device와 동일)',
+    manualBody: '기기 YAML을 고른 뒤 ESPHome 대시보드에서 받은 <code>firmware.ota.bin</code>(OTA format)을 ' +
+      '올리세요. 게시 이름은 YAML 파일명이고, 게시된 기기만 테이블에 남습니다. 대시보드 연결은 필요 없습니다.',
+    manualNode: '기기 YAML',
+    manualPickYaml: 'YAML 선택…',
+    manualCustom: '직접 입력…',
+    manualCustomLabel: '게시 이름 (예전 ota_device)',
     manualChip: '칩 종류', manualChipAuto: '자동 — 펌웨어에서 읽기',
-    manualVersion: '버전', manualTitleField: '표시 이름 (선택)',
+    manualVersion: '버전', manualVersionLocked: '펌웨어 값 (project.version 또는 ESPHome 릴리스)',
+    manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
+    manualTitleField: '표시 이름 (선택)',
     manualFile: 'firmware.ota.bin', manualSubmit: '게시', manualUploading: '업로드 중…',
     manualOk: (n) => `${n} 게시 완료.`,
-    manualBadge: '수동', manualBadgeTitle: '수동으로 게시됨 — ESPHome 대시보드에는 없는 기기',
+    manualBadge: '게시만', manualBadgeTitle: '디스크에만 있음 — /config/esphome에 해당 YAML 없음',
+    yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome에서 읽음 — 대시보드 불필요',
     reupload: '업로드',
     reuploadTitle: '이 기기의 게시된 firmware.ota.bin을 새 파일로 교체합니다',
-    reuploadHint: (n) => `${n} 재업로드 — 아래에서 새 firmware.ota.bin을 선택하세요.`,
+    dropHere: 'firmware.ota.bin을 놓으면 게시됩니다',
+    notBin: 'ESPHome 대시보드의 OTA format .bin 파일을 선택하세요.',
+    fileTooBig: '파일이 너무 큽니다 (최대 8 MB).',
+    versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
+    notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
     deleteBtn: '삭제', deleteConfirm: (n) => `"${n}"의 게시된 펌웨어를 삭제할까요?`,
     dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
-    dashboardErrorBody: (msg) => `수동으로 게시한 기기만 표시합니다. ${msg}`,
+    dashboardErrorBody: (msg) => `게시된 펌웨어는 그대로 표시합니다. ${msg}`,
   },
 };
 
@@ -256,6 +290,8 @@ const $ = (id) => document.getElementById(id);
 let status = {};
 let polling = null;
 let jobRunning = false;
+let devicesCache = [];
+let configsCache = [];
 
 function applyStaticText() {
   document.documentElement.lang = LOCALE;
@@ -269,6 +305,7 @@ function applyStaticText() {
   $('t-manual-title').textContent = T.manualTitle;
   $('t-manual-body').innerHTML = T.manualBody;
   $('t-manual-node').textContent = T.manualNode;
+  $('t-manual-custom').textContent = T.manualCustomLabel;
   $('t-manual-chip').textContent = T.manualChip;
   $('t-manual-version').textContent = T.manualVersion;
   $('t-manual-titlefield').textContent = T.manualTitleField;
@@ -294,7 +331,7 @@ async function loadStatus() {
   status = await api('api/status');
   $('banners').innerHTML = '';
   if (status.restart_required) banner(T.restartTitle, T.restartBody, 'warn');
-  if (!status.dashboard) banner(T.noDashboardTitle, T.noDashboardBody, 'err');
+  if (!status.dashboard) banner(T.noDashboardTitle, T.noDashboardBody, 'warn');
   if (!status.base_url) banner(T.noBaseUrlTitle, T.noBaseUrlBody, 'err');
   else if (status.base_url_source === 'lan_ip_fallback') banner(T.lanFallbackTitle, T.lanFallbackBody, 'warn');
 
@@ -313,27 +350,24 @@ function row(d) {
   const tr = document.createElement('tr');
   const pub = d.published;
   const stale = pub && d.project_version && pub.version !== d.project_version;
+  const canDrop = d.publishable !== false;
 
-  // Kept to one line always (as a title tooltip, not a second <div>) so this
-  // column's height doesn't vary row to row and throw off the row's shared
-  // bottom border against columns that are consistently one line.
-  const noVersionHint = d.project_version ? '' : ` title="${T.noProjectVersion}"`;
+  const noVersionHint = d.own_project_version ? '' : ` title="${T.noProjectVersion}"`;
   const state = !pub
     ? `<span class="chip"${noVersionHint}>${T.notPublished}</span>`
     : stale
       ? `<span class="chip warn"${noVersionHint}>${T.needsRepublish}</span>`
       : `<span class="chip ok"${noVersionHint}>${T.published}</span>`;
 
-  // Always emit a .subline under version so the cell's height matches rows
-  // that have an md5 (and name cells that have a configuration subtitle).
   const version = pub
     ? `${escapeHtml(pub.version)}<span class="subline tiny muted">` +
       `${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`
     : `<span class="muted">—</span><span class="subline tiny muted">&nbsp;</span>`;
 
-  const badge = d.manual
-    ? ` <span class="chip" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`
-    : '';
+  let badge = '';
+  if (d.source === 'published' || d.manual) {
+    badge = ` <span class="chip" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`;
+  }
   const subtitle = d.configuration
     ? `<span class="subline tiny muted">${escapeHtml(d.configuration)}</span>`
     : `<span class="subline tiny muted">&nbsp;</span>`;
@@ -344,73 +378,199 @@ function row(d) {
     <td>${version}</td>
     <td>${state}</td>
     <td><div class="actions"></div></td>`;
+  if (canDrop) tr.title = T.dropHere;
 
   const actions = tr.querySelector('.actions');
 
-  if (d.manual) {
-    // No dashboard configuration to build from — this row exists purely
-    // because a manifest is on disk for it. Re-upload replaces the bin via
-    // the same POST /api/publish/manual path as the form below.
-    const uploadBtn = document.createElement('button');
-    uploadBtn.className = 'jobctl primary';
-    uploadBtn.textContent = T.reupload;
-    uploadBtn.title = T.reuploadTitle;
-    uploadBtn.disabled = jobRunning;
-    uploadBtn.onclick = () => openReupload(d);
+  const uploadBtn = document.createElement('button');
+  uploadBtn.className = d.source === 'dashboard' ? 'jobctl' : 'jobctl primary';
+  uploadBtn.textContent = T.reupload;
+  uploadBtn.title = T.reuploadTitle;
+  uploadBtn.disabled = jobRunning || !canDrop;
+  if (!canDrop) uploadBtn.title = T.notPublishable;
+  uploadBtn.onclick = (e) => { e.stopPropagation(); pickAndPublish(d); };
+  actions.append(uploadBtn);
 
-    const yamlBtn = document.createElement('button');
-    yamlBtn.textContent = T.yaml;
-    yamlBtn.onclick = () => showSnippet(d);
-    actions.append(uploadBtn, yamlBtn);
-  } else {
+  if (d.source === 'dashboard') {
     const publishBtn = document.createElement('button');
     publishBtn.className = 'jobctl';
     publishBtn.textContent = T.publish;
     publishBtn.disabled = jobRunning || !d.has_binary;
     publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
-    publishBtn.onclick = () => run(d, false, publishBtn);
+    publishBtn.onclick = (e) => { e.stopPropagation(); run(d, false, publishBtn); };
 
     const buildBtn = document.createElement('button');
     buildBtn.className = 'jobctl primary';
     buildBtn.textContent = T.buildPublish;
     buildBtn.disabled = jobRunning;
-    buildBtn.onclick = () => run(d, true, buildBtn);
-
-    const yamlBtn = document.createElement('button');
-    yamlBtn.textContent = T.yaml;
-    yamlBtn.onclick = () => showSnippet(d);
-
-    actions.append(publishBtn, buildBtn, yamlBtn);
+    buildBtn.onclick = (e) => { e.stopPropagation(); run(d, true, buildBtn); };
+    actions.append(publishBtn, buildBtn);
   }
+
+  const yamlBtn = document.createElement('button');
+  yamlBtn.textContent = T.yaml;
+  yamlBtn.onclick = (e) => { e.stopPropagation(); showSnippet(d); };
+  actions.append(yamlBtn);
 
   if (pub) {
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = T.deleteBtn;
-    deleteBtn.onclick = () => deletePublished(d);
+    deleteBtn.onclick = (e) => { e.stopPropagation(); deletePublished(d); };
     actions.append(deleteBtn);
   }
 
+  if (canDrop) enableDrop(tr, (file) => publishFile(d, file));
   return tr;
 }
 
-function openReupload(d) {
-  const pub = d.published || {};
-  const form = $('manualForm');
-  const panel = form.closest('details');
-  if (panel) panel.open = true;
+function enableDrop(el, onFile) {
+  el.addEventListener('dragover', (e) => {
+    if (![...e.dataTransfer.items].some((i) => i.kind === 'file')) return;
+    e.preventDefault();
+    el.classList.add('drop-target');
+  });
+  el.addEventListener('dragleave', (e) => {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('drop-target');
+  });
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('drop-target');
+    const file = e.dataTransfer.files[0];
+    if (file) onFile(file);
+  });
+}
 
+function nodeFromFilename(name) {
+  return name.replace(/\.ota\.bin$/i, '').replace(/\.bin$/i, '');
+}
+
+function fillNodeSelect(configs) {
+  const sel = $('mYaml');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = T.manualPickYaml;
+  sel.appendChild(placeholder);
+  const seen = new Set();
+  (configs || []).filter((d) => d.publishable !== false && d.node).forEach((d) => {
+    seen.add(d.node);
+    const opt = document.createElement('option');
+    opt.value = d.node;
+    const file = d.configuration || `${d.node}.yaml`;
+    opt.textContent = d.friendly_name && d.friendly_name !== d.node
+      ? `${d.friendly_name} (${file})`
+      : file;
+    sel.appendChild(opt);
+  });
+  devicesCache.filter((d) => d.node && !seen.has(d.node)).forEach((d) => {
+    const opt = document.createElement('option');
+    opt.value = d.node;
+    opt.textContent = `${d.node} (${T.manualBadge})`;
+    sel.appendChild(opt);
+  });
+  const custom = document.createElement('option');
+  custom.value = '__custom__';
+  custom.textContent = T.manualCustom;
+  sel.appendChild(custom);
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  syncNodeField();
+}
+
+function syncNodeField() {
+  const yaml = $('mYaml').value;
+  const custom = yaml === '__custom__';
+  $('mNodeField').hidden = !custom;
+  if (!custom) $('mNode').value = yaml;
+}
+
+function compiledVersion(d) {
+  return (d && d.own_project_version) || '';
+}
+
+function versionPrefill(d) {
+  return (status && status.esphome_version)
+    || (d && d.published && d.published.version)
+    || '';
+}
+
+function syncVersionField(d) {
+  const input = $('mVersion');
+  const locked = compiledVersion(d);
+  if (locked) {
+    input.value = locked;
+    input.readOnly = true;
+    input.title = T.manualVersionLocked;
+    return;
+  }
+  input.readOnly = false;
+  input.title = '';
+  input.value = versionPrefill(d);
+}
+
+function applyDeviceToForm(d) {
+  if (!d) return;
+  $('mYaml').value = d.node || '__custom__';
+  if (![...$('mYaml').options].some((o) => o.value === $('mYaml').value)) {
+    $('mYaml').value = '__custom__';
+  }
   $('mNode').value = d.node || '';
+  syncNodeField();
+  syncVersionField(d);
+  $('mTitle').value = (d.published && d.published.title) || d.friendly_name || '';
   if (d.chip_family) $('mChip').value = d.chip_family;
-  else if (pub.chip_family) $('mChip').value = pub.chip_family;
-  $('mVersion').value = pub.version || '';
-  $('mTitle').value = pub.title || d.friendly_name || '';
-  $('mFile').value = '';
+  else if (d.published && d.published.chip_family) $('mChip').value = d.published.chip_family;
+}
 
+function pickAndPublish(d) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.bin';
+  input.onchange = () => {
+    if (input.files[0]) publishFile(d, input.files[0]);
+  };
+  input.click();
+}
+
+async function publishFile(d, file) {
+  if (jobRunning) return;
+  if (!file.name.toLowerCase().endsWith('.bin')) {
+    alert(T.notBin);
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    alert(T.fileTooBig);
+    return;
+  }
+  let version = compiledVersion(d);
+  if (!version) {
+    version = window.prompt(T.versionPrompt, versionPrefill(d)) || '';
+    if (!version) return;
+  }
+  jobRunning = true;
+  setJobButtonsDisabled(true);
   const result = $('manualResult');
-  result.innerHTML = `<span class="muted">${escapeHtml(T.reuploadHint(d.friendly_name || d.node))}</span>`;
-
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  $('mFile').focus();
+  if (result) result.innerHTML = `<span class="muted">${T.manualUploading}</span>`;
+  try {
+    const form = new FormData();
+    form.append('node', d.node);
+    form.append('version', version);
+    form.append('title', d.friendly_name || d.node);
+    form.append(
+      'chip_family',
+      d.chip_family || (d.published && d.published.chip_family) || $('mChip').value || '',
+    );
+    form.append('file', file);
+    const body = await api('api/publish/manual', { method: 'POST', body: form });
+    if (result) {
+      const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
+      result.innerHTML = `<span class="toast">${T.manualOk(body.node)}${extra}</span>`;
+    }
+  } catch (err) {
+    if (result) result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+  } finally {
+    finishJob();
+  }
 }
 
 async function deletePublished(d) {
@@ -421,21 +581,30 @@ async function deletePublished(d) {
 
 async function loadDevices() {
   try {
-    const { devices, dashboard_error } = await api('api/devices');
-    // A dedicated slot, not the generic banner() accumulator: loadDevices()
-    // re-runs after every job/publish/delete, and banner() only ever
-    // appends — reusing it here would stack a fresh copy on every refresh.
+    const body = await api('api/devices');
+    const { devices, configs, dashboard_error, esphome_version } = body;
+    if (status && esphome_version) status.esphome_version = esphome_version;
+    devicesCache = devices || [];
+    configsCache = configs || [];
     $('deviceBanner').innerHTML = dashboard_error
       ? `<div class="card banner warn"><b>${T.dashboardErrorTitle}</b><br>` +
         `<span class="muted tiny">${T.dashboardErrorBody(escapeHtml(dashboard_error))}</span></div>`
       : '';
+    fillNodeSelect(configsCache);
+    const yaml = $('mYaml').value;
+    const selected = (yaml && yaml !== '__custom__')
+      ? (configsCache.find((row) => row.node === yaml) || devicesCache.find((row) => row.node === yaml))
+      : null;
+    if (compiledVersion(selected) || $('mVersion').readOnly) {
+      syncVersionField(selected);
+    }
     const tbody = $('rows');
     tbody.innerHTML = '';
-    if (!devices.length) {
+    if (!devicesCache.length) {
       tbody.innerHTML = `<tr><td colspan="5" class="muted">${T.noDevices}</td></tr>`;
       return;
     }
-    devices.forEach((d) => tbody.appendChild(row(d)));
+    devicesCache.forEach((d) => tbody.appendChild(row(d)));
   } catch (err) {
     $('rows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(err.message)}</td></tr>`;
   }
@@ -479,13 +648,16 @@ async function copySnippet(id, btn) {
 window.copySnippet = copySnippet;
 
 async function showSnippet(d) {
-  const { snippet, legacy } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
+  const { snippet, legacy, uses_wrapper, has_project } = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
+  const note = uses_wrapper === false
+    ? T.yamlNoteLegacy
+    : (has_project ? T.yamlNote : T.yamlNoteNoProject);
   const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
     <b>${T.yamlHeader(d.friendly_name)}</b>
     <div class="snippetLabel tiny muted" style="margin-top:10px">
-      <span>${T.yamlNote}</span>
+      <span>${note}</span>
       <button type="button" class="copyBtn" title="${T.copyTitle}"
               onclick="copySnippet('snippetA', this)">${COPY_ICON}</button>
     </div>
@@ -525,6 +697,13 @@ function setJobButtonsDisabled(disabled) {
   document.querySelectorAll('.jobctl').forEach((b) => { b.disabled = disabled; });
 }
 
+function finishJob() {
+  jobRunning = false;
+  const submitBtn = $('manualSubmit');
+  if (submitBtn) submitBtn.disabled = false;
+  loadDevices();
+}
+
 async function run(d, compile, clickedBtn) {
   if (jobRunning) return;
   jobRunning = true;
@@ -551,7 +730,7 @@ async function run(d, compile, clickedBtn) {
     jobRunning = false;
     if (clickedBtn) clickedBtn.textContent = originalLabel;
     detail.innerHTML += `\n<div class="tiny" style="color:var(--err)">${escapeHtml(err.message)}</div>`;
-    loadDevices();
+    finishJob();
   }
 }
 
@@ -566,38 +745,74 @@ async function pollJob(id) {
   if (job.status !== 'running') {
     clearInterval(polling);
     polling = null;
-    jobRunning = false;
-    loadDevices();
+    finishJob();
   }
 }
 
 $('manualForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (jobRunning) return;
+  syncNodeField();
+  const result = $('manualResult');
+  if (!$('mNode').value) {
+    result.innerHTML = `<span style="color:var(--err)">${escapeHtml(T.manualPickYaml)}</span>`;
+    return;
+  }
   jobRunning = true;
   setJobButtonsDisabled(true);
   const submitBtn = $('manualSubmit');
   const originalLabel = submitBtn.textContent;
   submitBtn.textContent = T.manualUploading;
-  const result = $('manualResult');
   result.textContent = '';
 
   try {
     const form = new FormData(e.target);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
-    result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
+    const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
+    result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}${extra}</span>`;
     e.target.reset();
+    $('mYaml').value = '';
+    syncNodeField();
+    fillNodeSelect(configsCache);
+    syncVersionField(null);
   } catch (err) {
     result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
   } finally {
-    jobRunning = false;
     submitBtn.textContent = originalLabel;
-    submitBtn.disabled = false;
-    // Table buttons' disabled state depends on per-device data (has_binary),
-    // not just jobRunning — a blind re-enable here would un-disable a
-    // Publish button for a device with no built binary. Reload instead.
-    loadDevices();
+    finishJob();
   }
+});
+
+$('mYaml').addEventListener('change', () => {
+  syncNodeField();
+  if ($('mYaml').value === '__custom__') {
+    $('mNode').focus();
+    syncVersionField(null);
+    return;
+  }
+  const node = $('mYaml').value;
+  const d = configsCache.find((row) => row.node === node)
+    || devicesCache.find((row) => row.node === node);
+  applyDeviceToForm(d);
+});
+
+enableDrop($('manualForm').closest('details'), (file) => {
+  const guessed = nodeFromFilename(file.name);
+  const match = configsCache.find((row) => row.node === guessed && row.publishable !== false);
+  if (match) {
+    applyDeviceToForm(match);
+    publishFile(match, file);
+    return;
+  }
+  const selectedNode = $('mNode').value;
+  const selected = configsCache.find((row) => row.node === selectedNode)
+    || devicesCache.find((row) => row.node === selectedNode)
+    || (selectedNode ? { node: selectedNode, friendly_name: selectedNode } : null);
+  if (selected) {
+    publishFile(selected, file);
+    return;
+  }
+  $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(T.manualPickYaml)}</span>`;
 });
 
 $('langSelect').value = localStorage.getItem('esphome_ota_lang') || 'auto';
