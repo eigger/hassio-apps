@@ -20,7 +20,7 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
                                                  your remote devices
 ```
 
-![add-on 패널: 칩, 게시된 버전, 상태가 보이는 기기 목록](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
+![add-on 패널: 칩, 게시된 버전, 다음 컴파일 버전, 상태가 보이는 기기 목록](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
 
 펌웨어를 저기에 올리는 방법은 두 가지입니다:
 
@@ -30,8 +30,8 @@ ESPHome 대시보드에서 `firmware.ota.bin`을 받은 뒤(OTA format), 아래�
 YAML을 고르고 버전을 적어 **등록**하세요. 목록 행에서 스니펫을 복사하고
 컴파일한 다음, 같은 행에서 bin을 게시합니다. 게시 이름은 YAML
 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin`). 칩은 이미지에서
-읽고, 버전은 등록할 때 정하며 이후 다음 칸에서 바꿀 수 있습니다.
-ESPHome add-on 쪽은 바꿀 필요 없습니다.
+읽고, **버전**은 게시된 펌웨어, **다음**은 다음 컴파일이 보고할 값입니다
+— 그 칸에서 바로 바꿀 수 있습니다. ESPHome add-on 쪽은 바꿀 필요 없습니다.
 
 ![Manual publish 폼](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -98,10 +98,11 @@ Assistant 앞단의 프록시/CDN이 이 응답을 ESPHome의 `http_request`가 
 4. add-on 패널에서 `base_url` 관련 배너를 확인하세요 — Home Assistant의
    설정된 외부 URL(설정 → 시스템 → 네트워크)에서 자동으로 채워집니다;
    거기 설정된 게 없다면 이 add-on 옵션에서 `base_url`을 직접 설정하세요
-5. 기기를 게시하고(행에 bin을 놓거나, 위에서처럼 ESPHome의 public 포트를 켠
-   뒤), 화면에 뜨는 YAML 스니펫을 그 기기의 설정에 붙여넣으세요. include
-   경로는 `ota_server/devices/<yaml 파일명>.yaml`입니다.
+5. YAML을 등록하고, 그 행의 스니펫을 기기 설정에 붙여넣으세요(include
+   경로는 `ota_server/devices/<yaml 파일명>.yaml`). 컴파일한 뒤 같은 행에서
+   `.bin`을 게시하거나 놓으면 됩니다. 이 패널에서 빌드 & 게시하려면
+   위에서처럼 ESPHome public 포트를 켜세요.
 
-![기기 게시 후 뜨는 YAML 스니펫, 복사 버튼 포함](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
+![기기의 YAML 스니펫, 복사 버튼 포함](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 
 옵션과 문제 해결은 [DOCS.ko.md](DOCS.ko.md)를 참고하세요.

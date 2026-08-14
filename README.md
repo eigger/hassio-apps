@@ -6,7 +6,7 @@ Home Assistant [App](https://www.home-assistant.io/apps/) repository (formerly a
 
 | App | Description |
 |-----|-------------|
-| [ESPHome OTA Server](esphome_ota/) | Serve ESPHome firmware for `http_request` OTA via `/local` — no ports opened |
+| [ESPHome OTA Publisher](esphome_ota/) | Serve ESPHome firmware for `http_request` OTA via `/local` — no ports opened |
 
 Temporarily disabled (folders kept, prefixed with `.` so the Supervisor no longer
 discovers them for new installs — already-installed users are unaffected):

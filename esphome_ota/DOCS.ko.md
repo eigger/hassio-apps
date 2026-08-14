@@ -14,9 +14,10 @@
 4. 같은 행에서 `firmware.ota.bin`(OTA format)을 게시합니다.
 
 게시 슬러그는 YAML 파일명입니다(`livingroom.yaml` → `livingroom.ota.bin` /
-`livingroom.json`). 칩은 이미지 헤더에서 읽습니다. 버전은 등록할 때
-정한 값이 래퍼의 `esphome.project`로 들어갑니다. 다음 칸에서 바꿀 수
-있습니다 (스니펫 패널에서도 가능).
+`livingroom.json`). 칩은 이미지 헤더에서 읽습니다. **버전**은 게시된
+펌웨어입니다(첫 업로드 전이면 —). **다음**은 다음 컴파일용 래퍼 버전으로,
+그 칸이나 스니펫 패널에서 바꿀 수 있습니다. 게시 후에는 다음 값이 올라가서
+다음 컴파일이 새 업데이트가 됩니다.
 
 ESPHome 연결은 필요 없습니다 — `Publisher.publish`로 가며, 자동 경로가
 마지막에 쓰는 코드와 같습니다.
@@ -136,9 +137,8 @@ packages:
 
 래퍼(`ota_server/devices/<yaml-stem>.yaml`)가 `ota_device`, OTA 엔티티,
 `esphome.project`를 넣습니다. project 블록을 기기 YAML에 적거나 버전을
-올릴 필요는 없습니다. 버전은 등록할 때 정하고, 다음 칸에서 바꿀 수
-있습니다. 게시 후에는 래퍼 버전이 올라가서 다음 컴파일이 새 업데이트가
-됩니다. 목록의 버전 칸은 게시본, 다음 칸은 다음 컴파일 버전입니다.
+올릴 필요는 없습니다. 버전은 등록할 때 정하고, 다음 칸에서 바꿉니다.
+게시 후에는 래퍼 버전이 올라가서 다음 컴파일이 새 업데이트가 됩니다.
 
 Update만 또는 버튼만이면 같은 폴더의 `livingroom.update.yaml` /
 `livingroom.button.yaml`을 include하세요. 예전 방식

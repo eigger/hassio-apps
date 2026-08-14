@@ -16,8 +16,10 @@ firmware, so leaving to compile in ESPHome does not lose it.
 
 The published slug is the YAML filename (`livingroom.yaml` →
 `livingroom.ota.bin` / `livingroom.json`). Chip family is read from the
-image header. Version is what you set at register; the wrapper compiles it
-in. You can change it in the Next column (or on the snippet panel).
+image header. **Version** is the published firmware (or — until the first
+upload). **Next** is the wrapper version for the next compile — type a new
+value there, or on the snippet panel. After a publish, Next is raised so
+the next compile is a new update.
 
 No connection to ESPHome is needed for this; it goes straight to
 `Publisher.publish`, the same code the automatic path uses at the end.
@@ -135,10 +137,9 @@ packages:
 
 The wrapper (`ota_server/devices/<yaml-stem>.yaml`) sets `ota_device`, the
 OTA entities, and `esphome.project`. You do not paste a project block or
-bump a version in the device YAML. Version is set when you register (and
-can be edited in the Next column). After a publish the wrapper is raised
-so the next compile is a new update. The table shows the published version
-and the next compile version as separate columns.
+bump a version in the device YAML. Set the version when you register; edit
+it in the Next column. After a publish the wrapper is raised so the next
+compile is a new update.
 
 For Update-only or button-only, include `livingroom.update.yaml` or
 `livingroom.button.yaml` in the same folder. The older form

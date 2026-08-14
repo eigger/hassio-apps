@@ -20,7 +20,7 @@ tunnel, with nothing to open on this add-on's side.
                                                  your remote devices
 ```
 
-![The add-on's panel: device list with chip, published version, and status](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
+![The add-on's panel: device list with chip, published version, next compile version, and status](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/devices.png)
 
 There are two ways to get firmware in there:
 
@@ -30,8 +30,9 @@ Download `firmware.ota.bin` from the ESPHome dashboard (OTA format), then
 **Register** the device YAML and version. Copy the snippet from that row,
 compile, and publish the file on the same row. The published name is the
 YAML filename (`livingroom.yaml` → `livingroom.ota.bin`). Chip family is
-read from the image; version is what you set at register, and later in
-the Next column. Nothing on the ESPHome add-on needs to change for this.
+read from the image. **Version** is the published firmware; **Next** is
+what the next compile will report — edit it in that column. Nothing on
+the ESPHome add-on needs to change for this.
 
 ![The Manual publish form](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/manual-publish.png)
 
@@ -98,10 +99,11 @@ the fix.
 4. Check the add-on's panel for a banner about `base_url` — it auto-fills from
    Home Assistant's configured external URL (Settings → System → Network); if
    you haven't set one there, set `base_url` in this add-on's options directly
-5. Publish a device (drop a bin on its YAML row, or after enabling ESPHome's
-   public port — see above), then paste the shown YAML snippet into that
-   device's config. The include path is `ota_server/devices/<yaml-filename>.yaml`.
+5. Register a YAML, copy the snippet from that row into the device config
+   (include path `ota_server/devices/<yaml-filename>.yaml`), compile, then
+   publish the `.bin` on the same row — or drop it there. For Build &
+   publish from this panel, enable ESPHome's public port — see above.
 
-![The YAML snippet shown after publishing a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
+![The YAML snippet shown for a device, with a copy button](https://raw.githubusercontent.com/eigger/hassio-apps/master/esphome_ota/screenshots/yaml-snippet.png)
 
 See [DOCS.md](DOCS.md) for options and troubleshooting.
