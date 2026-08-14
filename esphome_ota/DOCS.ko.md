@@ -141,6 +141,8 @@ packages:
 `esphome.project`를 넣습니다. project 블록을 기기 YAML에 적거나 버전을
 올릴 필요는 없습니다. 버전은 등록할 때 정하고, 다음 칸에서 바꿉니다.
 게시 후에는 래퍼 버전이 올라가서 다음 컴파일이 새 업데이트가 됩니다.
+공유 패키지가 `safe_mode:`도 켭니다 — `http_request` OTA는
+`platform: esphome`과 달리 이걸 자동으로 켜지 않습니다.
 
 Update만 또는 버튼만이면 같은 폴더의 `livingroom.update.yaml` /
 `livingroom.button.yaml`을 include하세요. 예전 방식

@@ -67,6 +67,8 @@ each named for exactly what it contains:
 Include the per-device wrapper instead of those files directly:
 `packages: ota: !include ota_server/devices/livingroom.yaml` (slug = YAML
 filename). The wrapper sets `ota_device` and the firmware version for you.
+The packages also enable `safe_mode:` (`http_request` OTA does not, unlike
+`platform: esphome`).
 
 The Update entity fetches and parses a JSON manifest first; on the rare setup
 where a proxy/CDN in front of Home Assistant compresses that response in a

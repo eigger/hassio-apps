@@ -140,7 +140,8 @@ The wrapper (`ota_server/devices/<yaml-stem>.yaml`) sets `ota_device`, the
 OTA entities, and `esphome.project`. You do not paste a project block or
 bump a version in the device YAML. Set the version when you register; edit
 it in the Next column. After a publish the wrapper is raised so the next
-compile is a new update.
+compile is a new update. The shared packages also enable `safe_mode:` —
+`http_request` OTA does not turn that on the way `platform: esphome` does.
 
 For Update-only or button-only, include `livingroom.update.yaml` or
 `livingroom.button.yaml` in the same folder. The older form
