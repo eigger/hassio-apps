@@ -352,7 +352,21 @@ const STRINGS = {
     fileTooBig: 'File is too large (8 MB max).',
     versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
     notPublishable: 'This YAML filename cannot be used as a publish name',
-    deleteBtn: 'Delete', deleteConfirm: (n) => `Remove "${n}" from the list (and delete published firmware if any)?`,
+    activeChip: 'Active',
+    activeChipTitle: 'Firmware binary is deployed to /local and ready for devices to download.',
+    inactiveChip: 'Stashed (Hidden)',
+    inactiveChipTitle: 'Firmware binary is removed from /local to prevent public exposure, and safely stored in add-on storage. Ready for 1-click activation.',
+    inactiveMeta: (d) => `Stashed in add-on (ready to activate) · Manifest ${d}`,
+    deactivateBtn: 'Deactivate',
+    deactivateTitle: 'Remove binary from /local to protect credentials. Kept in add-on private storage for quick re-activation.',
+    deactivateConfirm: (n) => `Deactivate firmware for "${n}"?\n\nThe .bin binary will be removed from /local (preventing public exposure) and safely kept in add-on storage. The .json manifest remains in /local so update checks continue normally.`,
+    deactivateSuccess: (n) => `Deactivated firmware for ${n} (removed from /local, kept in storage).`,
+    activateBtn: 'Activate',
+    activateTitle: 'Deploy the stashed firmware binary from add-on storage back to /local for OTA updates.',
+    activateSuccess: (n) => `Activated firmware for ${n} (deployed to /local).`,
+    deleteBtn: 'Delete Device',
+    deleteConfirm: (n) => `Remove "${n}" from the registration list (and delete all firmware files from /local and storage)?`,
+    deleteSuccess: (n) => `Removed ${n} from registration list.`,
     dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
     dashboardErrorBody: (msg) => `Published firmware is still listed. ${msg}`,
   },
@@ -462,7 +476,21 @@ const STRINGS = {
     fileTooBig: '파일이 너무 큽니다 (최대 8 MB).',
     versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
-    deleteBtn: '삭제', deleteConfirm: (n) => `"${n}"을 목록에서 제거할까요? (게시된 펌웨어가 있으면 함께 삭제됩니다)`,
+    activeChip: '공개됨',
+    activeChipTitle: '/local에 바이너리가 배포되어 기기가 OTA 업데이트를 다운로드할 수 있는 상태입니다.',
+    inactiveChip: '숨김 (보관중)',
+    inactiveChipTitle: '/local에서 바이너리가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관 중입니다. 원클릭으로 다시 활성화할 수 있습니다.',
+    inactiveMeta: (d) => `애드온 보관중 (원클릭 활성화) · 매니페스트 ${d}`,
+    deactivateBtn: '비활성화 (숨김)',
+    deactivateTitle: '/local에서 펌웨어 바이너리를 제거하여 비밀정보 노출을 방지합니다. 바이너리는 애드온에 안전하게 보관되어 언제든 다시 활성화할 수 있습니다.',
+    deactivateConfirm: (n) => `"${n}" 펌웨어를 비활성화할까요?\n\n/local에서 바이너리(.bin)가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관됩니다. .json 매니페스트는 유지되므로 기기 상태 확인은 정상 작동합니다.`,
+    deactivateSuccess: (n) => `"${n}" 펌웨어가 비활성화되었습니다 (/local에서 바이너리 숨김, 애드온 보관).`,
+    activateBtn: '활성화 (공개)',
+    activateTitle: '애드온에 보관된 펌웨어 바이너리를 /local에 다시 배포하여 기기가 OTA 업데이트를 받을 수 있게 합니다.',
+    activateSuccess: (n) => `"${n}" 펌웨어가 활성화되었습니다 (/local에 배포 완료).`,
+    deleteBtn: '기기 삭제',
+    deleteConfirm: (n) => `"${n}"을 등록 목록에서 완전히 제거할까요?\n(게시된 펌웨어 및 보관된 바이너리도 함께 삭제됩니다)`,
+    deleteSuccess: (n) => `"${n}" 기기 등록이 제거되었습니다.`,
     dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
     dashboardErrorBody: (msg) => `등록된 기기는 그대로 표시합니다. ${msg}`,
   },
@@ -555,11 +583,18 @@ function row(d) {
     : `<span class="subline tiny muted">&nbsp;</span>`;
 
   let firmwareHtml = '';
-  if (pub) {
+  if (pub && pub.has_bin) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
     const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
-    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}` +
+    const activeChip = ` <span class="chip ok" title="${escapeHtml(T.activeChipTitle)}">${escapeHtml(T.activeChip)}</span>`;
+    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${activeChip}` +
       `<span class="subline tiny muted">${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`;
+  } else if (pub && (pub.has_stashed_bin || !pub.has_bin)) {
+    const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
+    const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
+    const inactiveChip = ` <span class="chip warn" title="${escapeHtml(T.inactiveChipTitle)}">${escapeHtml(T.inactiveChip)}</span>`;
+    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${inactiveChip}` +
+      `<span class="subline tiny muted">${escapeHtml(T.inactiveMeta(formatPublishedAt(pub.published_at)))}</span>`;
   } else {
     firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span><span class="subline tiny muted">&nbsp;</span>`;
   }
@@ -666,6 +701,27 @@ function row(d) {
     showSnippet(d);
   };
   actions.append(yamlBtn);
+
+  if (d.published && d.published.has_bin) {
+    const deactivateBtn = document.createElement('button');
+    deactivateBtn.textContent = T.deactivateBtn;
+    deactivateBtn.title = T.deactivateTitle;
+    deactivateBtn.onclick = (e) => {
+      e.stopPropagation();
+      deactivateFirmware(d);
+    };
+    actions.append(deactivateBtn);
+  } else if (d.published && d.published.has_stashed_bin) {
+    const activateBtn = document.createElement('button');
+    activateBtn.className = 'jobctl primary';
+    activateBtn.textContent = T.activateBtn;
+    activateBtn.title = T.activateTitle;
+    activateBtn.onclick = (e) => {
+      e.stopPropagation();
+      activateFirmware(d);
+    };
+    actions.append(activateBtn);
+  }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.textContent = T.deleteBtn;
@@ -867,10 +923,47 @@ async function publishFile(d, file) {
   }
 }
 
+async function deactivateFirmware(d) {
+  if (!confirm(T.deactivateConfirm(d.friendly_name))) return;
+  try {
+    await api('api/firmware/deactivate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node: d.node }),
+    });
+    const result = $('manualResult');
+    if (result) result.innerHTML = `<span class="toast">${T.deactivateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function activateFirmware(d) {
+  try {
+    await api('api/firmware/activate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node: d.node }),
+    });
+    const result = $('manualResult');
+    if (result) result.innerHTML = `<span class="toast">${T.activateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function deletePublished(d) {
   if (!confirm(T.deleteConfirm(d.friendly_name))) return;
-  await api(`api/publish/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
-  loadDevices();
+  try {
+    await api(`api/device/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
+    const result = $('manualResult');
+    if (result) result.innerHTML = `<span class="toast">${T.deleteSuccess(escapeHtml(d.friendly_name))}</span>`;
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 async function loadDevices() {

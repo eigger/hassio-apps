@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3
+
+- **1-Click Firmware Activation / Deactivation (Stash & Serve)**:
+  - Added dedicated **Deactivate (Hide)** (`비활성화 (숨김)`) and **Activate (Serve)** (`활성화 (공개)`) action buttons.
+  - When deactivated, the `.bin` firmware binary is removed from Home Assistant's public `/local/` static path to prevent public exposure of credentials, while being safely preserved in the add-on's private persistent storage (`/data/firmware`).
+  - The `.json` manifest remains on `/local/` so ESPHome devices and Home Assistant Update entities continue to poll without 404 errors.
+  - Re-activating firmware for subsequent OTA updates is a 1-click operation (`Activate (Serve)`), requiring no re-upload or re-compilation.
+  - Added backend endpoints `POST /api/firmware/deactivate` and `POST /api/firmware/activate`.
+
 ## 0.6.2
 
 - **Button Hover Contrast Fix**:
