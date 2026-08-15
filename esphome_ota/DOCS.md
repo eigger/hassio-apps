@@ -300,11 +300,19 @@ ota:
   - platform: http_request
 ```
 
-#### 4. Deactivate (Hide) Firmware Binary When Not Updating
-Publish firmware when actively deploying an update to your devices. Once the remote devices finish updating, click **Deactivate** (`비활성화 (숨김)`) on the device row:
-- This immediately removes the `.bin` binary from Home Assistant's `/local/` static path to prevent public credential exposure.
-- The binary is safely preserved in the add-on's private storage (`/data/firmware`), allowing instant 1-click restoration via **Activate** (`활성화 (공개)`) for future updates without re-uploading.
-- The `.json` manifest remains in `/local/` so ESPHome device status checks continue without 404 errors.
+#### 4. Smart Auto-Deactivate & Hide (Automated Security)
+To minimize public binary exposure on `/local/`, the add-on supports **Smart Auto-Deactivate**:
+- **Auto-Hide on Update Success (`⚡ Auto-Hide: On Success` - Recommended)**:
+  - As soon as the remote device completes installation and reports the new version back to Home Assistant, the add-on automatically removes the `.bin` binary from `/local/`.
+  - The binary is safely stashed in the add-on's private storage (`/data/firmware`) and can be re-activated with 1 click anytime.
+- **Safety Timeout Timer (`⏱ Auto-Hide: Timer`)**:
+  - For standalone devices or devices linked to another Home Assistant instance, the add-on automatically hides the binary after a configurable timeout (default 12 hours).
+- **Release Notes / Summary**:
+  - Enter release notes during publish/upload to have them displayed directly in Home Assistant's Update entity popup dialog.
+- **Batch Management Actions**:
+  - Select multiple devices using checkboxes to perform bulk **Deactivate**, **Activate**, **Apply OTA**, or **Delete** actions.
+- **YAML Backup & 1-Click Restore**:
+  - Automatically creates a `.bak` backup before applying OTA packages, and provides a **Restore** button to instantly revert changes.
 
 ## Troubleshooting
 

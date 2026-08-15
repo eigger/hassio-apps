@@ -8,10 +8,12 @@
   :root {
     --bg: #f6f7f9; --fg: #16191d; --muted: #6b7480; --card: #fff;
     --line: #e2e5ea; --accent: #03a9f4; --ok: #2e7d32; --warn: #b26a00; --err: #c62828;
+    --purple: #7c4dff;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#111418; --fg:#e6e8eb; --muted:#98a1ac; --card:#1b1f24;
-            --line:#2b3138; --accent:#4fc3f7; --ok:#81c784; --warn:#ffb74d; --err:#ef9a9a; }
+            --line:#2b3138; --accent:#4fc3f7; --ok:#81c784; --warn:#ffb74d; --err:#ef9a9a;
+            --purple:#b388ff; }
   }
   * { box-sizing: border-box; }
   body { margin:0; padding:20px; background:var(--bg); color:var(--fg);
@@ -30,11 +32,9 @@
   th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase;
        letter-spacing:.04em; }
   th[title] { cursor:help; text-decoration:underline dotted; text-underline-offset:3px; }
+  th.th-check, td.td-check { width: 34px; padding-left: 10px; padding-right: 4px; text-align: center; }
+  th.th-check input, td.td-check input { cursor: pointer; width: 16px; height: 16px; vertical-align: middle; }
   td.name { font-weight:600; word-break:break-word; overflow-wrap:anywhere; }
-  /* Keep secondary lines in-flow with a fixed line-height so every data cell
-     shares the same row height — a bare <div> under the name/version used to
-     make left columns taller than the actions cell and the shared border
-     looked stepped across the row. */
   td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
   td.yaml-ver-cell { white-space: nowrap; }
   td.yaml-ver-cell input { width: 100%; min-width: 9em; max-width: 13em; vertical-align: middle; }
@@ -43,6 +43,10 @@
           white-space:nowrap; }
   .chip.ok { color:var(--ok); border-color:currentColor; }
   .chip.warn { color:var(--warn); border-color:currentColor; }
+  .chip.accent { color:var(--accent); border-color:currentColor; }
+  .chip.purple { color:var(--purple); border-color:currentColor; }
+  .chip.clickable { cursor: pointer; transition: filter 0.15s ease; }
+  .chip.clickable:hover { filter: brightness(1.15); }
   button { font:inherit; padding:5px 11px; border-radius:6px; border:1px solid var(--line);
            background:transparent; color:var(--fg); cursor:pointer; white-space:nowrap;
            height:34px; box-sizing:border-box; display:inline-flex; align-items:center;
@@ -51,6 +55,8 @@
   button:disabled { opacity:.45; cursor:default; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#04121a; font-weight:500; }
   button.primary:hover:not(:disabled) { background:var(--accent); border-color:var(--accent); color:#04121a; filter:brightness(0.9); }
+  button.danger { color:var(--err); border-color:var(--err); }
+  button.danger:hover:not(:disabled) { background:color-mix(in srgb, var(--err) 12%, transparent); }
   button.applied {
     color: var(--ok);
     border-color: var(--ok);
@@ -70,8 +76,18 @@
   button.inject-btn:hover:not(:disabled) {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
-  /* Never put display:flex on a <td> — it drops table-cell layout and the
-     row's bottom border stops lining up across columns. */
+  button.restore-btn {
+    padding: 2px 6px;
+    height: 24px;
+    font-size: 11px;
+    color: var(--muted);
+    border-color: var(--line);
+    margin-left: 4px;
+  }
+  button.restore-btn:hover:not(:disabled) {
+    color: var(--warn);
+    border-color: var(--warn);
+  }
   .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
              justify-content:flex-end; }
   pre { background:var(--bg); border:1px solid var(--line); border-radius:6px;
@@ -84,23 +100,24 @@
   .muted { color:var(--muted); }
   .tiny { font-size:12px; }
   code { background:var(--bg); padding:1px 5px; border-radius:4px; }
-  select, input[type=text], input[type=file] {
+  select, input[type=text], input[type=number], input[type=file], textarea {
     font:inherit; padding:5px 8px; border-radius:6px; border:1px solid var(--line);
     background:var(--card); color:var(--fg); max-width:100%;
     height:34px; box-sizing:border-box;
   }
+  textarea { height: auto; min-height: 60px; }
   input.input-saved {
     border-color: var(--ok) !important;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 35%, transparent) !important;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  .chip.warn[title] { cursor: help; }
+  .chip.warn[title], .chip.accent[title], .chip.ok[title] { cursor: help; }
   .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
   #langSelect { flex:0 0 auto; }
   .formgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
               gap:10px; align-items:end; margin-top:10px; }
   .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
-  .field input, .field select { width:100%; }
+  .field input, .field select, .field textarea { width:100%; }
   .field-row { display:flex; gap:8px; align-items:stretch; }
   .field-row select { flex:1; }
   details summary { cursor:pointer; font-weight:600; }
@@ -112,6 +129,54 @@
   tr.drop-target td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   #manualForm.drop-target, details.drop-target { outline: 2px dashed var(--accent); outline-offset: 4px; }
   .toast { color: var(--ok); font-size: 12px; margin-top: 4px; }
+
+  /* Batch Action Bar */
+  .batch-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+    animation: fadeIn 0.2s ease;
+  }
+  .batch-info { font-weight: 600; font-size: 13px; color: var(--fg); }
+  .batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .batch-btn { height: 28px; padding: 2px 9px; font-size: 12px; background: var(--card); }
+
+  /* Modal Dialogs */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+    backdrop-filter: blur(2px);
+  }
+  .modal-content {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    animation: modalIn 0.2s ease;
+  }
+  .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .modal-header h3 { margin: 0; font-size: 16px; }
+  .modal-close { border: none; background: transparent; font-size: 18px; cursor: pointer; height: auto; padding: 2px 6px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  @keyframes fadeIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform: translateY(0); } }
+  @keyframes modalIn { from { opacity:0; transform: scale(0.95); } to { opacity:1; transform: scale(1); } }
 
   @media (max-width: 720px) {
     body { padding:12px; }
@@ -125,7 +190,7 @@
       display:grid;
       grid-template-columns:1fr 1fr;
       grid-template-areas:
-        "name name"
+        "check name"
         "chip yaml-config"
         "yaml-ver firmware"
         "actions actions";
@@ -144,6 +209,7 @@
       margin:0;
     }
     th, td { border:none; padding:0; }
+    td.td-check { grid-area:check; width:auto; text-align:left; padding:0 0 4px 0; }
     td.name {
       grid-area:name;
       font-size:15px;
@@ -195,11 +261,24 @@
 <div id="banners"></div>
 <div id="deviceBanner"></div>
 
+<!-- Batch Action Toolbar (dynamically displayed when items are checked) -->
+<div id="batchBar" class="batch-bar" style="display:none">
+  <div class="batch-info"><span id="batchCount">0</span> <span id="t-batch-selected">selected</span></div>
+  <div class="batch-actions">
+    <button type="button" id="batchDeactivateBtn" class="batch-btn" onclick="runBatchAction('deactivate')">Deactivate (Hide)</button>
+    <button type="button" id="batchActivateBtn" class="batch-btn" onclick="runBatchAction('activate')">Activate (Deploy)</button>
+    <button type="button" id="batchInjectBtn" class="batch-btn" onclick="runBatchAction('inject')">Apply OTA</button>
+    <button type="button" id="batchEjectBtn" class="batch-btn" onclick="runBatchAction('eject')">Eject OTA</button>
+    <button type="button" id="batchDeleteBtn" class="batch-btn danger" onclick="runBatchAction('delete')">Delete</button>
+  </div>
+</div>
+
 <div class="card">
   <div class="table-wrap">
   <table>
     <thead>
       <tr>
+        <th class="th-check"><input type="checkbox" id="checkAll" title="Select all" onchange="toggleSelectAll(this.checked)"></th>
         <th id="t-col-device">Device</th>
         <th id="t-col-chip">Chip</th>
         <th id="t-col-yaml-config">YAML Config</th>
@@ -208,7 +287,7 @@
         <th></th>
       </tr>
     </thead>
-    <tbody id="rows"><tr class="empty-row"><td colspan="6" class="muted" id="t-loading">Loading…</td></tr></tbody>
+    <tbody id="rows"><tr class="empty-row"><td colspan="7" class="muted" id="t-loading">Loading…</td></tr></tbody>
   </table>
   </div>
 </div>
@@ -238,11 +317,79 @@
       <input type="text" id="mTitle" name="title">
     </div>
     <div class="field">
+      <label id="t-manual-summary" for="mSummary">Release Notes (optional)</label>
+      <input type="text" id="mSummary" name="summary" placeholder="e.g. sensor updates">
+    </div>
+    <div class="field">
       <button type="submit" class="primary jobctl" id="manualSubmit">Register</button>
     </div>
   </form>
   <div id="manualResult" class="tiny" style="margin-top:8px"></div>
 </details>
+
+<!-- Auto-Deactivate Settings Modal -->
+<div id="autoDeactivateModal" class="modal-overlay" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="t-ad-title">Auto-Deactivate Settings</h3>
+      <button type="button" class="modal-close" onclick="closeAutoDeactivateModal()">×</button>
+    </div>
+    <div style="font-size:13px; margin-bottom:12px" id="t-ad-desc">
+      Automatically remove the binary from /local once remote devices complete update to prevent public exposure.
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-ad-mode-label" for="adMode">Mode</label>
+      <select id="adMode" onchange="syncAdModalFields()">
+        <option value="on_success">On Update Success (Recommended)</option>
+        <option value="timer">Timeout Timer</option>
+        <option value="none">Manual only (Disabled)</option>
+      </select>
+    </div>
+    <div class="field" id="adTimerField" style="margin-bottom:10px">
+      <label id="t-ad-hours-label" for="adHours">Timeout (Hours)</label>
+      <input type="number" id="adHours" min="1" max="720" value="12">
+    </div>
+    <div class="field" id="adEntityField" style="margin-bottom:10px">
+      <label id="t-ad-entity-label" for="adEntity">Linked HA Update Entity</label>
+      <select id="adEntity"></select>
+    </div>
+    <div id="adStatusInfo" class="tiny muted" style="margin-top:4px"></div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeAutoDeactivateModal()">Cancel</button>
+      <button type="button" class="primary" id="t-ad-save-btn" onclick="saveAutoDeactivateModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload / Publish with Release Notes Modal -->
+<div id="uploadModal" class="modal-overlay" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="t-upload-modal-title">Publish Firmware</h3>
+      <button type="button" class="modal-close" onclick="closeUploadModal()">×</button>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-upload-node-label">Target Device</label>
+      <input type="text" id="upNode" readonly style="background:var(--bg)">
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-upload-file-label">Firmware File</label>
+      <div id="upFileInfo" class="tiny" style="font-weight:600"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-upload-ver-label" for="upVersion">Version</label>
+      <input type="text" id="upVersion" required>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-upload-notes-label" for="upNotes">Release Notes / Summary (optional)</label>
+      <input type="text" id="upNotes" placeholder="e.g. Fixed sensor read interval">
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeUploadModal()">Cancel</button>
+      <button type="button" class="primary" id="t-upload-confirm-btn" onclick="confirmUploadModal()">Publish</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const STRINGS = {
@@ -311,7 +458,7 @@ const STRINGS = {
     copyTitle: 'Copy to clipboard', copied: 'Copied',
     building: 'Building…', publishing: 'Publishing…',
     md5: (m) => `md5 ${m}`,
-    publishedMeta: (m, d) => `md5 ${m} · ${d}`,
+    publishedMeta: (m, d, s) => `md5 ${m} · ${s ? s + ' · ' : ''}${d}`,
     legacyTitle: 'Advanced: individual entities',
     legacyBody: 'The package above includes both. Use one of these instead if you want ' +
       'just one entity — <code>update.yaml</code> and <code>flash_button.yaml</code> can\'t ' +
@@ -339,24 +486,25 @@ const STRINGS = {
     manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the YAML Version column.',
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
+    manualSummaryField: 'Release Notes (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
     manualOk: (n) => `Registered ${n}. Click "+ Apply OTA" or copy the snippet, then compile and publish on that row.`,
     publishedOk: (n) => `Published ${n}.`,
     alreadyRegistered: 'Already in the list — publish from that row.',
     manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
-    yamlBadge: 'YAML', yamlBadgeTitle: 'From /config/esphome — dashboard not required',
+    yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome — dashboard not required',
     reupload: 'Upload .bin',
     reuploadTitle: 'Upload an OTA update .bin file from ESPHome (or drop it onto this row)',
     dropHere: '📁 Drop .bin file here to publish',
     notBin: 'Choose the OTA update .bin from ESPHome (Install → Advanced options → Download firmware binary → OTA update).',
-    fileTooBig: 'File is too large (8 MB max).',
+    fileTooBig: 'File is too large (32 MB max).',
     versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
     notPublishable: 'This YAML filename cannot be used as a publish name',
     activeChip: 'Active',
     activeChipTitle: 'Firmware binary is deployed to /local and ready for devices to download.',
     inactiveChip: 'Stashed (Hidden)',
     inactiveChipTitle: 'Firmware binary is removed from /local to prevent public exposure, and safely stored in add-on storage. Ready for 1-click activation.',
-    inactiveMeta: (d) => `Stashed in add-on (ready to activate) · Manifest ${d}`,
+    inactiveMeta: (d, s) => `Stashed in add-on (ready to activate) · ${s ? s + ' · ' : ''}Manifest ${d}`,
     deactivateBtn: 'Deactivate',
     deactivateTitle: 'Remove binary from /local to protect credentials. Kept in add-on private storage for quick re-activation.',
     deactivateConfirm: (n) => `Deactivate firmware for "${n}"?\n\nThe .bin binary will be removed from /local (preventing public exposure) and safely kept in add-on storage. The .json manifest remains in /local so update checks continue normally.`,
@@ -369,6 +517,39 @@ const STRINGS = {
     deleteSuccess: (n) => `Removed ${n} from registration list.`,
     dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
     dashboardErrorBody: (msg) => `Published firmware is still listed. ${msg}`,
+    // Batch & New Feature Strings
+    batchSelected: 'selected',
+    batchDeactivate: 'Deactivate (Hide)',
+    batchActivate: 'Activate (Deploy)',
+    batchInject: 'Apply OTA',
+    batchEject: 'Eject OTA',
+    batchDelete: 'Delete',
+    batchConfirm: (act, count) => `Execute batch action "${act}" on ${count} selected device(s)?`,
+    batchSuccess: (act, count) => `Successfully completed "${act}" on ${count} device(s).`,
+    restoreBtn: 'Restore',
+    restoreTitle: 'Restore original YAML from .bak backup file',
+    restoreConfirm: (n, t) => t ? `Restore YAML configuration for "${n}" from backup (${t})?` : `Restore YAML configuration for "${n}" from .bak backup?`,
+    restoreSuccess: (n) => `Restored "${n}" YAML from backup.`,
+    haOk: 'HA: Up to date',
+    haUpdate: 'HA: Update Available',
+    haInstalling: 'HA: Installing…',
+    autoHideOnSuccess: '⚡ Auto-Hide: On Success',
+    autoHideTimer: (h) => `⏱ Auto-Hide: ${h}h`,
+    autoHideNone: '⚙️ Auto-Hide: Off',
+    autoHideBadgeTitle: 'Click to configure smart auto-hide (auto-deactivation) settings',
+    adTitle: 'Auto-Deactivate Settings',
+    adDesc: 'Automatically remove the binary from /local once remote devices finish updating, protecting credentials.',
+    adModeLabel: 'Auto-Deactivate Mode',
+    adHoursLabel: 'Safety Timeout (Hours)',
+    adEntityLabel: 'Linked HA Update Entity',
+    adEntityAuto: 'Auto-detect',
+    adSaved: 'Auto-deactivate settings saved.',
+    uploadModalTitle: 'Publish Firmware',
+    uploadTarget: 'Target Device',
+    uploadFile: 'Firmware File',
+    uploadVer: 'Version',
+    uploadNotes: 'Release Notes / Summary (optional)',
+    uploadConfirm: 'Publish',
   },
   ko: {
     title: 'ESPHome OTA Publisher',
@@ -436,7 +617,7 @@ const STRINGS = {
     copyTitle: '클립보드에 복사', copied: '복사됨',
     building: '빌드 중…', publishing: '게시 중…',
     md5: (m) => `md5 ${m}`,
-    publishedMeta: (m, d) => `md5 ${m} · ${d}`,
+    publishedMeta: (m, d, s) => `md5 ${m} · ${s ? s + ' · ' : ''}${d}`,
     legacyTitle: '고급: 개별 엔티티',
     legacyBody: '위 패키지는 둘 다 포함합니다. 하나만 필요하면 이쪽을 쓰세요 — ' +
       '<code>update.yaml</code>과 <code>flash_button.yaml</code>은 둘 다 ' +
@@ -463,6 +644,7 @@ const STRINGS = {
     manualVersionHint: '래퍼가 펌웨어에 넣습니다. YAML 버전 칸에서도 바꿀 수 있습니다.',
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
+    manualSummaryField: '릴리즈 노트 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
     manualOk: (n) => `${n} 등록됨. "+ OTA 적용"을 누르거나 스니펫을 복사한 뒤 컴파일하고, 그 행에서 게시하세요.`,
     publishedOk: (n) => `${n} 게시됨.`,
@@ -473,14 +655,14 @@ const STRINGS = {
     reuploadTitle: 'ESPHome에서 다운로드한 OTA update .bin 파일을 업로드합니다 (이 행에 드래그 앤 드롭 가능)',
     dropHere: '📁 .bin 파일을 여기에 놓으면 바로 게시됩니다',
     notBin: 'ESPHome에서 Install → Advanced options → Download firmware binary → OTA update로 받은 .bin을 선택하세요.',
-    fileTooBig: '파일이 너무 큽니다 (최대 8 MB).',
+    fileTooBig: '파일이 너무 큽니다 (최대 32 MB).',
     versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
     activeChip: '공개됨',
     activeChipTitle: '/local에 바이너리가 배포되어 기기가 OTA 업데이트를 다운로드할 수 있는 상태입니다.',
     inactiveChip: '숨김 (보관중)',
     inactiveChipTitle: '/local에서 바이너리가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관 중입니다. 원클릭으로 다시 활성화할 수 있습니다.',
-    inactiveMeta: (d) => `애드온 보관중 (원클릭 활성화) · 매니페스트 ${d}`,
+    inactiveMeta: (d, s) => `애드온 보관중 (원클릭 활성화) · ${s ? s + ' · ' : ''}매니페스트 ${d}`,
     deactivateBtn: '비활성화 (숨김)',
     deactivateTitle: '/local에서 펌웨어 바이너리를 제거하여 비밀정보 노출을 방지합니다. 바이너리는 애드온에 안전하게 보관되어 언제든 다시 활성화할 수 있습니다.',
     deactivateConfirm: (n) => `"${n}" 펌웨어를 비활성화할까요?\n\n/local에서 바이너리(.bin)가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관됩니다. .json 매니페스트는 유지되므로 기기 상태 확인은 정상 작동합니다.`,
@@ -493,6 +675,39 @@ const STRINGS = {
     deleteSuccess: (n) => `"${n}" 기기 등록이 제거되었습니다.`,
     dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
     dashboardErrorBody: (msg) => `등록된 기기는 그대로 표시합니다. ${msg}`,
+    // Batch & New Feature Strings
+    batchSelected: '개 선택됨',
+    batchDeactivate: '일괄 비활성화 (숨김)',
+    batchActivate: '일괄 활성화 (공개)',
+    batchInject: '일괄 OTA 적용',
+    batchEject: '일괄 OTA 해제',
+    batchDelete: '일괄 삭제',
+    batchConfirm: (act, count) => `선택한 ${count}개 기기에 대해 "${act}" 작업을 실행하시겠습니까?`,
+    batchSuccess: (act, count) => `${count}개 기기에 대해 "${act}" 작업이 완료되었습니다.`,
+    restoreBtn: '복구',
+    restoreTitle: '.bak 백업 파일로 원본 YAML 설정을 복구합니다',
+    restoreConfirm: (n, t) => t ? `"${n}" 기기 설정을 백업 파일(${t})로 복구할까요?` : `"${n}" 기기 설정을 .bak 백업 파일로 복구할까요?`,
+    restoreSuccess: (n) => `"${n}" 기기 YAML이 복구되었습니다.`,
+    haOk: 'HA: 최신 상태',
+    haUpdate: 'HA: 업데이트 대기',
+    haInstalling: 'HA: 설치 진행 중…',
+    autoHideOnSuccess: '⚡ 자동 숨김: 완료 시',
+    autoHideTimer: (h) => `⏱ 자동 숨김: ${h}h`,
+    autoHideNone: '⚙️ 자동 숨김: 끔',
+    autoHideBadgeTitle: '스마트 자동 숨김(보안 비활성화) 설정을 변경합니다',
+    adTitle: '스마트 자동 숨김 설정',
+    adDesc: '원격 기기가 업데이트를 마치면 /local 경로에서 바이너리를 자동으로 제거하여 외부에 자격증명이 노출되지 않도록 보호합니다.',
+    adModeLabel: '자동 숨김 모드',
+    adHoursLabel: '안전 타임아웃 (시간 단위)',
+    adEntityLabel: '연동할 HA Update 엔티티',
+    adEntityAuto: '자동 탐색',
+    adSaved: '자동 숨김 설정이 저장되었습니다.',
+    uploadModalTitle: '펌웨어 게시',
+    uploadTarget: '대상 기기',
+    uploadFile: '펌웨어 파일',
+    uploadVer: '버전',
+    uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
+    uploadConfirm: '게시',
   },
 };
 
@@ -511,7 +726,11 @@ let polling = null;
 let jobRunning = false;
 let devicesCache = [];
 let configsCache = [];
+let haEntitiesCache = [];
+let selectedNodes = new Set();
 let versionDirty = false;
+let currentAdNode = null;
+let pendingUpload = null;
 
 function applyStaticText() {
   document.documentElement.lang = LOCALE;
@@ -535,7 +754,25 @@ function applyStaticText() {
   $('t-manual-version').textContent = T.manualVersion;
   $('mVersion').title = T.manualVersionHint;
   $('t-manual-titlefield').textContent = T.manualTitleField;
+  $('t-manual-summary').textContent = T.manualSummaryField;
   $('manualSubmit').textContent = T.manualSubmit;
+  $('t-batch-selected').textContent = T.batchSelected;
+  $('batchDeactivateBtn').textContent = T.batchDeactivate;
+  $('batchActivateBtn').textContent = T.batchActivate;
+  $('batchInjectBtn').textContent = T.batchInject;
+  $('batchEjectBtn').textContent = T.batchEject;
+  $('batchDeleteBtn').textContent = T.batchDelete;
+  $('t-ad-title').textContent = T.adTitle;
+  $('t-ad-desc').textContent = T.adDesc;
+  $('t-ad-mode-label').textContent = T.adModeLabel;
+  $('t-ad-hours-label').textContent = T.adHoursLabel;
+  $('t-ad-entity-label').textContent = T.adEntityLabel;
+  $('t-upload-modal-title').textContent = T.uploadModalTitle;
+  $('t-upload-node-label').textContent = T.uploadTarget;
+  $('t-upload-file-label').textContent = T.uploadFile;
+  $('t-upload-ver-label').textContent = T.uploadVer;
+  $('t-upload-notes-label').textContent = T.uploadNotes;
+  $('t-upload-confirm-btn').textContent = T.uploadConfirm;
 }
 
 async function api(path, opts) {
@@ -562,11 +799,20 @@ async function loadStatus() {
   $('t-addon-ver').textContent = status.addon_version || '';
 }
 
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function row(d) {
   const tr = document.createElement('tr');
+  tr.id = `row-${d.node}`;
   const pub = d.published;
   const stale = pub && d.own_project_version && pub.version !== d.own_project_version;
   const canDrop = d.publishable !== false;
+  const isChecked = selectedNodes.has(d.node);
 
   const yamlVer = yamlVersion(d);
   const nextId = `nextVersion-${d.node}`;
@@ -582,24 +828,53 @@ function row(d) {
     ? `<span class="subline tiny muted">${escapeHtml(d.configuration)}</span>`
     : `<span class="subline tiny muted">&nbsp;</span>`;
 
+  // HA State Badge
+  let haBadgeHtml = '';
+  if (d.ha_entity) {
+    const ha = d.ha_entity;
+    if (ha.in_progress) {
+      haBadgeHtml = ` <span class="chip warn" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(T.haInstalling)}">🟡 ${escapeHtml(T.haInstalling)}</span>`;
+    } else if (pub && ha.installed_version === pub.version) {
+      haBadgeHtml = ` <span class="chip ok" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(ha.installed_version)}">🟢 ${escapeHtml(T.haOk)}</span>`;
+    } else if (ha.state === 'on' || (pub && ha.installed_version && ha.installed_version !== pub.version)) {
+      haBadgeHtml = ` <span class="chip accent" title="${escapeHtml(ha.entity_id)} (installed: ${escapeHtml(ha.installed_version || '?')})">🔵 ${escapeHtml(T.haUpdate)}</span>`;
+    }
+  }
+
+  // Auto-hide setting badge
+  const ad = d.auto_deactivate || { mode: 'on_success', timer_hours: 12 };
+  let adLabel = T.autoHideOnSuccess;
+  let adClass = 'chip purple clickable';
+  if (ad.mode === 'timer') {
+    adLabel = T.autoHideTimer(ad.timer_hours || 12);
+  } else if (ad.mode === 'none') {
+    adLabel = T.autoHideNone;
+    adClass = 'chip clickable';
+  }
+  const adBadgeHtml = ` <span class="${adClass}" title="${escapeHtml(T.autoHideBadgeTitle)}" onclick="openAutoDeactivateModal('${escapeHtml(d.node)}')">${escapeHtml(adLabel)}</span>`;
+
   let firmwareHtml = '';
+  const sizeStr = formatBytes(d.bin_size || (pub && pub.bin_size));
+  const summaryStr = d.summary ? `"${escapeHtml(d.summary)}"` : '';
+
   if (pub && pub.has_bin) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
     const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
     const activeChip = ` <span class="chip ok" title="${escapeHtml(T.activeChipTitle)}">${escapeHtml(T.activeChip)}</span>`;
-    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${activeChip}` +
-      `<span class="subline tiny muted">${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at))}</span>`;
+    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${activeChip}${haBadgeHtml}${adBadgeHtml}` +
+      `<span class="subline tiny muted">${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : ''))}</span>`;
   } else if (pub && (pub.has_stashed_bin || !pub.has_bin)) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
     const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
     const inactiveChip = ` <span class="chip warn" title="${escapeHtml(T.inactiveChipTitle)}">${escapeHtml(T.inactiveChip)}</span>`;
-    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${inactiveChip}` +
-      `<span class="subline tiny muted">${escapeHtml(T.inactiveMeta(formatPublishedAt(pub.published_at)))}</span>`;
+    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${inactiveChip}${haBadgeHtml}${adBadgeHtml}` +
+      `<span class="subline tiny muted">${T.inactiveMeta(formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : ''))}</span>`;
   } else {
-    firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span><span class="subline tiny muted">&nbsp;</span>`;
+    firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span>${haBadgeHtml}${adBadgeHtml}<span class="subline tiny muted">&nbsp;</span>`;
   }
 
   tr.innerHTML = `
+    <td class="td-check"><input type="checkbox" data-node="${escapeHtml(d.node)}" ${isChecked ? 'checked' : ''} onchange="toggleSelectNode('${escapeHtml(d.node)}', this.checked)"></td>
     <td class="name">${escapeHtml(d.friendly_name)}${badge}${subtitle}</td>
     <td class="chip-cell" data-label="${escapeHtml(T.colChip)}">${d.chip_family ? escapeHtml(d.chip_family) : '<span class="muted">?</span>'}</td>
     <td class="yaml-config-cell" data-label="${escapeHtml(T.colYamlConfig)}"></td>
@@ -609,7 +884,7 @@ function row(d) {
   if (canDrop) tr.title = T.dropHere;
   bindNextVersionInput(tr.querySelector('.yaml-ver-cell input'), d);
 
-  // YAML Config cell (inject/eject button or snippet badge)
+  // YAML Config cell (inject/eject/restore buttons)
   const yamlConfigTd = tr.querySelector('.yaml-config-cell');
   if (d.has_yaml) {
     const injectBtn = document.createElement('button');
@@ -662,6 +937,30 @@ function row(d) {
       };
     }
     yamlConfigTd.appendChild(injectBtn);
+
+    if (d.has_backup) {
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'restore-btn';
+      restoreBtn.textContent = T.restoreBtn;
+      restoreBtn.title = T.restoreTitle;
+      restoreBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const mtimeStr = d.backup_mtime ? formatPublishedAt(d.backup_mtime) : '';
+        if (!confirm(T.restoreConfirm(d.friendly_name, mtimeStr))) return;
+        try {
+          await api('api/device/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node: d.node }),
+          });
+          alert(T.restoreSuccess(d.friendly_name));
+          loadDevices();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      yamlConfigTd.appendChild(restoreBtn);
+    }
   } else {
     yamlConfigTd.innerHTML = `<span class="chip" title="${escapeHtml(T.yamlSnippetNeededTitle)}">${escapeHtml(T.yamlSnippetNeeded)}</span>`;
   }
@@ -728,7 +1027,7 @@ function row(d) {
   deleteBtn.onclick = (e) => { e.stopPropagation(); deletePublished(d); };
   actions.append(deleteBtn);
 
-  if (canDrop) enableDrop(tr, (file) => publishFile(d, file));
+  if (canDrop) enableDrop(tr, (file) => openUploadModal(d, file));
   return tr;
 }
 
@@ -747,6 +1046,168 @@ function enableDrop(el, onFile) {
     const file = e.dataTransfer.files[0];
     if (file) onFile(file);
   });
+}
+
+function toggleSelectAll(checked) {
+  if (checked) {
+    devicesCache.forEach((d) => selectedNodes.add(d.node));
+  } else {
+    selectedNodes.clear();
+  }
+  document.querySelectorAll('.td-check input').forEach((cb) => { cb.checked = checked; });
+  updateBatchBar();
+}
+
+function toggleSelectNode(node, checked) {
+  if (checked) selectedNodes.add(node);
+  else selectedNodes.delete(node);
+  const allCb = $('checkAll');
+  if (allCb) allCb.checked = selectedNodes.size === devicesCache.length && devicesCache.length > 0;
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const bar = $('batchBar');
+  const countSpan = $('batchCount');
+  if (!bar || !countSpan) return;
+  const count = selectedNodes.size;
+  countSpan.textContent = count;
+  bar.style.display = count > 0 ? 'flex' : 'none';
+}
+
+async function runBatchAction(action) {
+  const count = selectedNodes.size;
+  if (!count) return;
+  const actionLabel = action === 'deactivate' ? T.batchDeactivate
+    : action === 'activate' ? T.batchActivate
+    : action === 'inject' ? T.batchInject
+    : action === 'eject' ? T.batchEject
+    : T.batchDelete;
+
+  if (!confirm(T.batchConfirm(actionLabel, count))) return;
+
+  try {
+    setJobButtonsDisabled(true);
+    await api('api/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes: Array.from(selectedNodes), action }),
+    });
+    const results = (res && res.results) || {};
+    const failedNodes = Object.keys(results).filter((k) => !results[k] || !results[k].ok);
+    const successCount = Object.keys(results).length - failedNodes.length;
+
+    if (failedNodes.length > 0) {
+      alert(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`);
+    } else {
+      alert(T.batchSuccess(actionLabel, successCount || count));
+    }
+    selectedNodes.clear();
+    updateBatchBar();
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    setJobButtonsDisabled(false);
+  }
+}
+
+// Auto-Deactivate Modal
+async function openAutoDeactivateModal(node) {
+  currentAdNode = node;
+  const d = devicesCache.find((row) => row.node === node);
+  if (!d) return;
+
+  $('autoDeactivateModal').style.display = 'flex';
+  const ad = d.auto_deactivate || { mode: 'on_success', timer_hours: 12 };
+  $('adMode').value = ad.mode || 'on_success';
+  $('adHours').value = ad.timer_hours || 12;
+
+  const entitySelect = $('adEntity');
+  entitySelect.innerHTML = `<option value="">-- ${T.adEntityAuto} --</option>`;
+  try {
+    const res = await api('api/ha/update-entities');
+    haEntitiesCache = res.entities || [];
+    haEntitiesCache.forEach((ent) => {
+      const opt = document.createElement('option');
+      opt.value = ent.entity_id;
+      opt.textContent = `${ent.friendly_name || ent.entity_id} (${ent.installed_version || 'unknown'})`;
+      entitySelect.appendChild(opt);
+    });
+    if (d.ha_entity && d.ha_entity.entity_id) {
+      entitySelect.value = d.ha_entity.entity_id;
+    }
+  } catch (e) {
+    console.debug('Could not load HA entities', e);
+  }
+
+  $('adStatusInfo').textContent = ad.last_status ? `Status: ${ad.last_status}` : '';
+  syncAdModalFields();
+}
+
+function syncAdModalFields() {
+  const mode = $('adMode').value;
+  $('adTimerField').style.display = mode === 'none' ? 'none' : 'block';
+  $('adEntityField').style.display = mode === 'on_success' ? 'block' : 'none';
+}
+
+function closeAutoDeactivateModal() {
+  $('autoDeactivateModal').style.display = 'none';
+  currentAdNode = null;
+}
+
+async function saveAutoDeactivateModal() {
+  if (!currentAdNode) return;
+  const mode = $('adMode').value;
+  const timer_hours = parseInt($('adHours').value, 10) || 12;
+  const ha_entity_id = $('adEntity').value;
+
+  try {
+    await api('api/device/auto-deactivate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node: currentAdNode, mode, timer_hours, ha_entity_id }),
+    });
+    closeAutoDeactivateModal();
+    loadDevices();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// Upload Modal with Release Notes
+function openUploadModal(d, file) {
+  if (jobRunning) return;
+  if (!file.name.toLowerCase().endsWith('.bin')) {
+    alert(T.notBin);
+    return;
+  }
+  if (file.size > 32 * 1024 * 1024) {
+    alert(T.fileTooBig);
+    return;
+  }
+
+  pendingUpload = { d, file };
+  $('upNode').value = d.friendly_name || d.node;
+  $('upFileInfo').textContent = `${file.name} (${formatBytes(file.size)})`;
+  $('upVersion').value = compiledVersion(d) || versionPrefill(d) || '1.0.0';
+  $('upNotes').value = d.summary || '';
+  $('uploadModal').style.display = 'flex';
+  setTimeout(() => $('upNotes').focus(), 50);
+}
+
+function closeUploadModal() {
+  $('uploadModal').style.display = 'none';
+  pendingUpload = null;
+}
+
+async function confirmUploadModal() {
+  if (!pendingUpload) return;
+  const { d, file } = pendingUpload;
+  const version = $('upVersion').value.trim() || '1.0.0';
+  const summary = $('upNotes').value.trim();
+  closeUploadModal();
+  await executeUpload(d, file, version, summary);
 }
 
 function fillNodeSelect(configs) {
@@ -880,26 +1341,12 @@ function pickAndPublish(d) {
   input.type = 'file';
   input.accept = '.bin';
   input.onchange = () => {
-    if (input.files[0]) publishFile(d, input.files[0]);
+    if (input.files[0]) openUploadModal(d, input.files[0]);
   };
   input.click();
 }
 
-async function publishFile(d, file) {
-  if (jobRunning) return;
-  if (!file.name.toLowerCase().endsWith('.bin')) {
-    alert(T.notBin);
-    return;
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    alert(T.fileTooBig);
-    return;
-  }
-  let version = compiledVersion(d);
-  if (!version) {
-    version = window.prompt(T.versionPrompt, versionPrefill(d)) || '';
-    if (!version) return;
-  }
+async function executeUpload(d, file, version, summary) {
   jobRunning = true;
   setJobButtonsDisabled(true);
   const result = $('manualResult');
@@ -910,6 +1357,7 @@ async function publishFile(d, file) {
     form.append('version', version);
     form.append('title', d.friendly_name || d.node);
     form.append('chip_family', formChipFamily(d) || '');
+    form.append('summary', summary || '');
     form.append('file', file);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
     if (result) {
@@ -960,6 +1408,8 @@ async function deletePublished(d) {
     await api(`api/device/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
     const result = $('manualResult');
     if (result) result.innerHTML = `<span class="toast">${T.deleteSuccess(escapeHtml(d.friendly_name))}</span>`;
+    selectedNodes.delete(d.node);
+    updateBatchBar();
     loadDevices();
   } catch (err) {
     alert(err.message);
@@ -981,12 +1431,13 @@ async function loadDevices() {
     const tbody = $('rows');
     tbody.innerHTML = '';
     if (!devicesCache.length) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="6" class="muted">${T.noDevices}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="7" class="muted">${T.noDevices}</td></tr>`;
       return;
     }
     devicesCache.forEach((d) => tbody.appendChild(row(d)));
+    updateBatchBar();
   } catch (err) {
-    $('rows').innerHTML = `<tr class="empty-row"><td colspan="6" class="muted">${escapeHtml(err.message)}</td></tr>`;
+    $('rows').innerHTML = `<tr class="empty-row"><td colspan="7" class="muted">${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -1001,6 +1452,8 @@ const CHECK_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 async function copySnippet(id, btn) {
   const text = $(id).textContent;
   let ok = true;
+  // HA ingress is plain HTTP, which is not a secure context in browsers, so
+  // navigator.clipboard is undefined. Fall back to document.execCommand('copy').
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -1008,9 +1461,6 @@ async function copySnippet(id, btn) {
       throw new Error('no async clipboard');
     }
   } catch {
-    // Ingress is often plain http on the LAN, which isn't a "secure context" —
-    // navigator.clipboard is unavailable there, so fall back to the old
-    // select+execCommand trick instead of just failing silently.
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed';
@@ -1106,9 +1556,8 @@ function finishJob() {
 async function run(d, compile, clickedBtn) {
   if (jobRunning) return;
   jobRunning = true;
-  // Disabled synchronously, before anything async — the click must visibly
-  // register even if the POST below takes a moment (queued behind another
-  // build, or a slow dashboard connection).
+  // Disable everything before await so double-clicks don't spawn two runs
+  // while the POST is in flight, and so a slow queueing response is visible.
   setJobButtonsDisabled(true);
   const originalLabel = clickedBtn ? clickedBtn.textContent : '';
   if (clickedBtn) clickedBtn.textContent = compile ? T.building : T.publishing;
@@ -1154,6 +1603,7 @@ $('manualForm').addEventListener('submit', async (e) => {
   const result = $('manualResult');
   const node = $('mNode').value;
   const version = $('mVersion').value.trim() || '1.0.0';
+  const summary = $('mSummary').value.trim();
   if (!node) {
     result.innerHTML = `<span style="color:var(--err)">${escapeHtml(T.manualPickYaml)}</span>`;
     return;
@@ -1167,12 +1617,13 @@ $('manualForm').addEventListener('submit', async (e) => {
     const body = await api('api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ node, version, title: $('mTitle').value.trim() }),
+      body: JSON.stringify({ node, version, title: $('mTitle').value.trim(), summary }),
     });
     result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
     $('mYaml').value = '';
     $('mNode').value = '';
     $('mTitle').value = '';
+    $('mSummary').value = '';
     $('mVersion').value = '1.0.0';
     syncNodeField();
     await loadDevices();
@@ -1204,8 +1655,6 @@ $('mYaml').addEventListener('change', () => {
   const d = selectedFormDevice();
   applyDeviceToForm(d);
 });
-
-$('mNode').addEventListener('input', () => {});
 
 $('langSelect').value = localStorage.getItem('esphome_ota_lang') || 'auto';
 $('langSelect').addEventListener('change', (e) => {

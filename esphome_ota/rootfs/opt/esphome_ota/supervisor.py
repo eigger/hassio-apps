@@ -165,3 +165,38 @@ async def find_host_ip(session: ClientSession) -> str | None:
             if address and not address.startswith("127."):
                 return address
     return None
+
+
+async def fetch_ha_states(session: ClientSession) -> list[dict[str, Any]]:
+    """Return all entity states from Home Assistant Core."""
+    try:
+        data = await _get_core(session, "/states")
+        if isinstance(data, list):
+            return data
+    except Exception as err:  # noqa: BLE001
+        LOG.debug("Could not read Home Assistant states: %s", err)
+    return []
+
+
+async def fetch_update_entities(session: ClientSession) -> dict[str, dict[str, Any]]:
+    """Return all update.* entities from Home Assistant Core mapped by entity_id."""
+    states = await fetch_ha_states(session)
+    result = {}
+    for state in states:
+        entity_id = state.get("entity_id", "")
+        if not entity_id.startswith("update."):
+            continue
+        attrs = state.get("attributes") or {}
+        result[entity_id] = {
+            "entity_id": entity_id,
+            "state": state.get("state"),
+            "installed_version": attrs.get("installed_version") or "",
+            "latest_version": attrs.get("latest_version") or "",
+            "in_progress": attrs.get("in_progress", False),
+            "title": attrs.get("title") or attrs.get("friendly_name") or entity_id,
+            "friendly_name": attrs.get("friendly_name") or entity_id,
+            "release_summary": attrs.get("release_summary") or "",
+            "last_changed": state.get("last_changed") or "",
+            "last_updated": state.get("last_updated") or "",
+        }
+    return result

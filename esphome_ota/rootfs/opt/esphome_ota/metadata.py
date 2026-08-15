@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -615,7 +616,8 @@ def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
     # Backup and atomic write
     try:
         bak_path = path.with_suffix(path.suffix + ".bak")
-        bak_path.write_text(content, encoding="utf-8")
+        if not bak_path.exists():
+            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)
@@ -678,7 +680,8 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
 
     try:
         bak_path = path.with_suffix(path.suffix + ".bak")
-        bak_path.write_text(content, encoding="utf-8")
+        if not bak_path.exists():
+            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)
@@ -686,4 +689,116 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
         return False, f"Failed to write {filename}: {err}"
 
     return True, f"Successfully removed OTA package from {filename}"
+
+
+ESP_APP_DESC_MAGIC = 0xABCD5432
+
+
+def parse_app_descriptor(blob: bytes) -> dict[str, str]:
+    """Parse esp_app_desc_t at offset 0x20 if present in ESP32 app images."""
+    if len(blob) < 0x20 + 160:
+        return {}
+    magic = int.from_bytes(blob[0x20:0x24], "little")
+    if magic != ESP_APP_DESC_MAGIC:
+        return {}
+    try:
+        ver_bytes = blob[0x30:0x50].split(b"\x00")[0]
+        version = ver_bytes.decode("utf-8", errors="ignore").strip()
+        proj_bytes = blob[0x50:0x70].split(b"\x00")[0]
+        project = proj_bytes.decode("utf-8", errors="ignore").strip()
+        idf_bytes = blob[0x90:0xB0].split(b"\x00")[0]
+        idf_ver = idf_bytes.decode("utf-8", errors="ignore").strip()
+        return {
+            "version": version,
+            "project_name": project,
+            "idf_version": idf_ver,
+        }
+    except Exception:
+        return {}
+
+
+def validate_binary(
+    blob: bytes,
+    chip_family_or_platform: str = "",
+    max_size: int = 32 * 1024 * 1024,
+) -> tuple[bool, str, dict[str, Any]]:
+    """Validate uploaded binary before publishing."""
+    if not blob:
+        return False, "Binary file is empty (0 bytes).", {}
+    if len(blob) < 4096:
+        return False, f"File is too small to be a valid firmware ({len(blob)} bytes).", {}
+    if len(blob) > max_size:
+        return False, f"File exceeds maximum allowed firmware size ({len(blob)} bytes > {max_size // (1024 * 1024)}MB).", {}
+
+    if blob[:4] == b"UF2\n":
+        return False, "Detected UF2 file. ESPHome OTA requires an application .bin file.", {}
+    if blob[:4] == b"\x7fELF":
+        return False, "Detected ELF executable. Please upload the compiled .ota.bin file.", {}
+
+    target = (chip_family_or_platform or "").strip().lower()
+    is_esp = not target or target.startswith("esp") or "esp32" in target or "esp8266" in target
+
+    chip_family = None
+    app_desc = {}
+
+    if blob[0] == ESP_IMAGE_MAGIC:
+        chip_family = chip_family_from_binary(blob)
+        if chip_family and "ESP32" in chip_family:
+            app_desc = parse_app_descriptor(blob)
+    elif is_esp and target:
+        return False, f"Invalid image magic byte (0x{blob[0]:02X} != 0xE9). Expected ESP binary image.", {}
+
+    info: dict[str, Any] = {
+        "size": len(blob),
+        "chip_family": chip_family,
+        "app_descriptor": app_desc,
+    }
+    return True, "Valid firmware binary", info
+
+
+def find_backup_configuration(config_dir: Path, node: str) -> str | None:
+    for ext in (".yaml.bak", ".yml.bak"):
+        candidate = config_dir / f"{node}{ext}"
+        if candidate.is_file():
+            return candidate.name
+    return None
+
+
+def get_yaml_backup_info(config_dir: Path, node: str) -> dict[str, Any] | None:
+    bak_filename = find_backup_configuration(config_dir, node)
+    if not bak_filename:
+        return None
+    bak_path = config_dir / bak_filename
+    try:
+        mtime = datetime.fromtimestamp(bak_path.stat().st_mtime, tz=timezone.utc).isoformat()
+        return {"filename": bak_filename, "mtime": mtime}
+    except OSError:
+        return {"filename": bak_filename, "mtime": None}
+
+
+def has_yaml_backup(config_dir: Path, node: str) -> bool:
+    return find_backup_configuration(config_dir, node) is not None
+
+
+def restore_device_yaml(config_dir: Path, node: str) -> tuple[bool, str]:
+    """Restore device YAML from .bak backup file and clean up backup upon success."""
+    bak_filename = find_backup_configuration(config_dir, node)
+    if not bak_filename:
+        return False, f"No backup file found for {node}"
+    bak_path = config_dir / bak_filename
+    target_filename = bak_filename[:-4]  # strip .bak
+    target_path = config_dir / target_filename
+    try:
+        content = bak_path.read_text(encoding="utf-8")
+        tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, target_path)
+        try:
+            bak_path.unlink()
+        except OSError:
+            pass
+    except OSError as err:
+        return False, f"Failed to restore {target_filename}: {err}"
+    return True, f"Successfully restored {target_filename} from backup"
+
 
