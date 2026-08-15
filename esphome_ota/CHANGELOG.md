@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.1
+
+- **Modernized UI Design System & Live Status Indicators**:
+  - Replaced plain emojis with a modern, glowing pulse indicator system (Emerald, Sky Blue, Amber, and Violet status badges with glow rings and subtle live pulse animation).
+  - Added an interactive **Live Status** legend bar explaining HA update states and smart auto-hide modes.
+  - Re-architected published firmware information into a clean 3-tier hierarchy (Version & HA Live Status -> Storage & Auto-Hide Badges -> MD5, Size, Date & Summary Quote).
+  - Optimized action buttons layout with compact labels and nowrap alignment.
+- **Collapsible Release Notes on Upload**:
+  - Moved release notes input from the device registration form to a collapsible `<details>` field in the binary upload/publish modal (auto-opened when notes already exist).
+- **Cleaned Up YAML Restore UI**:
+  - Removed the `↺ 복구` (Restore) button from the web UI to streamline the table layout, and retired unused backend restore API routes/per-row filesystem stats.
+  - Device YAML safety backups (`.bak`) continue to be preserved on disk in `/config/esphome/` prior to OTA package injection for manual recovery.
+  - Added safety guard rejecting injection into incompatible inline `packages:` YAML syntax.
+- **Security & Accessibility**:
+  - Enhanced `escapeHtml()` to escape single and double quotes, preventing attribute injection in tooltip attributes.
+  - Added `@media (prefers-reduced-motion: reduce)` accessibility support.
+
 ## 0.7.0
 
 - **Smart Auto-Deactivation (Auto-Hide on Update Success)**:

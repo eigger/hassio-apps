@@ -6,104 +6,330 @@
 <title>ESPHome OTA Publisher</title>
 <style>
   :root {
-    --bg: #f6f7f9; --fg: #16191d; --muted: #6b7480; --card: #fff;
-    --line: #e2e5ea; --accent: #03a9f4; --ok: #2e7d32; --warn: #b26a00; --err: #c62828;
-    --purple: #7c4dff;
+    --bg: #f8fafc;
+    --fg: #0f172a;
+    --muted: #64748b;
+    --card: #ffffff;
+    --card-subtle: #f1f5f9;
+    --line: #e2e8f0;
+    --line-focus: #cbd5e1;
+    --accent: #0284c7;
+    --accent-bg: rgba(2, 132, 199, 0.08);
+    --ok: #059669;
+    --ok-bg: rgba(5, 150, 105, 0.08);
+    --warn: #d97706;
+    --warn-bg: rgba(217, 119, 6, 0.08);
+    --err: #e11d48;
+    --err-bg: rgba(225, 29, 72, 0.08);
+    --purple: #7c3aed;
+    --purple-bg: rgba(124, 58, 237, 0.08);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --fg:#e6e8eb; --muted:#98a1ac; --card:#1b1f24;
-            --line:#2b3138; --accent:#4fc3f7; --ok:#81c784; --warn:#ffb74d; --err:#ef9a9a;
-            --purple:#b388ff; }
+    :root {
+      --bg: #0b0f19;
+      --fg: #f8fafc;
+      --muted: #94a3b8;
+      --card: #131b2e;
+      --card-subtle: #1e293b;
+      --line: #222f49;
+      --line-focus: #334155;
+      --accent: #38bdf8;
+      --accent-bg: rgba(56, 189, 248, 0.12);
+      --ok: #34d399;
+      --ok-bg: rgba(52, 211, 153, 0.12);
+      --warn: #fbbf24;
+      --warn-bg: rgba(251, 191, 36, 0.12);
+      --err: #fb7185;
+      --err-bg: rgba(251, 113, 133, 0.12);
+      --purple: #a78bfa;
+      --purple-bg: rgba(167, 139, 250, 0.12);
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
+    }
   }
   * { box-sizing: border-box; }
-  body { margin:0; padding:20px; background:var(--bg); color:var(--fg);
-         font:14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
-  h1 { font-size:20px; margin:0 0 4px; }
-  .sub { color:var(--muted); margin-bottom:18px; }
-  #t-addon-ver { font-weight:400; margin-left:8px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
-          padding:14px 16px; margin-bottom:14px; }
-  .banner { border-left:4px solid var(--warn); }
-  .banner.err { border-left-color:var(--err); }
-  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  table { width:100%; border-collapse:collapse; min-width: 0; }
-  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line);
-           vertical-align:middle; }
-  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase;
-       letter-spacing:.04em; }
-  th[title] { cursor:help; text-decoration:underline dotted; text-underline-offset:3px; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 21px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+  #t-addon-ver { font-weight: 500; margin-left: 8px; font-size: 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .banner { border-left: 4px solid var(--warn); }
+  .banner.err { border-left-color: var(--err); }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; min-width: 0; }
+  th, td {
+    text-align: left;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  th[title] { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
   th.th-check, td.td-check { width: 34px; padding-left: 10px; padding-right: 4px; text-align: center; }
   th.th-check input, td.td-check input { cursor: pointer; width: 16px; height: 16px; vertical-align: middle; }
-  td.name { font-weight:600; word-break:break-word; overflow-wrap:anywhere; }
-  td .subline { display:block; margin-top:2px; line-height:1.3; min-height:1.3em; }
+  tbody tr { transition: background 0.15s ease; }
+  tbody tr:hover:not(.empty-row) { background: color-mix(in srgb, var(--accent) 3%, var(--card)); }
+
+  td.name { font-weight: 600; word-break: break-word; overflow-wrap: anywhere; }
+  td .subline { display: block; margin-top: 3px; line-height: 1.3; font-size: 11.5px; }
   td.yaml-ver-cell { white-space: nowrap; }
-  td.yaml-ver-cell input { width: 100%; min-width: 9em; max-width: 13em; vertical-align: middle; }
-  .chip { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px;
-          border:1px solid var(--line); color:var(--muted); vertical-align:middle;
-          white-space:nowrap; }
-  .chip.ok { color:var(--ok); border-color:currentColor; }
-  .chip.warn { color:var(--warn); border-color:currentColor; }
-  .chip.accent { color:var(--accent); border-color:currentColor; }
-  .chip.purple { color:var(--purple); border-color:currentColor; }
-  .chip.clickable { cursor: pointer; transition: filter 0.15s ease; }
-  .chip.clickable:hover { filter: brightness(1.15); }
-  button { font:inherit; padding:5px 11px; border-radius:6px; border:1px solid var(--line);
-           background:transparent; color:var(--fg); cursor:pointer; white-space:nowrap;
-           height:34px; box-sizing:border-box; display:inline-flex; align-items:center;
-           justify-content:center; }
-  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
-  button:disabled { opacity:.45; cursor:default; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#04121a; font-weight:500; }
-  button.primary:hover:not(:disabled) { background:var(--accent); border-color:var(--accent); color:#04121a; filter:brightness(0.9); }
-  button.danger { color:var(--err); border-color:var(--err); }
-  button.danger:hover:not(:disabled) { background:color-mix(in srgb, var(--err) 12%, transparent); }
-  button.applied {
-    color: var(--ok);
-    border-color: var(--ok);
-    background: color-mix(in srgb, var(--ok) 8%, transparent);
+  td.yaml-ver-cell input { width: 100%; min-width: 8.5em; max-width: 12em; vertical-align: middle; }
+
+  /* Modern Pulse Glow Dots */
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
   }
-  button.applied:hover:not(:disabled) {
-    color: var(--err);
-    border-color: var(--err);
-    background: color-mix(in srgb, var(--err) 10%, transparent);
+  .pulse-dot.ok { background-color: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 30%, transparent); }
+  .pulse-dot.accent { background-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .pulse-dot.warn { background-color: var(--warn); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 30%, transparent); }
+  .pulse-dot.purple { background-color: var(--purple); box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 30%, transparent); }
+  .pulse-dot.neutral { background-color: var(--muted); }
+  
+  @keyframes livePulse {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.8; }
   }
-  button.inject-btn {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    font-weight: 500;
-  }
-  button.inject-btn:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-  }
-  button.restore-btn {
-    padding: 2px 6px;
-    height: 24px;
+  .pulse-dot.animating { animation: livePulse 1.6s infinite ease-in-out; }
+
+  /* Modern Pill Badges */
+  .badge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2.5px 7px;
+    border-radius: 6px;
     font-size: 11px;
+    font-weight: 600;
+    line-height: 1.35;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .badge-pill.badge-ok { background: var(--ok-bg); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+  .badge-pill.badge-accent { background: var(--accent-bg); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+  .badge-pill.badge-warn { background: var(--warn-bg); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+  .badge-pill.badge-purple { background: var(--purple-bg); color: var(--purple); border-color: color-mix(in srgb, var(--purple) 25%, transparent); }
+  .badge-pill.badge-neutral { background: color-mix(in srgb, var(--muted) 10%, transparent); color: var(--muted); border-color: color-mix(in srgb, var(--muted) 20%, transparent); }
+  
+  .badge-pill.clickable { cursor: pointer; }
+  .badge-pill.clickable:hover { filter: brightness(1.15); transform: translateY(-0.5px); }
+
+  /* Chip Tag & Platform Badge */
+  .chip-tag {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--card-subtle);
     color: var(--muted);
-    border-color: var(--line);
+    border: 1px solid var(--line);
+    vertical-align: middle;
     margin-left: 4px;
   }
-  button.restore-btn:hover:not(:disabled) {
-    color: var(--warn);
-    border-color: var(--warn);
+  .chip-platform {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-feature-settings: "tnum";
   }
-  .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
-             justify-content:flex-end; }
-  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px;
-        padding:10px; overflow-x:auto; font-size:12.5px; margin:8px 0 0; }
-  .snippetLabel { display:flex; align-items:center; justify-content:space-between; gap:8px;
-                  flex-wrap:wrap; }
-  .copyBtn { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; height:24px; font-size:12px; }
-  .copyBtn svg { display:block; }
-  .log { max-height:260px; overflow-y:auto; white-space:pre-wrap; }
-  .muted { color:var(--muted); }
-  .tiny { font-size:12px; }
-  code { background:var(--bg); padding:1px 5px; border-radius:4px; }
+
+  /* Multi-tier Structured Firmware Column */
+  .fw-col { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+  .fw-tier-primary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .fw-version-num { font-size: 13.5px; font-weight: 700; color: var(--fg); letter-spacing: -0.01em; font-feature-settings: "tnum"; }
+  .fw-tier-secondary { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .fw-tier-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .fw-tier-meta code { font-size: 10.5px; padding: 1px 4px; border-radius: 4px; background: var(--card-subtle); color: var(--fg); border: 1px solid var(--line); font-family: ui-monospace, monospace; }
+  .fw-summary-note {
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* YAML Config Buttons */
+  .btn-applied {
+    background: var(--ok-bg);
+    color: var(--ok);
+    border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+  }
+  .btn-applied:hover:not(:disabled) {
+    background: var(--err-bg);
+    color: var(--err);
+    border-color: var(--err);
+  }
+  .btn-inject {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+  }
+  .btn-inject:hover:not(:disabled) {
+    background: var(--accent);
+    color: #ffffff;
+  }
+
+  /* Action Buttons */
+  .actions { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  .btn-action {
+    font: inherit;
+    height: 30px;
+    padding: 0 9px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  .btn-action:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .btn-action:disabled { opacity: 0.45; cursor: default; }
+  .btn-action.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+  }
+  .btn-action.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    color: #ffffff;
+  }
+  .btn-action.btn-danger {
+    color: var(--err);
+    border-color: color-mix(in srgb, var(--err) 25%, transparent);
+  }
+  .btn-action.btn-danger:hover:not(:disabled) {
+    background: var(--err-bg);
+    border-color: var(--err);
+    color: var(--err);
+  }
+
+  /* Modern Legend Bar */
+  .legend-bar {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--card-subtle);
+    border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+  .legend-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 2px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--fg); font-weight: 500; }
+  .legend-divider { color: var(--line); margin: 0 4px; }
+
+  button { font: inherit; }
+  .upload-notes-details { margin-top: 6px; }
+  .upload-notes-details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 500;
+    user-select: none;
+    font-size: 12px;
+  }
+  .upload-notes-details[open] summary {
+    color: var(--fg);
+    margin-bottom: 4px;
+  }
+
+  pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+        padding: 10px; overflow-x: auto; font-size: 12.5px; margin: 8px 0 0; }
+  .snippetLabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .copyBtn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; height: 26px; font-size: 12px; border-radius: 5px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+  .copyBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .copyBtn svg { display: block; }
+  .log { max-height: 260px; overflow-y: auto; white-space: pre-wrap; }
+  .muted { color: var(--muted); }
+  .tiny { font-size: 12px; }
+  code { background: var(--card-subtle); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); }
   select, input[type=text], input[type=number], input[type=file], textarea {
-    font:inherit; padding:5px 8px; border-radius:6px; border:1px solid var(--line);
-    background:var(--card); color:var(--fg); max-width:100%;
-    height:34px; box-sizing:border-box;
+    font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--card); color: var(--fg); max-width: 100%;
+    height: 34px; box-sizing: border-box; transition: border-color 0.15s ease;
+  }
+  select:focus, input[type=text]:focus, input[type=number]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-bg);
   }
   textarea { height: auto; min-height: 60px; }
   input.input-saved {
@@ -111,42 +337,54 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 35%, transparent) !important;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  .chip.warn[title], .chip.accent[title], .chip.ok[title] { cursor: help; }
-  .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-  #langSelect { flex:0 0 auto; }
-  .formgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
-              gap:10px; align-items:end; margin-top:10px; }
-  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:3px; }
-  .field input, .field select, .field textarea { width:100%; }
-  .field-row { display:flex; gap:8px; align-items:stretch; }
-  .field-row select { flex:1; }
-  details summary { cursor:pointer; font-weight:600; }
-  details[open] summary { margin-bottom:4px; }
-  .steps { margin:8px 0 0; padding-left:1.25em; }
-  .steps li { margin:3px 0; }
-  .howto { margin-top:10px; }
-  .howto .steps { margin-top:4px; }
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  #langSelect { flex: 0 0 auto; }
+  .formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+              gap: 10px; align-items: end; margin-top: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; font-weight: 500; }
+  .field input, .field select, .field textarea { width: 100%; }
+  .field-row { display: flex; gap: 8px; align-items: stretch; }
+  .field-row select { flex: 1; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 4px; }
+  .steps { margin: 8px 0 0; padding-left: 1.25em; }
+  .steps li { margin: 3px 0; }
+  .howto { margin-top: 10px; }
+  .howto .steps { margin-top: 4px; }
   tr.drop-target td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   #manualForm.drop-target, details.drop-target { outline: 2px dashed var(--accent); outline-offset: 4px; }
-  .toast { color: var(--ok); font-size: 12px; margin-top: 4px; }
+  .toast { color: var(--ok); font-size: 12px; margin-top: 4px; font-weight: 500; }
 
   /* Batch Action Bar */
   .batch-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+    background: color-mix(in srgb, var(--accent) 10%, var(--card));
     border: 1px solid var(--accent);
     border-radius: 8px;
     padding: 8px 12px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     gap: 10px;
     flex-wrap: wrap;
     animation: fadeIn 0.2s ease;
   }
   .batch-info { font-weight: 600; font-size: 13px; color: var(--fg); }
   .batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .batch-btn { height: 28px; padding: 2px 9px; font-size: 12px; background: var(--card); }
+  .batch-btn {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .batch-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .batch-btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 30%, transparent); }
+  .batch-btn.danger:hover:not(:disabled) { background: var(--err-bg); border-color: var(--err); }
 
   /* Modal Dialogs */
   .modal-overlay {
@@ -158,90 +396,100 @@
     justify-content: center;
     z-index: 1000;
     padding: 16px;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
   }
   .modal-content {
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 18px 20px;
+    border-radius: 12px;
+    padding: 20px 22px;
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.28);
     animation: modalIn 0.2s ease;
   }
-  .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
-  .modal-header h3 { margin: 0; font-size: 16px; }
-  .modal-close { border: none; background: transparent; font-size: 18px; cursor: pointer; height: auto; padding: 2px 6px; }
-  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .modal-header h3 { margin: 0; font-size: 16px; font-weight: 700; }
+  .modal-close { border: none; background: transparent; font-size: 18px; cursor: pointer; height: auto; padding: 2px 6px; color: var(--muted); }
+  .modal-close:hover { color: var(--fg); }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
-  @keyframes fadeIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform: translateY(0); } }
-  @keyframes modalIn { from { opacity:0; transform: scale(0.95); } to { opacity:1; transform: scale(1); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-dot.animating,
+    .modal-content,
+    .batch-bar {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 
   @media (max-width: 720px) {
-    body { padding:12px; }
-    .card { padding:12px; }
-    .topbar { flex-wrap:wrap; align-items:center; }
-    .sub { margin-bottom:12px; }
-    .formgrid { grid-template-columns:1fr; }
-    thead { display:none; }
-    .table-wrap { overflow:visible; }
+    body { padding: 12px; }
+    .card { padding: 12px; }
+    .topbar { flex-wrap: wrap; align-items: center; }
+    .sub { margin-bottom: 12px; }
+    .formgrid { grid-template-columns: 1fr; }
+    thead { display: none; }
+    .table-wrap { overflow: visible; }
     tbody tr {
-      display:grid;
-      grid-template-columns:1fr 1fr;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       grid-template-areas:
         "check name"
         "chip yaml-config"
         "yaml-ver firmware"
         "actions actions";
-      gap:6px 12px;
-      border:1px solid var(--line);
-      border-radius:10px;
-      padding:12px;
-      background:var(--card);
-      margin-bottom:10px;
+      gap: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--card);
+      margin-bottom: 10px;
     }
-    tbody tr:last-child { margin-bottom:0; }
+    tbody tr:last-child { margin-bottom: 0; }
     tbody tr.empty-row {
-      display:block;
-      border:none;
-      padding:8px 0;
-      margin:0;
+      display: block;
+      border: none;
+      padding: 8px 0;
+      margin: 0;
     }
-    th, td { border:none; padding:0; }
-    td.td-check { grid-area:check; width:auto; text-align:left; padding:0 0 4px 0; }
+    th, td { border: none; padding: 0; }
+    td.td-check { grid-area: check; width: auto; text-align: left; padding: 0 0 4px 0; }
     td.name {
-      grid-area:name;
-      font-size:15px;
-      padding-bottom:4px;
+      grid-area: name;
+      font-size: 15px;
+      padding-bottom: 4px;
     }
-    td.chip-cell { grid-area:chip; }
-    td.yaml-config-cell { grid-area:yaml-config; }
-    td.yaml-ver-cell { grid-area:yaml-ver; }
+    td.chip-cell { grid-area: chip; }
+    td.yaml-config-cell { grid-area: yaml-config; }
+    td.yaml-ver-cell { grid-area: yaml-ver; }
     td.yaml-ver-cell input { min-width: 0; max-width: none; width: 100%; }
-    td.firmware-cell { grid-area:firmware; overflow-wrap:anywhere; }
-    td.name .subline, td.firmware-cell .subline { min-height:0; }
+    td.firmware-cell { grid-area: firmware; overflow-wrap: anywhere; }
+    td.name .subline, td.firmware-cell .subline { min-height: 0; }
     td[data-label]::before {
       content: attr(data-label);
-      display:block;
-      color:var(--muted);
-      font-size:11px;
-      font-weight:600;
-      text-transform:uppercase;
-      letter-spacing:.04em;
-      margin-bottom:2px;
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 2px;
     }
     td.actions-cell {
-      grid-area:actions;
-      padding-top:8px;
+      grid-area: actions;
+      padding-top: 8px;
     }
-    .actions { justify-content:flex-start; }
-    .actions button { flex:1 1 calc(50% - 6px); min-width:0; }
+    .actions { justify-content: flex-start; }
+    .actions button { flex: 1 1 calc(50% - 6px); min-width: 0; }
     tbody tr.drop-target {
-      outline:2px dashed var(--accent);
-      outline-offset:2px;
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
     }
-    tbody tr.drop-target td { background:transparent; }
+    tbody tr.drop-target td { background: transparent; }
   }
 </style>
 </head>
@@ -290,6 +538,14 @@
     <tbody id="rows"><tr class="empty-row"><td colspan="7" class="muted" id="t-loading">Loading…</td></tr></tbody>
   </table>
   </div>
+  <div class="legend-bar">
+    <span class="legend-title" id="t-legend-title">Live Status</span>
+    <span class="legend-item"><span class="pulse-dot ok"></span> <span id="t-legend-ha-ok">HA Up to date</span></span>
+    <span class="legend-item"><span class="pulse-dot accent"></span> <span id="t-legend-ha-update">HA Update Available</span></span>
+    <span class="legend-item"><span class="pulse-dot warn animating"></span> <span id="t-legend-ha-install">HA Installing…</span></span>
+    <span class="legend-divider">|</span>
+    <span class="legend-item"><span class="badge-pill badge-purple"><span class="pulse-dot purple"></span> <span id="t-legend-auto-hide">Auto-hide on update success</span></span></span>
+  </div>
 </div>
 
 <div class="card" id="detail" hidden></div>
@@ -315,10 +571,6 @@
     <div class="field">
       <label id="t-manual-titlefield" for="mTitle">Title</label>
       <input type="text" id="mTitle" name="title">
-    </div>
-    <div class="field">
-      <label id="t-manual-summary" for="mSummary">Release Notes (optional)</label>
-      <input type="text" id="mSummary" name="summary" placeholder="e.g. sensor updates">
     </div>
     <div class="field">
       <button type="submit" class="primary jobctl" id="manualSubmit">Register</button>
@@ -380,10 +632,10 @@
       <label id="t-upload-ver-label" for="upVersion">Version</label>
       <input type="text" id="upVersion" required>
     </div>
-    <div class="field" style="margin-bottom:10px">
-      <label id="t-upload-notes-label" for="upNotes">Release Notes / Summary (optional)</label>
-      <input type="text" id="upNotes" placeholder="e.g. Fixed sensor read interval">
-    </div>
+    <details class="field upload-notes-details" id="upNotesDetails" style="margin-bottom:12px">
+      <summary id="t-upload-notes-label">Release Notes / Summary (optional)</summary>
+      <input type="text" id="upNotes" placeholder="e.g. Fixed sensor read interval" style="margin-top:6px">
+    </details>
     <div class="modal-footer">
       <button type="button" onclick="closeUploadModal()">Cancel</button>
       <button type="button" class="primary" id="t-upload-confirm-btn" onclick="confirmUploadModal()">Publish</button>
@@ -419,11 +671,11 @@ const STRINGS = {
       '<code>http://192.168.0.10:8123</code>, so the device packages can be generated.',
     notPublished: 'Registered', needsRepublish: 'Needs republish', published: 'Published',
     noProjectVersion: 'no project.version — Update compares the ESPHome release until you add one',
-    upload: 'Upload .bin',
+    upload: 'Upload',
     uploadTitle: 'Upload an OTA update .bin file from ESPHome (or drop it onto this row)',
     publish: 'Publish', publishTitleReady: 'Publish the binary already built on the dashboard',
     publishTitleMissing: 'No built binary yet',
-    buildPublish: 'Build & publish', yaml: 'Snippet', yamlSnippet: 'Snippet',
+    buildPublish: 'Build', yaml: 'YAML', yamlSnippet: 'Snippet',
     republishHint: (yv, pv) => `YAML version (${yv}) differs from published firmware (${pv}). Build or upload a new binary.`,
     nextCompileVersion: 'YAML project.version for next compile',
     yamlVersionHint: 'esphome.project.version written into YAML/wrapper for the next compile',
@@ -432,7 +684,7 @@ const STRINGS = {
     yamlSnippetNeeded: 'Snippet only',
     yamlSnippetNeededTitle: 'No local YAML found in /config/esphome — copy snippet manually',
     firmwareNotPublished: 'Not published —',
-    firmwareRepublishNeeded: 'Needs republish',
+    firmwareRepublishNeeded: 'Republish needed',
     injectOta: 'Apply OTA',
     injectedOta: 'Applied ✓',
     ejectOta: 'Remove OTA',
@@ -476,7 +728,7 @@ const STRINGS = {
       '<li>Select your remote device YAML and click <b>Register</b>.</li>' +
       '<li>Click <b>+ Apply OTA</b> on the device row to automatically inject the package into the YAML.</li>' +
       '<li>Compile in ESPHome and download the OTA binary (<b>Install → Advanced options → Download firmware binary → OTA update</b>).</li>' +
-      '<li>Drop the <code>.bin</code> file onto the row or click <b>Publish</b> to upload.</li>' +
+      '<li>Drop the <code>.bin</code> file onto the row or click <b>Upload</b> to upload.</li>' +
       '</ol>',
     manualNode: 'Device YAML',
     manualPickYaml: 'Select a YAML…',
@@ -486,14 +738,13 @@ const STRINGS = {
     manualVersionHint: 'Compiled into the next firmware via the wrapper. Also editable in the YAML Version column.',
     manualVersionUsed: (v) => `Published as ${v} (what the firmware reports).`,
     manualTitleField: 'Title (optional)',
-    manualSummaryField: 'Release Notes (optional)',
     manualSubmit: 'Register', manualUploading: 'Working…',
     manualOk: (n) => `Registered ${n}. Click "+ Apply OTA" or copy the snippet, then compile and publish on that row.`,
     publishedOk: (n) => `Published ${n}.`,
     alreadyRegistered: 'Already in the list — publish from that row.',
     manualBadge: 'published only', manualBadgeTitle: 'On disk, but no matching YAML in /config/esphome',
     yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome — dashboard not required',
-    reupload: 'Upload .bin',
+    reupload: 'Upload',
     reuploadTitle: 'Upload an OTA update .bin file from ESPHome (or drop it onto this row)',
     dropHere: '📁 Drop .bin file here to publish',
     notBin: 'Choose the OTA update .bin from ESPHome (Install → Advanced options → Download firmware binary → OTA update).',
@@ -502,22 +753,22 @@ const STRINGS = {
     notPublishable: 'This YAML filename cannot be used as a publish name',
     activeChip: 'Active',
     activeChipTitle: 'Firmware binary is deployed to /local and ready for devices to download.',
-    inactiveChip: 'Stashed (Hidden)',
+    inactiveChip: 'Stashed',
     inactiveChipTitle: 'Firmware binary is removed from /local to prevent public exposure, and safely stored in add-on storage. Ready for 1-click activation.',
     inactiveMeta: (d, s) => `Stashed in add-on (ready to activate) · ${s ? s + ' · ' : ''}Manifest ${d}`,
-    deactivateBtn: 'Deactivate',
+    deactivateBtn: 'Hide',
     deactivateTitle: 'Remove binary from /local to protect credentials. Kept in add-on private storage for quick re-activation.',
     deactivateConfirm: (n) => `Deactivate firmware for "${n}"?\n\nThe .bin binary will be removed from /local (preventing public exposure) and safely kept in add-on storage. The .json manifest remains in /local so update checks continue normally.`,
     deactivateSuccess: (n) => `Deactivated firmware for ${n} (removed from /local, kept in storage).`,
-    activateBtn: 'Activate',
+    activateBtn: 'Deploy',
     activateTitle: 'Deploy the stashed firmware binary from add-on storage back to /local for OTA updates.',
     activateSuccess: (n) => `Activated firmware for ${n} (deployed to /local).`,
-    deleteBtn: 'Delete Device',
+    deleteBtn: 'Delete',
     deleteConfirm: (n) => `Remove "${n}" from the registration list (and delete all firmware files from /local and storage)?`,
     deleteSuccess: (n) => `Removed ${n} from registration list.`,
     dashboardErrorTitle: 'Could not reach the ESPHome dashboard right now.',
     dashboardErrorBody: (msg) => `Published firmware is still listed. ${msg}`,
-    // Batch & New Feature Strings
+    // Batch & Feature Strings
     batchSelected: 'selected',
     batchDeactivate: 'Deactivate (Hide)',
     batchActivate: 'Activate (Deploy)',
@@ -526,16 +777,12 @@ const STRINGS = {
     batchDelete: 'Delete',
     batchConfirm: (act, count) => `Execute batch action "${act}" on ${count} selected device(s)?`,
     batchSuccess: (act, count) => `Successfully completed "${act}" on ${count} device(s).`,
-    restoreBtn: 'Restore',
-    restoreTitle: 'Restore original YAML from .bak backup file',
-    restoreConfirm: (n, t) => t ? `Restore YAML configuration for "${n}" from backup (${t})?` : `Restore YAML configuration for "${n}" from .bak backup?`,
-    restoreSuccess: (n) => `Restored "${n}" YAML from backup.`,
     haOk: 'HA: Up to date',
     haUpdate: 'HA: Update Available',
     haInstalling: 'HA: Installing…',
-    autoHideOnSuccess: '⚡ Auto-Hide: On Success',
-    autoHideTimer: (h) => `⏱ Auto-Hide: ${h}h`,
-    autoHideNone: '⚙️ Auto-Hide: Off',
+    autoHideOnSuccess: '⚡ Auto',
+    autoHideTimer: (h) => `⏱ ${h}h`,
+    autoHideNone: '⚙️ Off',
     autoHideBadgeTitle: 'Click to configure smart auto-hide (auto-deactivation) settings',
     adTitle: 'Auto-Deactivate Settings',
     adDesc: 'Automatically remove the binary from /local once remote devices finish updating, protecting credentials.',
@@ -550,6 +797,11 @@ const STRINGS = {
     uploadVer: 'Version',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
+    legendTitle: 'Live Status',
+    legendHaOk: 'HA: Up to date',
+    legendHaUpdate: 'HA: Update Available',
+    legendHaInstall: 'HA: Installing…',
+    legendAutoHide: 'Auto-hide on update success',
   },
   ko: {
     title: 'ESPHome OTA Publisher',
@@ -577,22 +829,22 @@ const STRINGS = {
       '형태로 입력하면 패키지 파일이 생성됩니다.',
     notPublished: '등록됨', needsRepublish: '재게시 필요', published: '게시됨',
     noProjectVersion: 'project.version 없음 — 추가하기 전까지 Update는 ESPHome 릴리스와 비교합니다',
-    upload: '바이너리 업로드',
+    upload: '업로드',
     uploadTitle: 'ESPHome에서 다운로드한 OTA update .bin 파일을 업로드합니다 (이 행에 드래그 앤 드롭 가능)',
-    publish: '대시보드 게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
+    publish: '게시', publishTitleReady: '이미 빌드된 바이너리를 게시',
     publishTitleMissing: '빌드된 바이너리가 없습니다',
-    buildPublish: '빌드 후 게시', yaml: '스니펫', yamlSnippet: '스니펫',
+    buildPublish: '빌드', yaml: 'YAML', yamlSnippet: '스니펫',
     republishHint: (yv, pv) => `YAML 버전(${yv})과 게시된 펌웨어(${pv})가 다릅니다. 새 바이너리를 빌드하거나 업로드하세요.`,
     nextCompileVersion: '컴파일 시 적용될 YAML project.version',
     yamlVersionHint: '컴파일 시 기기 YAML/래퍼에 적용되는 esphome.project.version',
-    yamlInjected: '적용됨 ✓',
+    yamlInjected: '적용됨',
     yamlNotInjected: 'OTA 적용',
     yamlSnippetNeeded: '스니펫 필요',
     yamlSnippetNeededTitle: '/config/esphome에 해당 YAML이 없어 스니펫을 직접 복사해야 합니다',
     firmwareNotPublished: '미게시 —',
     firmwareRepublishNeeded: '재게시 필요',
     injectOta: 'OTA 적용',
-    injectedOta: '적용됨 ✓',
+    injectedOta: '적용됨',
     ejectOta: 'OTA 해제',
     injecting: '적용 중…',
     ejecting: '해제 중…',
@@ -634,7 +886,7 @@ const STRINGS = {
       '<li>아래에서 외부 기기 YAML을 선택하고 <b>등록</b>합니다.</li>' +
       '<li>목록에서 <b>+ OTA 적용</b>을 클릭하여 기기 YAML에 패키지를 자동 주입합니다.</li>' +
       '<li>ESPHome에서 컴파일 후 <b>Install → Advanced options → Download firmware binary → OTA update</b>로 <code>.bin</code>을 다운로드합니다.</li>' +
-      '<li>받은 <code>.bin</code> 파일을 목록 행에 드래그 앤 드롭하거나 <b>게시</b> 버튼으로 올립니다.</li>' +
+      '<li>받은 <code>.bin</code> 파일을 목록 행에 드래그 앤 드롭하거나 <b>업로드</b> 버튼으로 올립니다.</li>' +
       '</ol>',
     manualNode: '기기 YAML',
     manualPickYaml: 'YAML 선택…',
@@ -644,14 +896,13 @@ const STRINGS = {
     manualVersionHint: '래퍼가 펌웨어에 넣습니다. YAML 버전 칸에서도 바꿀 수 있습니다.',
     manualVersionUsed: (v) => `${v}로 게시됨 (펌웨어가 보고하는 값).`,
     manualTitleField: '표시 이름 (선택)',
-    manualSummaryField: '릴리즈 노트 (선택)',
     manualSubmit: '등록', manualUploading: '처리 중…',
     manualOk: (n) => `${n} 등록됨. "+ OTA 적용"을 누르거나 스니펫을 복사한 뒤 컴파일하고, 그 행에서 게시하세요.`,
     publishedOk: (n) => `${n} 게시됨.`,
     alreadyRegistered: '이미 목록에 있습니다 — 그 행에서 게시하세요.',
     manualBadge: '게시만', manualBadgeTitle: '디스크에만 있음 — /config/esphome에 해당 YAML 없음',
     yamlBadge: 'YAML', yamlBadgeTitle: '/config/esphome에서 읽음 — 대시보드 불필요',
-    reupload: '바이너리 업로드',
+    reupload: '업로드',
     reuploadTitle: 'ESPHome에서 다운로드한 OTA update .bin 파일을 업로드합니다 (이 행에 드래그 앤 드롭 가능)',
     dropHere: '📁 .bin 파일을 여기에 놓으면 바로 게시됩니다',
     notBin: 'ESPHome에서 Install → Advanced options → Download firmware binary → OTA update로 받은 .bin을 선택하세요.',
@@ -660,22 +911,22 @@ const STRINGS = {
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
     activeChip: '공개됨',
     activeChipTitle: '/local에 바이너리가 배포되어 기기가 OTA 업데이트를 다운로드할 수 있는 상태입니다.',
-    inactiveChip: '숨김 (보관중)',
+    inactiveChip: '보관중',
     inactiveChipTitle: '/local에서 바이너리가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관 중입니다. 원클릭으로 다시 활성화할 수 있습니다.',
     inactiveMeta: (d, s) => `애드온 보관중 (원클릭 활성화) · ${s ? s + ' · ' : ''}매니페스트 ${d}`,
-    deactivateBtn: '비활성화 (숨김)',
+    deactivateBtn: '숨김',
     deactivateTitle: '/local에서 펌웨어 바이너리를 제거하여 비밀정보 노출을 방지합니다. 바이너리는 애드온에 안전하게 보관되어 언제든 다시 활성화할 수 있습니다.',
     deactivateConfirm: (n) => `"${n}" 펌웨어를 비활성화할까요?\n\n/local에서 바이너리(.bin)가 제거되어 외부에 노출되지 않으며, 애드온 저장소에 안전하게 보관됩니다. .json 매니페스트는 유지되므로 기기 상태 확인은 정상 작동합니다.`,
     deactivateSuccess: (n) => `"${n}" 펌웨어가 비활성화되었습니다 (/local에서 바이너리 숨김, 애드온 보관).`,
-    activateBtn: '활성화 (공개)',
+    activateBtn: '공개',
     activateTitle: '애드온에 보관된 펌웨어 바이너리를 /local에 다시 배포하여 기기가 OTA 업데이트를 받을 수 있게 합니다.',
     activateSuccess: (n) => `"${n}" 펌웨어가 활성화되었습니다 (/local에 배포 완료).`,
-    deleteBtn: '기기 삭제',
+    deleteBtn: '삭제',
     deleteConfirm: (n) => `"${n}"을 등록 목록에서 완전히 제거할까요?\n(게시된 펌웨어 및 보관된 바이너리도 함께 삭제됩니다)`,
     deleteSuccess: (n) => `"${n}" 기기 등록이 제거되었습니다.`,
     dashboardErrorTitle: '지금은 ESPHome 대시보드에 연결할 수 없습니다.',
     dashboardErrorBody: (msg) => `등록된 기기는 그대로 표시합니다. ${msg}`,
-    // Batch & New Feature Strings
+    // Batch & Feature Strings
     batchSelected: '개 선택됨',
     batchDeactivate: '일괄 비활성화 (숨김)',
     batchActivate: '일괄 활성화 (공개)',
@@ -684,16 +935,12 @@ const STRINGS = {
     batchDelete: '일괄 삭제',
     batchConfirm: (act, count) => `선택한 ${count}개 기기에 대해 "${act}" 작업을 실행하시겠습니까?`,
     batchSuccess: (act, count) => `${count}개 기기에 대해 "${act}" 작업이 완료되었습니다.`,
-    restoreBtn: '복구',
-    restoreTitle: '.bak 백업 파일로 원본 YAML 설정을 복구합니다',
-    restoreConfirm: (n, t) => t ? `"${n}" 기기 설정을 백업 파일(${t})로 복구할까요?` : `"${n}" 기기 설정을 .bak 백업 파일로 복구할까요?`,
-    restoreSuccess: (n) => `"${n}" 기기 YAML이 복구되었습니다.`,
     haOk: 'HA: 최신 상태',
     haUpdate: 'HA: 업데이트 대기',
     haInstalling: 'HA: 설치 진행 중…',
-    autoHideOnSuccess: '⚡ 자동 숨김: 완료 시',
-    autoHideTimer: (h) => `⏱ 자동 숨김: ${h}h`,
-    autoHideNone: '⚙️ 자동 숨김: 끔',
+    autoHideOnSuccess: '⚡ 자동 숨김',
+    autoHideTimer: (h) => `⏱ ${h}h 숨김`,
+    autoHideNone: '⚙️ 끔',
     autoHideBadgeTitle: '스마트 자동 숨김(보안 비활성화) 설정을 변경합니다',
     adTitle: '스마트 자동 숨김 설정',
     adDesc: '원격 기기가 업데이트를 마치면 /local 경로에서 바이너리를 자동으로 제거하여 외부에 자격증명이 노출되지 않도록 보호합니다.',
@@ -708,6 +955,11 @@ const STRINGS = {
     uploadVer: '버전',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
+    legendTitle: '상태 안내',
+    legendHaOk: 'HA 최신 상태',
+    legendHaUpdate: 'HA 업데이트 대기',
+    legendHaInstall: 'HA 설치 진행 중…',
+    legendAutoHide: '업데이트 완료 시 /local에서 자동 숨김',
   },
 };
 
@@ -754,7 +1006,6 @@ function applyStaticText() {
   $('t-manual-version').textContent = T.manualVersion;
   $('mVersion').title = T.manualVersionHint;
   $('t-manual-titlefield').textContent = T.manualTitleField;
-  $('t-manual-summary').textContent = T.manualSummaryField;
   $('manualSubmit').textContent = T.manualSubmit;
   $('t-batch-selected').textContent = T.batchSelected;
   $('batchDeactivateBtn').textContent = T.batchDeactivate;
@@ -773,6 +1024,11 @@ function applyStaticText() {
   $('t-upload-ver-label').textContent = T.uploadVer;
   $('t-upload-notes-label').textContent = T.uploadNotes;
   $('t-upload-confirm-btn').textContent = T.uploadConfirm;
+  $('t-legend-title').textContent = T.legendTitle;
+  $('t-legend-ha-ok').textContent = T.legendHaOk;
+  $('t-legend-ha-update').textContent = T.legendHaUpdate;
+  $('t-legend-ha-install').textContent = T.legendHaInstall;
+  $('t-legend-auto-hide').textContent = T.legendAutoHide;
 }
 
 async function api(path, opts) {
@@ -822,61 +1078,107 @@ function row(d) {
 
   let badge = '';
   if (d.source === 'published' || d.manual) {
-    badge = ` <span class="chip" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`;
+    badge = ` <span class="chip-tag" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`;
   }
   const subtitle = d.configuration
-    ? `<span class="subline tiny muted">${escapeHtml(d.configuration)}</span>`
-    : `<span class="subline tiny muted">&nbsp;</span>`;
+    ? `<span class="subline muted"><code>${escapeHtml(d.configuration)}</code></span>`
+    : `<span class="subline muted">&nbsp;</span>`;
 
-  // HA State Badge
+  // HA State Badge Pill
   let haBadgeHtml = '';
   if (d.ha_entity) {
     const ha = d.ha_entity;
     if (ha.in_progress) {
-      haBadgeHtml = ` <span class="chip warn" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(T.haInstalling)}">🟡 ${escapeHtml(T.haInstalling)}</span>`;
+      haBadgeHtml = `<span class="badge-pill badge-warn" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(T.haInstalling)}"><span class="pulse-dot warn animating"></span> ${escapeHtml(T.haInstalling)}</span>`;
     } else if (pub && ha.installed_version === pub.version) {
-      haBadgeHtml = ` <span class="chip ok" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(ha.installed_version)}">🟢 ${escapeHtml(T.haOk)}</span>`;
+      haBadgeHtml = `<span class="badge-pill badge-ok" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(T.haOk)} (${escapeHtml(ha.installed_version)})"><span class="pulse-dot ok"></span> ${escapeHtml(T.haOk)}</span>`;
     } else if (ha.state === 'on' || (pub && ha.installed_version && ha.installed_version !== pub.version)) {
-      haBadgeHtml = ` <span class="chip accent" title="${escapeHtml(ha.entity_id)} (installed: ${escapeHtml(ha.installed_version || '?')})">🔵 ${escapeHtml(T.haUpdate)}</span>`;
+      haBadgeHtml = `<span class="badge-pill badge-accent" title="${escapeHtml(ha.entity_id)}: ${escapeHtml(T.haUpdate)} (installed: ${escapeHtml(ha.installed_version || '?')})"><span class="pulse-dot accent"></span> ${escapeHtml(T.haUpdate)}</span>`;
     }
   }
 
   // Auto-hide setting badge
   const ad = d.auto_deactivate || { mode: 'on_success', timer_hours: 12 };
   let adLabel = T.autoHideOnSuccess;
-  let adClass = 'chip purple clickable';
+  let adClass = 'badge-pill badge-purple clickable';
+  let adDot = 'purple';
   if (ad.mode === 'timer') {
     adLabel = T.autoHideTimer(ad.timer_hours || 12);
   } else if (ad.mode === 'none') {
     adLabel = T.autoHideNone;
-    adClass = 'chip clickable';
+    adClass = 'badge-pill badge-neutral clickable';
+    adDot = 'neutral';
   }
-  const adBadgeHtml = ` <span class="${adClass}" title="${escapeHtml(T.autoHideBadgeTitle)}" onclick="openAutoDeactivateModal('${escapeHtml(d.node)}')">${escapeHtml(adLabel)}</span>`;
+  const adBadgeHtml = `<span class="${adClass}" title="${escapeHtml(T.autoHideBadgeTitle)}" onclick="openAutoDeactivateModal('${escapeHtml(d.node)}')"><span class="pulse-dot ${adDot}"></span> ${escapeHtml(adLabel)}</span>`;
 
   let firmwareHtml = '';
   const sizeStr = formatBytes(d.bin_size || (pub && pub.bin_size));
-  const summaryStr = d.summary ? `"${escapeHtml(d.summary)}"` : '';
+  const summaryStr = d.summary ? escapeHtml(d.summary) : '';
 
   if (pub && pub.has_bin) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
-    const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
-    const activeChip = ` <span class="chip ok" title="${escapeHtml(T.activeChipTitle)}">${escapeHtml(T.activeChip)}</span>`;
-    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${activeChip}${haBadgeHtml}${adBadgeHtml}` +
-      `<span class="subline tiny muted">${T.publishedMeta(pub.md5.slice(0, 8), formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : ''))}</span>`;
+    const staleBadge = stale ? `<span class="badge-pill badge-warn"${staleTitle}><span class="pulse-dot warn"></span> ⚠️ ${escapeHtml(T.firmwareRepublishNeeded)}</span>` : '';
+    const activeChip = `<span class="badge-pill badge-ok" title="${escapeHtml(T.activeChipTitle)}"><span class="pulse-dot ok"></span> ${escapeHtml(T.activeChip)}</span>`;
+    firmwareHtml = `
+      <div class="fw-col">
+        <div class="fw-tier-primary">
+          <span class="fw-version-num">${escapeHtml(pub.version)}</span>
+          ${haBadgeHtml}
+          ${staleBadge}
+        </div>
+        <div class="fw-tier-secondary">
+          ${activeChip}
+          ${adBadgeHtml}
+        </div>
+        <div class="fw-tier-meta">
+          <code>${pub.md5.slice(0, 8)}</code>
+          <span>·</span>
+          <span>${sizeStr || '—'}</span>
+          <span>·</span>
+          <span>${formatPublishedAt(pub.published_at)}</span>
+          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
+        </div>
+      </div>`;
   } else if (pub && (pub.has_stashed_bin || !pub.has_bin)) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
-    const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
-    const inactiveChip = ` <span class="chip warn" title="${escapeHtml(T.inactiveChipTitle)}">${escapeHtml(T.inactiveChip)}</span>`;
-    firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${inactiveChip}${haBadgeHtml}${adBadgeHtml}` +
-      `<span class="subline tiny muted">${T.inactiveMeta(formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : ''))}</span>`;
+    const staleBadge = stale ? `<span class="badge-pill badge-warn"${staleTitle}><span class="pulse-dot warn"></span> ⚠️ ${escapeHtml(T.firmwareRepublishNeeded)}</span>` : '';
+    const inactiveChip = `<span class="badge-pill badge-neutral" title="${escapeHtml(T.inactiveChipTitle)}"><span class="pulse-dot neutral"></span> ${escapeHtml(T.inactiveChip)}</span>`;
+    firmwareHtml = `
+      <div class="fw-col">
+        <div class="fw-tier-primary">
+          <span class="fw-version-num">${escapeHtml(pub.version)}</span>
+          ${haBadgeHtml}
+          ${staleBadge}
+        </div>
+        <div class="fw-tier-secondary">
+          ${inactiveChip}
+          ${adBadgeHtml}
+        </div>
+        <div class="fw-tier-meta">
+          ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span>·</span>` : ''}
+          <span>${sizeStr || '—'}</span>
+          <span>·</span>
+          <span>${formatPublishedAt(pub.published_at)}</span>
+          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
+        </div>
+      </div>`;
   } else {
-    firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span>${haBadgeHtml}${adBadgeHtml}<span class="subline tiny muted">&nbsp;</span>`;
+    firmwareHtml = `
+      <div class="fw-col">
+        <div class="fw-tier-primary">
+          <span class="muted" style="font-size:13px">${escapeHtml(T.firmwareNotPublished)}</span>
+          ${haBadgeHtml}
+        </div>
+        <div class="fw-tier-secondary">
+          ${adBadgeHtml}
+        </div>
+      </div>`;
   }
 
   tr.innerHTML = `
     <td class="td-check"><input type="checkbox" data-node="${escapeHtml(d.node)}" ${isChecked ? 'checked' : ''} onchange="toggleSelectNode('${escapeHtml(d.node)}', this.checked)"></td>
     <td class="name">${escapeHtml(d.friendly_name)}${badge}${subtitle}</td>
-    <td class="chip-cell" data-label="${escapeHtml(T.colChip)}">${d.chip_family ? escapeHtml(d.chip_family) : '<span class="muted">?</span>'}</td>
+    <td class="chip-cell" data-label="${escapeHtml(T.colChip)}"><span class="chip-platform">${d.chip_family ? escapeHtml(d.chip_family) : '?'}</span></td>
     <td class="yaml-config-cell" data-label="${escapeHtml(T.colYamlConfig)}"></td>
     <td class="yaml-ver-cell" data-label="${escapeHtml(T.colYamlVer)}">${yamlVerInput}</td>
     <td class="firmware-cell" data-label="${escapeHtml(T.colFirmware)}">${firmwareHtml}</td>
@@ -884,13 +1186,13 @@ function row(d) {
   if (canDrop) tr.title = T.dropHere;
   bindNextVersionInput(tr.querySelector('.yaml-ver-cell input'), d);
 
-  // YAML Config cell (inject/eject/restore buttons)
+  // YAML Config cell (inject/eject button)
   const yamlConfigTd = tr.querySelector('.yaml-config-cell');
   if (d.has_yaml) {
     const injectBtn = document.createElement('button');
     if (d.injected) {
-      injectBtn.className = 'applied';
-      injectBtn.textContent = T.yamlInjected;
+      injectBtn.className = 'btn-applied';
+      injectBtn.textContent = '✓ ' + T.yamlInjected;
       injectBtn.title = T.ejectTitle;
       injectBtn.onclick = async (e) => {
         e.stopPropagation();
@@ -909,11 +1211,11 @@ function row(d) {
         } catch (err) {
           alert(err.message);
           injectBtn.disabled = false;
-          injectBtn.textContent = T.yamlInjected;
+          injectBtn.textContent = '✓ ' + T.yamlInjected;
         }
       };
     } else {
-      injectBtn.className = 'inject-btn';
+      injectBtn.className = 'btn-inject';
       injectBtn.textContent = '+ ' + T.yamlNotInjected;
       injectBtn.title = T.injectTitle;
       injectBtn.onclick = async (e) => {
@@ -937,39 +1239,15 @@ function row(d) {
       };
     }
     yamlConfigTd.appendChild(injectBtn);
-
-    if (d.has_backup) {
-      const restoreBtn = document.createElement('button');
-      restoreBtn.className = 'restore-btn';
-      restoreBtn.textContent = T.restoreBtn;
-      restoreBtn.title = T.restoreTitle;
-      restoreBtn.onclick = async (e) => {
-        e.stopPropagation();
-        const mtimeStr = d.backup_mtime ? formatPublishedAt(d.backup_mtime) : '';
-        if (!confirm(T.restoreConfirm(d.friendly_name, mtimeStr))) return;
-        try {
-          await api('api/device/restore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ node: d.node }),
-          });
-          alert(T.restoreSuccess(d.friendly_name));
-          loadDevices();
-        } catch (err) {
-          alert(err.message);
-        }
-      };
-      yamlConfigTd.appendChild(restoreBtn);
-    }
   } else {
-    yamlConfigTd.innerHTML = `<span class="chip" title="${escapeHtml(T.yamlSnippetNeededTitle)}">${escapeHtml(T.yamlSnippetNeeded)}</span>`;
+    yamlConfigTd.innerHTML = `<span class="badge-pill badge-neutral" title="${escapeHtml(T.yamlSnippetNeededTitle)}">${escapeHtml(T.yamlSnippetNeeded)}</span>`;
   }
 
   // Actions cell
   const actions = tr.querySelector('.actions');
 
   const uploadBtn = document.createElement('button');
-  uploadBtn.className = d.source === 'dashboard' ? 'jobctl' : 'jobctl primary';
+  uploadBtn.className = d.source === 'dashboard' ? 'btn-action jobctl' : 'btn-action primary jobctl';
   uploadBtn.textContent = T.upload;
   uploadBtn.title = T.uploadTitle;
   uploadBtn.disabled = jobRunning || !canDrop;
@@ -979,14 +1257,14 @@ function row(d) {
 
   if (d.source === 'dashboard') {
     const publishBtn = document.createElement('button');
-    publishBtn.className = 'jobctl';
+    publishBtn.className = 'btn-action jobctl';
     publishBtn.textContent = T.publish;
     publishBtn.disabled = jobRunning || !d.has_binary;
     publishBtn.title = d.has_binary ? T.publishTitleReady : T.publishTitleMissing;
     publishBtn.onclick = (e) => { e.stopPropagation(); run(d, false, publishBtn); };
 
     const buildBtn = document.createElement('button');
-    buildBtn.className = 'jobctl primary';
+    buildBtn.className = 'btn-action primary jobctl';
     buildBtn.textContent = T.buildPublish;
     buildBtn.disabled = jobRunning;
     buildBtn.onclick = (e) => { e.stopPropagation(); run(d, true, buildBtn); };
@@ -994,6 +1272,7 @@ function row(d) {
   }
 
   const yamlBtn = document.createElement('button');
+  yamlBtn.className = 'btn-action';
   yamlBtn.textContent = T.yaml;
   yamlBtn.onclick = (e) => {
     e.stopPropagation();
@@ -1003,6 +1282,7 @@ function row(d) {
 
   if (d.published && d.published.has_bin) {
     const deactivateBtn = document.createElement('button');
+    deactivateBtn.className = 'btn-action';
     deactivateBtn.textContent = T.deactivateBtn;
     deactivateBtn.title = T.deactivateTitle;
     deactivateBtn.onclick = (e) => {
@@ -1012,7 +1292,7 @@ function row(d) {
     actions.append(deactivateBtn);
   } else if (d.published && d.published.has_stashed_bin) {
     const activateBtn = document.createElement('button');
-    activateBtn.className = 'jobctl primary';
+    activateBtn.className = 'btn-action primary jobctl';
     activateBtn.textContent = T.activateBtn;
     activateBtn.title = T.activateTitle;
     activateBtn.onclick = (e) => {
@@ -1023,6 +1303,7 @@ function row(d) {
   }
 
   const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'btn-action btn-danger';
   deleteBtn.textContent = T.deleteBtn;
   deleteBtn.onclick = (e) => { e.stopPropagation(); deletePublished(d); };
   actions.append(deleteBtn);
@@ -1192,8 +1473,10 @@ function openUploadModal(d, file) {
   $('upFileInfo').textContent = `${file.name} (${formatBytes(file.size)})`;
   $('upVersion').value = compiledVersion(d) || versionPrefill(d) || '1.0.0';
   $('upNotes').value = d.summary || '';
+  const notesDetails = $('upNotesDetails');
+  if (notesDetails) notesDetails.open = Boolean(d.summary);
   $('uploadModal').style.display = 'flex';
-  setTimeout(() => $('upNotes').focus(), 50);
+  setTimeout(() => $('upVersion').focus(), 50);
 }
 
 function closeUploadModal() {
@@ -1531,7 +1814,14 @@ async function showSnippet(d) {
 }
 
 function escapeHtml(s) {
-  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[c]));
 }
 
 function formatPublishedAt(iso) {
@@ -1603,7 +1893,6 @@ $('manualForm').addEventListener('submit', async (e) => {
   const result = $('manualResult');
   const node = $('mNode').value;
   const version = $('mVersion').value.trim() || '1.0.0';
-  const summary = $('mSummary').value.trim();
   if (!node) {
     result.innerHTML = `<span style="color:var(--err)">${escapeHtml(T.manualPickYaml)}</span>`;
     return;
@@ -1617,13 +1906,12 @@ $('manualForm').addEventListener('submit', async (e) => {
     const body = await api('api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ node, version, title: $('mTitle').value.trim(), summary }),
+      body: JSON.stringify({ node, version, title: $('mTitle').value.trim() }),
     });
     result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
     $('mYaml').value = '';
     $('mNode').value = '';
     $('mTitle').value = '';
-    $('mSummary').value = '';
     $('mVersion').value = '1.0.0';
     syncNodeField();
     await loadDevices();
