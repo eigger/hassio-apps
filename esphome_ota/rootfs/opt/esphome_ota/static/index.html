@@ -1736,7 +1736,8 @@ async function openUploadModal(d, file) {
     errorBox.style.display = 'none';
     confirmBtn.disabled = false;
 
-    const chipTag = parsed.chipFamily ? `<span class="chip-platform">${escapeHtml(parsed.chipFamily)}</span>` : '';
+    const chipFamily = parsed.chipFamily || d.chip_family;
+    const chipTag = chipFamily ? `<span class="chip-platform">${escapeHtml(chipFamily)}</span>` : '';
     const buildDetails = [];
     if (parsed.esphomeVersion) buildDetails.push(`ESPHome ${parsed.esphomeVersion}`);
     if (parsed.idfVersion) buildDetails.push(`IDF ${parsed.idfVersion}`);
