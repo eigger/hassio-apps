@@ -170,27 +170,78 @@
     font-feature-settings: "tnum";
   }
 
-  /* Multi-tier Structured Firmware Column */
-  .fw-col { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
-  .fw-tier-primary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .fw-version-num { font-size: 13.5px; font-weight: 700; color: var(--fg); letter-spacing: -0.01em; font-feature-settings: "tnum"; }
-  .fw-tier-secondary { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-  .fw-tier-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .fw-tier-meta code { font-size: 10.5px; padding: 1px 4px; border-radius: 4px; background: var(--card-subtle); color: var(--fg); border: 1px solid var(--line); font-family: ui-monospace, monospace; }
-  .fw-summary-note {
+  /* Structured Multi-Line Firmware Column */
+  .fw-col {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 230px;
+  }
+  .fw-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    line-height: 1.35;
+  }
+  .fw-line-title {
+    align-items: center;
+    gap: 7px;
+  }
+  .fw-version-num {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+    font-feature-settings: "tnum";
+  }
+  .fw-line-badges {
+    gap: 6px;
+  }
+  .fw-line-meta {
     font-size: 11px;
-    color: var(--accent);
-    background: var(--accent-bg);
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-    padding: 1px 6px;
+    color: var(--muted);
+    gap: 5px;
+  }
+  .meta-sep {
+    color: var(--line);
+    font-weight: 700;
+    user-select: none;
+  }
+  .fw-line-meta code {
+    font-size: 10.5px;
+    padding: 1px 4px;
     border-radius: 4px;
-    max-width: 260px;
+    background: var(--card-subtle);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    font-family: ui-monospace, monospace;
+  }
+  .fw-line-notes {
+    margin-top: 1px;
+  }
+  .fw-notes-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--fg);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .fw-notes-icon {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+  }
+  .fw-notes-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+    color: var(--muted);
   }
 
   /* YAML Config Buttons */
@@ -620,17 +671,31 @@
       <h3 id="t-upload-modal-title">Publish Firmware</h3>
       <button type="button" class="modal-close" onclick="closeUploadModal()">×</button>
     </div>
+    <div id="upErrorBox" style="display:none; padding:10px 12px; border-radius:6px; background:var(--err-bg); border:1px solid color-mix(in srgb, var(--err) 30%, transparent); color:var(--err); font-size:12px; margin-bottom:12px; font-weight:500;"></div>
     <div class="field" style="margin-bottom:10px">
       <label id="t-upload-node-label">Target Device</label>
       <input type="text" id="upNode" readonly style="background:var(--bg)">
     </div>
     <div class="field" style="margin-bottom:10px">
       <label id="t-upload-file-label">Firmware File</label>
-      <div id="upFileInfo" class="tiny" style="font-weight:600"></div>
+      <div id="upFileInfo" class="tiny" style="font-weight:600; padding:6px 8px; background:var(--card-subtle); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:6px;"></div>
     </div>
-    <div class="field" style="margin-bottom:10px">
+    <!-- Detected Version Display (Readonly) -->
+    <div class="field" id="upVerDetectedField" style="margin-bottom:10px; display:none;">
+      <label id="t-upload-ver-detected-label">Firmware Version (Detected from Binary)</label>
+      <div style="display:flex; align-items:center; gap:8px; padding-top:2px;">
+        <span id="upDetectedVerBadge" class="badge-pill badge-ok" style="font-size:13px; padding:3px 9px;">
+          <span class="pulse-dot ok"></span>
+          <span id="upDetectedVerText" style="font-weight:700"></span>
+        </span>
+        <span id="upDetectedVerDetail" class="tiny muted"></span>
+      </div>
+    </div>
+    <!-- Manual Version Fallback (when binary has no app descriptor header) -->
+    <div class="field" id="upVerManualField" style="margin-bottom:10px; display:none;">
       <label id="t-upload-ver-label" for="upVersion">Version</label>
       <input type="text" id="upVersion" required>
+      <span class="tiny muted" id="t-upload-ver-manual-hint" style="display:block; margin-top:2px;">(No embedded header found in binary — please specify version)</span>
     </div>
     <details class="field upload-notes-details" id="upNotesDetails" style="margin-bottom:12px">
       <summary id="t-upload-notes-label">Release Notes / Summary (optional)</summary>
@@ -794,7 +859,9 @@ const STRINGS = {
     uploadModalTitle: 'Publish Firmware',
     uploadTarget: 'Target Device',
     uploadFile: 'Firmware File',
+    uploadVerDetectedLabel: 'Firmware Version (Detected from Binary)',
     uploadVer: 'Version',
+    uploadVerManualHint: '(No embedded header found in binary — please specify version)',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
     legendTitle: 'Live Status',
@@ -952,7 +1019,9 @@ const STRINGS = {
     uploadModalTitle: '펌웨어 게시',
     uploadTarget: '대상 기기',
     uploadFile: '펌웨어 파일',
+    uploadVerDetectedLabel: '펌웨어 버전 (바이너리 헤더에서 자동 감지)',
     uploadVer: '버전',
+    uploadVerManualHint: '(바이너리에 내장 헤더가 없습니다 — 버전을 직접 입력해주세요)',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
     legendTitle: '상태 안내',
@@ -1021,7 +1090,11 @@ function applyStaticText() {
   $('t-upload-modal-title').textContent = T.uploadModalTitle;
   $('t-upload-node-label').textContent = T.uploadTarget;
   $('t-upload-file-label').textContent = T.uploadFile;
+  const verDet = $('t-upload-ver-detected-label');
+  if (verDet) verDet.textContent = T.uploadVerDetectedLabel;
   $('t-upload-ver-label').textContent = T.uploadVer;
+  const verHint = $('t-upload-ver-manual-hint');
+  if (verHint) verHint.textContent = T.uploadVerManualHint;
   $('t-upload-notes-label').textContent = T.uploadNotes;
   $('t-upload-confirm-btn').textContent = T.uploadConfirm;
   $('t-legend-title').textContent = T.legendTitle;
@@ -1121,23 +1194,29 @@ function row(d) {
     const activeChip = `<span class="badge-pill badge-ok" title="${escapeHtml(T.activeChipTitle)}"><span class="pulse-dot ok"></span> ${escapeHtml(T.activeChip)}</span>`;
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="fw-version-num">${escapeHtml(pub.version)}</span>
-          ${haBadgeHtml}
+          ${activeChip}
           ${staleBadge}
         </div>
-        <div class="fw-tier-secondary">
-          ${activeChip}
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
-        <div class="fw-tier-meta">
+        <div class="fw-line fw-line-meta">
           <code>${pub.md5.slice(0, 8)}</code>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${sizeStr || '—'}</span>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${formatPublishedAt(pub.published_at)}</span>
-          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
         </div>
+        ${summaryStr ? `
+        <div class="fw-line fw-line-notes">
+          <div class="fw-notes-card" title="${summaryStr}">
+            <span class="fw-notes-icon">📝</span>
+            <span class="fw-notes-text">${summaryStr}</span>
+          </div>
+        </div>` : ''}
       </div>`;
   } else if (pub && (pub.has_stashed_bin || !pub.has_bin)) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
@@ -1145,31 +1224,37 @@ function row(d) {
     const inactiveChip = `<span class="badge-pill badge-neutral" title="${escapeHtml(T.inactiveChipTitle)}"><span class="pulse-dot neutral"></span> ${escapeHtml(T.inactiveChip)}</span>`;
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="fw-version-num">${escapeHtml(pub.version)}</span>
-          ${haBadgeHtml}
+          ${inactiveChip}
           ${staleBadge}
         </div>
-        <div class="fw-tier-secondary">
-          ${inactiveChip}
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
-        <div class="fw-tier-meta">
-          ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span>·</span>` : ''}
+        <div class="fw-line fw-line-meta">
+          ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span class="meta-sep">·</span>` : ''}
           <span>${sizeStr || '—'}</span>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${formatPublishedAt(pub.published_at)}</span>
-          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
         </div>
+        ${summaryStr ? `
+        <div class="fw-line fw-line-notes">
+          <div class="fw-notes-card" title="${summaryStr}">
+            <span class="fw-notes-icon">📝</span>
+            <span class="fw-notes-text">${summaryStr}</span>
+          </div>
+        </div>` : ''}
       </div>`;
   } else {
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="muted" style="font-size:13px">${escapeHtml(T.firmwareNotPublished)}</span>
-          ${haBadgeHtml}
         </div>
-        <div class="fw-tier-secondary">
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
       </div>`;
@@ -1456,27 +1541,138 @@ async function saveAutoDeactivateModal() {
   }
 }
 
+async function parseBinaryHeader(file) {
+  if (file.size < 4096) {
+    return { valid: false, error: (LOCALE === 'ko' ? '파일 크기가 너무 작아 유효한 펌웨어가 아닙니다' : 'File is too small to be a valid firmware') + ` (${formatBytes(file.size)} < 4KB)` };
+  }
+  if (file.size > 32 * 1024 * 1024) {
+    return { valid: false, error: T.fileTooBig };
+  }
+
+  let slice;
+  try {
+    slice = await file.slice(0, 512).arrayBuffer();
+  } catch (err) {
+    return { valid: false, error: 'Could not read file: ' + err.message };
+  }
+
+  const bytes = new Uint8Array(slice);
+  const view = new DataView(slice);
+
+  // UF2
+  if (bytes[0] === 0x55 && bytes[1] === 0x46 && bytes[2] === 0x32 && bytes[3] === 0x0A) {
+    return { valid: false, error: LOCALE === 'ko' ? 'UF2 파일이 감지되었습니다. ESPHome OTA는 컴파일된 .bin 파일이 필요합니다.' : 'UF2 file detected. ESPHome OTA requires an application .bin file.' };
+  }
+  // ELF
+  if (bytes[0] === 0x7F && bytes[1] === 0x45 && bytes[2] === 0x4C && bytes[3] === 0x46) {
+    return { valid: false, error: LOCALE === 'ko' ? 'ELF 실행 파일이 감지되었습니다. 컴파일된 .ota.bin 파일을 업로드해주세요.' : 'ELF executable detected. Please upload compiled .ota.bin file.' };
+  }
+
+  // ESP Image Magic (0xE9)
+  if (bytes[0] !== 0xE9) {
+    return { valid: false, error: (LOCALE === 'ko' ? '유효하지 않은 ESP 이미지 매직 바이트입니다' : 'Invalid image magic byte') + ` (0x${bytes[0].toString(16).toUpperCase().padStart(2, '0')} != 0xE9)` };
+  }
+
+  const CHIP_IDS = {
+    0x0000: 'ESP32',
+    0x0002: 'ESP32-S2',
+    0x0005: 'ESP32-C3',
+    0x0009: 'ESP32-S3',
+    0x000C: 'ESP32-C2',
+    0x000D: 'ESP32-C6',
+    0x0010: 'ESP32-H2',
+    0x0012: 'ESP32-P4',
+    0x0017: 'ESP32-C5',
+  };
+  const chipId = view.getUint16(12, true);
+  const chipFamily = CHIP_IDS[chipId] || null;
+
+  let version = null;
+  let projectName = null;
+  let idfVersion = null;
+
+  if (view.byteLength >= 0xA0) {
+    const magic = view.getUint32(0x20, true);
+    if (magic === 0xABCD5432) {
+      // 0x30..0x50: version (32 bytes)
+      const verSlice = bytes.subarray(0x30, 0x50);
+      let end = verSlice.indexOf(0);
+      if (end === -1) end = 32;
+      version = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
+
+      // 0x50..0x70: project_name (32 bytes)
+      const projSlice = bytes.subarray(0x50, 0x70);
+      let pEnd = projSlice.indexOf(0);
+      if (pEnd === -1) pEnd = 32;
+      projectName = new TextDecoder('utf-8').decode(projSlice.subarray(0, pEnd)).trim();
+
+      // 0x90..0xB0: idf_version (32 bytes)
+      const idfSlice = bytes.subarray(0x90, 0xB0);
+      let iEnd = idfSlice.indexOf(0);
+      if (iEnd === -1) iEnd = 32;
+      idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
+    }
+  }
+
+  return {
+    valid: true,
+    chipFamily,
+    version,
+    projectName,
+    idfVersion,
+    size: file.size,
+  };
+}
+
 // Upload Modal with Release Notes
-function openUploadModal(d, file) {
+async function openUploadModal(d, file) {
   if (jobRunning) return;
   if (!file.name.toLowerCase().endsWith('.bin')) {
     alert(T.notBin);
     return;
   }
-  if (file.size > 32 * 1024 * 1024) {
-    alert(T.fileTooBig);
-    return;
-  }
 
   pendingUpload = { d, file };
   $('upNode').value = d.friendly_name || d.node;
-  $('upFileInfo').textContent = `${file.name} (${formatBytes(file.size)})`;
-  $('upVersion').value = compiledVersion(d) || versionPrefill(d) || '1.0.0';
   $('upNotes').value = d.summary || '';
   const notesDetails = $('upNotesDetails');
   if (notesDetails) notesDetails.open = Boolean(d.summary);
+
+  const errorBox = $('upErrorBox');
+  const confirmBtn = $('t-upload-confirm-btn');
+  const detectedField = $('upVerDetectedField');
+  const manualField = $('upVerManualField');
+
+  const parsed = await parseBinaryHeader(file);
+
+  if (!parsed.valid) {
+    errorBox.textContent = '❌ ' + parsed.error;
+    errorBox.style.display = 'block';
+    $('upFileInfo').innerHTML = `<span style="color:var(--err)">${escapeHtml(file.name)} (${formatBytes(file.size)})</span>`;
+    detectedField.style.display = 'none';
+    manualField.style.display = 'none';
+    confirmBtn.disabled = true;
+  } else {
+    errorBox.style.display = 'none';
+    confirmBtn.disabled = false;
+
+    const chipTag = parsed.chipFamily ? `<span class="chip-platform">${escapeHtml(parsed.chipFamily)}</span>` : '';
+    $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code> ${chipTag}`;
+
+    if (parsed.version) {
+      detectedField.style.display = 'block';
+      manualField.style.display = 'none';
+      $('upDetectedVerText').textContent = parsed.version;
+      $('upDetectedVerDetail').textContent = parsed.idfVersion ? `(ESP-IDF ${parsed.idfVersion})` : '';
+      $('upVersion').value = parsed.version;
+    } else {
+      detectedField.style.display = 'none';
+      manualField.style.display = 'block';
+      $('upVersion').value = (d.published && d.published.version) || '1.0.0';
+    }
+  }
+
   $('uploadModal').style.display = 'flex';
-  setTimeout(() => $('upVersion').focus(), 50);
 }
 
 function closeUploadModal() {

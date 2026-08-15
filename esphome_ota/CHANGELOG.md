@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.2
+
+- **Binary App Descriptor Auto-Detection on Upload**:
+  - Automatically parses `.bin` application image headers (`esp_app_desc_t` at offset `0x20`) on upload in the browser and backend.
+  - Automatically extracts and displays the canonical firmware version embedded in the compiled binary (eliminating confusing YAML version prefill).
+  - Validates binary magic byte (`0xE9`), minimum size, and file formats (rejects UF2/ELF) on client before publishing, disabling publish button and showing descriptive error banners for corrupted or invalid files.
+- **Published Firmware Column Layout Streamlining**:
+  - Re-structured published firmware cells into 4 clean, distinct horizontal rows:
+    1. **Version & Deployment**: Version number (`14px` bold) + Deployment badge (`Active`/`Stashed`) + Stale republish warning.
+    2. **Live Status & Security**: HA Live Status (`Up to date`/`Update Available`/`Installing…`) + Smart Auto-Hide policy badge.
+    3. **File Metadata**: MD5 digest + File size + Formatted publication date.
+    4. **Release Notes Card**: Clean full-width dedicated notes card with smooth text wrapping.
+
 ## 0.7.1
 
 - **Modernized UI Design System & Live Status Indicators**:

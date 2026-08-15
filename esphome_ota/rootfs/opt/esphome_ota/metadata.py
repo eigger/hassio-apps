@@ -747,7 +747,7 @@ def validate_binary(
         chip_family = chip_family_from_binary(blob)
         if chip_family and "ESP32" in chip_family:
             app_desc = parse_app_descriptor(blob)
-    elif is_esp and target:
+    elif is_esp:
         return False, f"Invalid image magic byte (0x{blob[0]:02X} != 0xE9). Expected ESP binary image.", {}
 
     info: dict[str, Any] = {
