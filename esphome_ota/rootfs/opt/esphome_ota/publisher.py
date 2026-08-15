@@ -179,6 +179,7 @@ class Publisher:
         return {
             "title": manifest.get("name", node),
             "version": manifest.get("version", ""),
+            "summary": ota.get("summary", ""),
             "md5": ota.get("md5", ""),
             "chip_family": build.get("chipFamily", ""),
             "has_bin": has_bin,
