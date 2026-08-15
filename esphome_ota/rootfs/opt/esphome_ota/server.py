@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -164,7 +165,16 @@ class App:
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
     def load_registry(self) -> None:
-        self.registered = registry.load(self.settings.esphome_config_dir)
+        data = registry.load(self.settings.esphome_config_dir)
+        changed = False
+        for node, rec in self.publisher.list_published().items():
+            if node in data:
+                continue
+            registry.upsert(data, node, rec.get("version") or "1.0.0", rec.get("title") or node)
+            changed = True
+        if changed:
+            registry.save(self.settings.esphome_config_dir, data)
+        self.registered = data
 
     def save_registry(self) -> None:
         registry.save(self.settings.esphome_config_dir, self.registered)
@@ -384,8 +394,11 @@ class App:
 
         update_entities: dict[str, dict[str, Any]] = {}
         try:
-            async with aiohttp.ClientSession() as session:
-                update_entities = await supervisor.fetch_update_entities(session)
+            if self.session and not self.session.closed:
+                update_entities = await supervisor.fetch_update_entities(self.session)
+            else:
+                async with aiohttp.ClientSession() as session:
+                    update_entities = await supervisor.fetch_update_entities(session)
         except Exception as err:
             LOG.debug("Could not fetch HA update entities: %s", err)
 
@@ -482,27 +495,30 @@ class App:
         rows.sort(key=lambda r: r["friendly_name"].lower())
         return rows, configs, dashboard_error
 
-    # -- job runner --------------------------------------------------------
+    # -- jobs --------------------------------------------------------------
 
     def start_job(self, node: str, configuration: str, compile_first: bool, summary: str = "") -> Job:
-        job = Job(str(uuid.uuid4())[:8], node, configuration, compile_first)
+        job = Job(node, "build" if compile_first else "publish")
         self.jobs[job.id] = job
-        asyncio.create_task(self._run_job(job, summary=summary))
+        asyncio.create_task(self._run_job(job, configuration, compile_first, summary=summary))
         return job
 
-    async def _run_job(self, job: Job, summary: str = "") -> None:
+    async def _run_job(
+        self, job: Job, configuration: str, compile_first: bool, summary: str = ""
+    ) -> None:
+        # One build at a time: the dashboard's compile lane is a single worker
+        # anyway, and queueing here keeps our own log readable.
         async with self.lock:
             job.status = "running"
-            configuration = job.configuration
             try:
                 device: dict = {}
                 esphome_version = ""
-                async with self.dashboard_client() as client:
-                    if job.compile_first:
-                        job.log(f"Compiling {configuration} on the ESPHome dashboard ...")
-                        ok = await client.compile(configuration, job.log)
-                        if not ok:
-                            raise DashboardError(f"Compilation of {configuration} failed.")
+                async with self._client() as client:
+                    if compile_first:
+                        self.write_device_wrapper(job.node)
+                        job.log(f"Building {configuration} ...")
+                        await client.compile(configuration, on_output=job.log)
+                        job.log("Build finished.")
                     elif not await client.has_ota_binary(configuration):
                         raise DashboardError(
                             f"{configuration} has no firmware.ota.bin yet — build it first."
@@ -512,13 +528,15 @@ class App:
                     blob = await client.download_ota(configuration)
                     job.log(f"Downloaded {len(blob)} bytes.")
                     esphome_version = client.server_info.get("esphome_version", "")
+                    if esphome_version:
+                        self.esphome_version = esphome_version
                     device = next(
                         (d for d in await client.devices() if d.get("configuration") == configuration),
                         {},
                     )
 
                 target_platform = device.get("target_platform", "")
-                is_valid, msg, info = metadata.validate_binary(blob, target_platform, MAX_UPLOAD_BYTES)
+                is_valid, msg, _info = metadata.validate_binary(blob, target_platform, MAX_UPLOAD_BYTES)
                 if not is_valid:
                     raise DashboardError(f"Firmware binary validation failed: {msg}")
 
@@ -537,9 +555,6 @@ class App:
                 )
                 if version:
                     job.log(f"version: {version} (esphome.project.version)")
-                elif info.get("app_descriptor", {}).get("version"):
-                    version = info["app_descriptor"]["version"]
-                    job.log(f"version: {version} (from esp_app_desc_t header)")
                 else:
                     version = esphome_version or "0.0.0"
                     job.log(
@@ -960,14 +975,10 @@ async def publish_manual(request: web.Request) -> web.Response:
         version = compiled
         version_source = "project"
     elif not requested:
-        if info.get("app_descriptor", {}).get("version"):
-            version = info["app_descriptor"]["version"]
-            version_source = "app_descriptor"
-        else:
-            esphome_version = await app._dashboard_esphome_version()
-            if esphome_version:
-                version = esphome_version
-                version_source = "esphome"
+        esphome_version = await app._dashboard_esphome_version()
+        if esphome_version:
+            version = esphome_version
+            version_source = "esphome"
     if not version:
         return web.json_response(
             {

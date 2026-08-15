@@ -868,7 +868,7 @@ function row(d) {
     const chipState = stale ? `<span class="chip warn"${staleTitle}>${T.firmwareRepublishNeeded}</span> ` : '';
     const inactiveChip = ` <span class="chip warn" title="${escapeHtml(T.inactiveChipTitle)}">${escapeHtml(T.inactiveChip)}</span>`;
     firmwareHtml = `<b>${escapeHtml(pub.version)}</b> ${chipState}${inactiveChip}${haBadgeHtml}${adBadgeHtml}` +
-      `<span class="subline tiny muted">${escapeHtml(T.inactiveMeta(formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : '')))}</span>`;
+      `<span class="subline tiny muted">${T.inactiveMeta(formatPublishedAt(pub.published_at), sizeStr + (summaryStr ? ' · ' + summaryStr : ''))}</span>`;
   } else {
     firmwareHtml = `<span class="muted">${T.firmwareNotPublished}</span>${haBadgeHtml}${adBadgeHtml}<span class="subline tiny muted">&nbsp;</span>`;
   }
