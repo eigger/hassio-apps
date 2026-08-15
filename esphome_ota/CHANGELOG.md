@@ -3,21 +3,20 @@
 ## 0.7.0
 
 - **Smart Auto-Deactivation (Auto-Hide on Update Success)**:
-  - Added real-time Home Assistant `update.*` entity state tracking and automated firmware deactivation.
-  - When enabled (`On Update Success`), the add-on automatically removes published binaries from `/local/` as soon as the remote device reports successful installation of the latest version, minimizing public credential exposure.
-  - Added safety fallback timeout timers (e.g. 6h, 12h, 24h) for devices with missing entities or external Home Assistant setups.
-  - Added dedicated configuration modal (`⚡ Auto-Hide: On Success` badge) to customize per-device auto-hide modes and linked HA update entities.
+  - Enabled by default (`⚡ Auto-Hide: On Success`) across all registered devices (including existing devices on upgrade): the add-on automatically monitors Home Assistant `update.*` entity states and removes published `.bin` binaries from public `/local/` as soon as remote devices finish updating, minimizing public credential exposure while keeping `.bin` safely stashed in private storage for 1-click redeploy.
+  - Added safety fallback timeout timers (e.g. 6h, 12h, 24h) for devices without local Home Assistant entities.
+  - Added dedicated configuration modal (`⚡ Auto-Hide: On Success` badge) and batch actions to customize auto-hide modes (`On Success`, `Timer`, or `Off`) and link specific HA update entities.
 - **Batch Management Actions (Multi-Device Operations)**:
   - Added table checkbox selection and a responsive floating Batch Action Bar.
   - Perform 1-click bulk operations across selected devices: **Batch Deactivate (Hide)**, **Batch Activate (Deploy)**, **Batch Apply OTA**, **Batch Eject OTA**, and **Batch Delete**.
 - **Release Notes / Summary Support**:
   - Operators can now supply release notes/summaries when publishing firmware (via upload dialog or registration form).
   - Summaries are written to the ESP-Web-Tools JSON manifest `ota.summary` and displayed in Home Assistant's native Update entity popup dialog.
-- **Firmware Binary Validation**:
-  - Integrated smart pre-validation for uploaded `.bin` files: checks magic byte (`0xE9`), binary length bounds, and parses ESP32 `esp_app_desc_t` headers directly to prevent invalid/factory binary deployments.
+- **Firmware Binary Validation & ESP-IDF Header Verification**:
+  - Integrated smart pre-validation for uploaded `.bin` files: enforces target platform ESP magic byte (`0xE9`), binary length bounds (up to 32 MB), and parses ESP32 `esp_app_desc_t` application headers (`0xABCD5432`) to verify image integrity and log ESP-IDF/project metadata.
 - **YAML Backup & 1-Click Restore**:
   - Automatically creates `.bak` backups of device YAML configurations prior to OTA package injection.
-  - Added 1-click **Restore** (`↺ 복구`) action button to immediately revert YAML modifications.
+  - Added 1-click **Restore** (`↺ 복구`) action button with backup creation timestamp to immediately revert YAML modifications (and cleans up `.bak` on success).
 - **Enhanced UI & Metadata Visibility**:
   - Displays formatted firmware binary file sizes (e.g., `1.2 MB`, `850 KB`) and release summaries alongside MD5 digests.
   - Displays Home Assistant live status badges (🟢 Up to date, 🔵 Update Available, 🟡 Installing…).

@@ -265,7 +265,7 @@ class App:
 
         # Only query HA states if at least one active node uses on_success mode
         needs_ha_states = any(
-            (self.registered.get(node) or {}).get("auto_deactivate", {}).get("mode", "on_success") == "on_success"
+            ((self.registered.get(node) or {}).get("auto_deactivate") or {}).get("mode", "on_success") == "on_success"
             for node in active_nodes
         )
         update_entities: dict[str, dict[str, Any]] = {}
@@ -292,6 +292,8 @@ class App:
             if expires_at_str:
                 try:
                     expires_at = datetime.fromisoformat(expires_at_str)
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
                     if now >= expires_at:
                         self.deactivate_firmware(node)
                         registry.set_auto_deactivate(
@@ -305,8 +307,13 @@ class App:
                         changed = True
                         LOG.info("Auto-deactivated %s (timer expired at %s)", node, expires_at_str)
                         continue
-                except Exception:
-                    pass
+                except Exception as err:
+                    LOG.warning(
+                        "Auto-deactivate timer check failed for %s (expires_at=%r): %s",
+                        node,
+                        expires_at_str,
+                        err,
+                    )
 
             # 2. On-success check
             if mode == "on_success" and pub_ver and update_entities:
@@ -536,9 +543,22 @@ class App:
                     )
 
                 target_platform = device.get("target_platform", "")
-                is_valid, msg, _info = metadata.validate_binary(blob, target_platform, MAX_UPLOAD_BYTES)
+                is_valid, msg, info = metadata.validate_binary(blob, target_platform, MAX_UPLOAD_BYTES)
                 if not is_valid:
                     raise DashboardError(f"Firmware binary validation failed: {msg}")
+
+                app_desc = info.get("app_descriptor") or {}
+                if app_desc.get("idf_version"):
+                    job.log(
+                        f"ESP-IDF {app_desc['idf_version']} app descriptor verified "
+                        f"(project: {app_desc.get('project_name') or 'unknown'})"
+                    )
+                if app_desc.get("project_name") and app_desc["project_name"] != job.node:
+                    LOG.warning(
+                        "Binary app descriptor project_name (%s) differs from target node (%s)",
+                        app_desc["project_name"],
+                        job.node,
+                    )
 
                 config = metadata.read_config(self.settings.esphome_config_dir, configuration)
                 origin = self.settings.esphome_config_dir / configuration
@@ -862,7 +882,7 @@ async def batch_action(request: web.Request) -> web.Response:
 
     results: dict[str, Any] = {}
     for node in nodes:
-        if not metadata.NODE_RE.match(node):
+        if not isinstance(node, str) or not metadata.NODE_RE.match(node):
             continue
         try:
             if action == "deactivate":
@@ -896,10 +916,7 @@ MAX_UPLOAD_BYTES = 32 * 1024 * 1024  # allows 16MB/32MB flash target builds
 
 @routes.post("/api/publish/manual")
 async def publish_manual(request: web.Request) -> web.Response:
-    """Publish a firmware.ota.bin the operator downloaded from the ESPHome
-    dashboard themselves — the path that needs no WS connection to ESPHome at
-    all, for anyone who won't open ESPHome's public port for this add-on.
-    """
+    """Accept an uploaded firmware binary and write the manifest."""
     app: App = request.app["app"]
     reader = await request.multipart()
 
@@ -946,6 +963,22 @@ async def publish_manual(request: web.Request) -> web.Response:
     is_valid, val_msg, info = metadata.validate_binary(blob, chip_family, MAX_UPLOAD_BYTES)
     if not is_valid:
         return web.json_response({"error": f"Firmware validation error: {val_msg}"}, status=400)
+
+    app_desc = info.get("app_descriptor") or {}
+    if app_desc.get("idf_version"):
+        LOG.info(
+            "Manual publish %s: ESP-IDF %s app descriptor verified (project: %s)",
+            node,
+            app_desc["idf_version"],
+            app_desc.get("project_name"),
+        )
+    if app_desc.get("project_name") and app_desc["project_name"] != node:
+        LOG.warning(
+            "Manual publish %s: Binary app descriptor project_name (%s) differs from target node (%s)",
+            node,
+            app_desc["project_name"],
+            node,
+        )
 
     filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
     config: dict = {}
