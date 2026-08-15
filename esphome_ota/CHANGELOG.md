@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3
+
+- **Target Firmware Version Priority on Upload**:
+  - Corrected the upload modal to display the device's actual firmware project version (e.g. `1.0.0` or `1.0.1` matching the device table / YAML / published firmware) instead of raw ESPHome toolchain release version (`2024.12.2`).
+  - Extracted ESPHome toolchain and ESP-IDF version information into descriptive file metadata under the uploaded file name.
+  - Ensured backend `publish_manual` preserves the device's project version without overriding it with ESPHome compiler build version strings.
+
 ## 0.7.2
 
 - **Binary App Descriptor Auto-Detection on Upload**:

@@ -941,43 +941,41 @@ async def publish_manual(request: web.Request) -> web.Response:
     if not chip_family and info.get("chip_family"):
         chip_family = info["chip_family"]
 
-    bin_version = app_desc.get("version")
-    if bin_version:
-        version = bin_version
-        version_source = "binary"
-    else:
-        filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
-        config: dict = {}
-        origin = app.settings.esphome_config_dir / (filename or f"{node}.yaml")
-        merged: dict = {}
-        uses_wrapper = False
-        cache: dict = {}
-        if filename:
-            config = metadata.read_config(app.settings.esphome_config_dir, filename)
-            merged, uses_wrapper = metadata.merge_config(
-                app.settings.esphome_config_dir, config, origin, skip_wrapper_node=node, cache=cache
-            )
-        own = metadata.project_version(merged)
-        compiled = own or (
-            metadata.wrapper_project_version(app.settings.esphome_config_dir, node) if uses_wrapper else None
+    filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
+    config: dict = {}
+    origin = app.settings.esphome_config_dir / (filename or f"{node}.yaml")
+    merged: dict = {}
+    uses_wrapper = False
+    cache: dict = {}
+    if filename:
+        config = metadata.read_config(app.settings.esphome_config_dir, filename)
+        merged, uses_wrapper = metadata.merge_config(
+            app.settings.esphome_config_dir, config, origin, skip_wrapper_node=node, cache=cache
         )
-        requested = version
+    own = metadata.project_version(merged)
+    compiled = own or (
+        metadata.wrapper_project_version(app.settings.esphome_config_dir, node) if uses_wrapper else None
+    )
+    requested = version
+    version_source = "supplied"
+    if compiled:
+        version = compiled
+        version_source = "project"
+    elif requested:
+        version = requested
         version_source = "supplied"
-        if compiled:
-            if requested and requested != compiled:
-                LOG.info(
-                    "Manual publish %s: ignoring form version %s — firmware reports %s",
-                    node,
-                    requested,
-                    compiled,
-                )
-            version = compiled
-            version_source = "project"
-        elif not requested:
+    else:
+        pub = app.published_metadata(node)
+        if pub and pub.get("version"):
+            version = pub["version"]
+            version_source = "published"
+        elif app_desc.get("version"):
+            version = app_desc["version"]
+            version_source = "binary"
+        else:
             esphome_version = await app._dashboard_esphome_version()
-            if esphome_version:
-                version = esphome_version
-                version_source = "esphome"
+            version = esphome_version or "1.0.0"
+            version_source = "fallback"
     if not version:
         return web.json_response(
             {
