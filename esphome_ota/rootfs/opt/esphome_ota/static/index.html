@@ -770,7 +770,6 @@
           <span class="pulse-dot ok"></span>
           <span id="upDetectedVerText" style="font-weight:700"></span>
         </span>
-        <span id="upDetectedVerDetail" class="tiny muted"></span>
       </div>
       <input type="hidden" id="upVersion">
     </div>
@@ -1119,6 +1118,7 @@ let selectedNodes = new Set();
 let versionDirty = false;
 let currentAdNode = null;
 let pendingUpload = null;
+let currentSnippetNode = null;
 
 function applyStaticText() {
   document.documentElement.lang = LOCALE;
@@ -1736,7 +1736,8 @@ async function openUploadModal(d, file) {
     errorBox.style.display = 'none';
     confirmBtn.disabled = false;
 
-    const chipTag = parsed.chipFamily ? `<span class="chip-platform">${escapeHtml(parsed.chipFamily)}</span>` : '';
+    const chipFamily = parsed.chipFamily || d.chip_family;
+    const chipTag = chipFamily ? `<span class="chip-platform">${escapeHtml(chipFamily)}</span>` : '';
     const buildDetails = [];
     if (parsed.esphomeVersion) buildDetails.push(`ESPHome ${parsed.esphomeVersion}`);
     if (parsed.idfVersion) buildDetails.push(`IDF ${parsed.idfVersion}`);
@@ -1746,7 +1747,6 @@ async function openUploadModal(d, file) {
 
     detectedField.style.display = 'block';
     $('upDetectedVerText').textContent = targetVersion;
-    $('upDetectedVerDetail').textContent = d.published && d.published.version ? `(${T.published})` : `(${T.colYamlVer})`;
     $('upVersion').value = targetVersion;
   }
 
@@ -2025,16 +2025,30 @@ async function copySnippet(id, btn) {
   btn.disabled = true;
   setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1400);
 }
-window.copySnippet = copySnippet;
+function closeSnippet() {
+  const detail = $('detail');
+  if (detail) detail.hidden = true;
+  currentSnippetNode = null;
+}
+window.closeSnippet = closeSnippet;
 
 async function showSnippet(d) {
+  const detail = $('detail');
+  if (!detail.hidden && currentSnippetNode === d.node) {
+    closeSnippet();
+    return;
+  }
+
+  currentSnippetNode = d.node;
   const body = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
   const { snippet, legacy, uses_wrapper, version } = body;
   if (version) d.project_version = version;
-  const detail = $('detail');
   detail.hidden = false;
   detail.innerHTML = `
-    <b>${T.yamlHeader(d.friendly_name)}</b>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+      <b>${T.yamlHeader(d.friendly_name)}</b>
+      <button type="button" class="btn-action" style="padding:2px 8px; font-size:12px; line-height:1;" onclick="closeSnippet()" title="${T.btnCancel || 'Close'}">✕</button>
+    </div>
     <div class="field" style="margin-top:10px; max-width:220px">
       <label class="tiny muted" for="rowVersion">${T.nextCompileVersion}</label>
       <input type="text" id="rowVersion" value="${escapeHtml(version || d.project_version || '1.0.0')}">

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.4
+
+- **YAML Snippet Card Toggle & Close Actions**:
+  - Clicking the YAML action button now toggles the snippet card open and closed.
+  - Added a dedicated close button (`✕`) in the snippet card header for direct dismissal.
+- **Upload Modal Clarity & ESP8266 Badge Refinements**:
+  - Removed misleading `(Published)` / `(YAML Version)` status text from the upload modal version badge.
+  - Ensured ESP8266 binaries display the `[ESP8266]` chip badge in the upload modal using the registered device metadata.
+
 ## 0.7.3
 
 - **Target Firmware Version Priority on Upload**:
