@@ -20,6 +20,19 @@ tunnel, with nothing to open on this add-on's side.
                                                  your remote devices
 ```
 
+> [!WARNING]
+> ### ⚠️ Security Notice: World-Readable Firmware & Sensitive Credentials
+> Home Assistant serves `/local/` static files **without authentication** by design. If your Home Assistant instance is accessible externally over the internet, published firmware `.bin` files can be downloaded by anyone who reaches that path.
+> 
+> **Never embed plaintext secrets** (Wi-Fi SSID/password, API encryption keys, OTA passwords, or fallback credentials) directly in your ESPHome YAML, as they will be compiled into the binary in plaintext.
+> 
+> **Recommended Best Practices (Official Factory Firmware Pattern):**
+> 1. **Dynamic Wi-Fi Provisioning:** Use `esp32_improv` (BLE) or `improv_serial` (USB WebSerial) so Wi-Fi credentials are sent during setup and stored in NVS at runtime rather than baked into the binary.
+> 2. **Randomized API Encryption Key:** Omit static keys under `api: encryption:` and let Home Assistant generate and manage the encryption key upon device adoption.
+> 3. **Remove Hardcoded OTA Passwords:** Do not define fixed passwords under `ota:`.
+> 
+> For a reference implementation, see the official [Home Assistant Voice PE factory firmware](https://github.com/esphome/home-assistant-voice-pe/blob/dev/home-assistant-voice.factory.yaml). See [DOCS.md#security-preventing-secret-leakage-in-firmware](DOCS.md#security-preventing-secret-leakage-in-firmware) for full details and YAML examples.
+
 There are two ways to get firmware in there:
 
 ## A. Easy manual publish — no other setup required (Recommended)

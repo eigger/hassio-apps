@@ -4,6 +4,9 @@
 
 - **Button Hover Contrast Fix**:
   - Fixed an issue where text on highlighted primary buttons (`Upload .bin`, `Register`) became invisible on hover due to matching text and background colors.
+- **Security Guidance & Best Practices Documentation**:
+  - Added security warnings regarding Home Assistant's unauthenticated `/local/` static path.
+  - Added best practice guidelines on eliminating hardcoded plaintext secrets (Wi-Fi passwords, API keys, OTA passwords) from firmware binaries using `esp32_improv` (BLE), `improv_serial`, and dynamic API encryption keys (referencing Home Assistant Voice PE factory firmware).
 
 ## 0.6.1
 

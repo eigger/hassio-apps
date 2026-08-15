@@ -229,6 +229,77 @@ packages:
   ota: !include ota_server/devices/livingroom.yaml
 ```
 
+## Security: Preventing Secret Leakage in Firmware
+
+<a id="security-preventing-secret-leakage-in-firmware"></a>
+
+### The `/local` Security Model
+
+Home Assistant's `<config>/www/` directory is mapped to `/local/` and is served **without authentication by design**. This allows frontend Lovelace cards, icons, and media files to load without requiring user login cookies.
+
+However, if your Home Assistant instance is reachable from the internet (via a public domain, Cloudflare Tunnel, port forwarding, or Nabu Casa), **any published `.ota.bin` or `.json` file under `/local/` is world-readable**.
+
+### The Danger: Plaintext Secrets in Firmware
+
+In standard ESPHome setups, configurations often include hardcoded Wi-Fi credentials or encryption keys:
+
+```yaml
+# ❌ INSECURE: Do NOT embed secrets in firmware published to /local
+wifi:
+  ssid: "MyHomeNetwork"
+  password: "MySuperSecretPassword"
+
+api:
+  encryption:
+    key: "my_static_secret_encryption_key_here..."
+
+ota:
+  - platform: esphome
+    password: "my_ota_password"
+```
+
+When compiled, all string literals in ESPHome C++ code are baked directly into the `.rodata` section of the binary in **plaintext**. Anyone downloading the `.bin` file can run a simple `strings firmware.bin` or inspect the binary to extract your Wi-Fi SSID, Wi-Fi password, API encryption key, fallback AP password, and OTA password.
+
+### The Fix: Official Factory Firmware Best Practice (Zero Hardcoded Secrets)
+
+The recommended approach is to keep all secrets completely out of the compiled binary, as demonstrated in official hardware like the [Home Assistant Voice PE factory firmware](https://github.com/esphome/home-assistant-voice-pe/blob/dev/home-assistant-voice.factory.yaml).
+
+When secrets are omitted from the firmware, hosting the `.bin` on `/local` is safe.
+
+#### 1. Dynamic Wi-Fi Provisioning via `esp32_improv` or `improv_serial`
+Instead of hardcoding Wi-Fi credentials into the YAML, let the device receive Wi-Fi credentials dynamically over Bluetooth Low Energy (BLE) or USB WebSerial. The credentials will be saved in the ESP32's non-volatile NVS flash at runtime:
+
+```yaml
+# ✅ SECURE: Dynamic provisioning via BLE / WebSerial
+esp32_improv:
+  # Optional: bind to a physical button for authorization
+  # authorizer: my_button
+
+wifi:
+  # No ssid: or password:! Credentials are saved in NVS after initial provisioning.
+
+# WebSerial support for USB setup if needed:
+improv_serial:
+```
+
+#### 2. Dynamic / Randomized API Encryption Keys
+Do not specify a static encryption key in the YAML. An empty `encryption:` block allows Home Assistant to dynamically negotiate and store a unique encryption key in NVS during device adoption:
+
+```yaml
+# ✅ SECURE: Home Assistant manages encryption keys dynamically
+api:
+  encryption:
+```
+
+#### 3. Remove Fixed OTA & Fallback Passwords
+Do not include static OTA passwords or fallback credentials in the YAML:
+
+```yaml
+# ✅ SECURE: No hardcoded OTA password
+ota:
+  - platform: http_request
+```
+
 ## Troubleshooting
 
 **"Restart Home Assistant once."** — `/local` is registered once at startup,
@@ -268,6 +339,8 @@ endpoint or by clearing the folder.
 **Firmware is world-readable** — `/local` has no authentication, by design.
 That is what makes it reachable from a device that cannot log in. Anything you
 publish is readable by anything that can reach Home Assistant's HTTP port.
+Ensure your device YAML contains no hardcoded secrets by following the
+[Security Best Practices](#security-preventing-secret-leakage-in-firmware) above.
 
 **MD5 mismatch during OTA (`Aborting due to MD5 mismatch`)** — usually a
 caching proxy in front of Home Assistant (a Cloudflare tunnel, most

@@ -227,6 +227,77 @@ packages:
   ota: !include ota_server/devices/livingroom.yaml
 ```
 
+## 보안: 펌웨어 내 민감 정보 유출 방지
+
+<a id="보안-펌웨어-내-민감-정보-유출-방지"></a>
+
+### `/local` 경로의 보안 모델
+
+Home Assistant의 `<config>/www/` 디렉토리는 `/local/` 경로로 매핑되며, **설계상 인증 없이(Unauthenticated)** 서빙됩니다. 이는 프론트엔드 Lovelace 카드, 아이콘, 미디어 파일 등을 로그인 세션 없이 빠르게 브라우저에서 로드할 수 있도록 하기 위한 Home Assistant의 기본 동작 방식입니다.
+
+하지만 이로 인해 Home Assistant가 외부 인터넷(공개 도메인, Cloudflare 터널, 포트 포워딩, Nabu Casa 등)으로 연결되어 있다면, **`/local/` 경로에 게시된 `.ota.bin` 펌웨어와 `.json` 매니페스트 파일은 URL만 알면 누구나 다운로드할 수 있습니다.**
+
+### 위험 요소: 펌웨어 바이너리 내 평문 비밀 정보 노출
+
+일반적인 ESPHome 튜토리얼에서는 다음과 같이 YAML 파일에 Wi-Fi 비밀번호나 키를 직접 작성하도록 안내하는 경우가 많습니다:
+
+```yaml
+# ❌ 보안 취약: /local에 공개 배포하는 펌웨어에 비밀 정보를 직접 작성하지 마세요
+wifi:
+  ssid: "MyHomeNetwork"
+  password: "MySuperSecretPassword"
+
+api:
+  encryption:
+    key: "my_static_secret_encryption_key_here..."
+
+ota:
+  - platform: esphome
+    password: "my_ota_password"
+```
+
+ESPHome이 코드를 컴파일할 때, YAML에 적힌 문자열 리터럴들은 바이너리의 `.rodata` 섹션에 **평문(Plaintext)** 그대로 포함됩니다. 악의적인 공격자가 해당 `.bin` 파일을 다운로드하여 `strings firmware.bin` 명령어 등을 실행하면 Wi-Fi SSID, 비밀번호, API 암호화 키, OTA 비밀번호, 백업 AP 비밀번호 등을 손쉽게 추출할 수 있습니다.
+
+### 해결책: 공식 팩토리 펌웨어 모범 사례 (비밀 정보 0개 원칙)
+
+가장 안전하고 올바른 해결책은 [Home Assistant Voice PE 팩토리 펌웨어](https://github.com/esphome/home-assistant-voice-pe/blob/dev/home-assistant-voice.factory.yaml)와 같은 공식 하드웨어처럼 **컴파일되는 바이너리에서 모든 고정 비밀 정보를 완전히 제거**하는 것입니다.
+
+바이너리 내에 비밀 정보가 포함되어 있지 않다면, 펌웨어가 `/local`을 통해 외부에 공개되더라도 보안상 안전합니다.
+
+#### 1. `esp32_improv` 또는 `improv_serial`을 통한 동적 Wi-Fi 프로비저닝
+YAML에 Wi-Fi 비밀번호를 하드코딩하는 대신, 최초 부팅 시 블루투스(BLE) 또는 USB WebSerial을 통해 Wi-Fi 정보를 주입받도록 설정합니다. 자격증명은 바이너리가 아닌 기기의 NVS(Flash 영구 저장소)에 런타임 저장됩니다:
+
+```yaml
+# ✅ 안전함: BLE / WebSerial을 통한 동적 프로비저닝
+esp32_improv:
+  # 선택 사항: 물리 버튼으로 승인 절차 추가 가능
+  # authorizer: my_button
+
+wifi:
+  # ssid와 password를 하드코딩하지 않습니다! 초기 설정 시 NVS에 안전하게 저장됩니다.
+
+# 필요 시 USB WebSerial 설정 지원:
+improv_serial:
+```
+
+#### 2. 동적 / 무작위 API 암호화 키 사용
+YAML에 고정된 암호화 키를 지정하지 않습니다. `encryption:` 블록을 빈 상태로 두면 Home Assistant에 기기를 등록(Adoption)할 때 Home Assistant가 고유한 암호화 키를 동적으로 생성하여 기기의 NVS에 저장합니다:
+
+```yaml
+# ✅ 안전함: Home Assistant가 등록 시 암호화 키를 동적으로 생성 및 관리
+api:
+  encryption:
+```
+
+#### 3. 고정 OTA 비밀번호 및 백업 비밀번호 제거
+YAML에 고정된 OTA 비밀번호나 백업 AP 비밀번호를 포함하지 않습니다:
+
+```yaml
+# ✅ 안전함: 하드코딩된 비밀번호 없음
+ota:
+  - platform: http_request
+```
+
 ## 문제 해결
 
 **"Restart Home Assistant once."** — `/local`은 시작할 때 한 번만
@@ -269,7 +340,8 @@ ID가 찍히니 버그로 알려주세요). LibreTiny 타겟(BK72xx, RTL87xx)은
 **펌웨어가 누구나 읽을 수 있음** — `/local`은 설계상 인증이 없습니다.
 그게 바로 로그인할 수 없는 기기에서도 닿을 수 있게 만드는 방법입니다.
 게시한 건 뭐든 Home Assistant의 HTTP 포트에 닿을 수 있는 누구나 읽을
-수 있습니다.
+수 있습니다. 기기 YAML에 비밀 정보가 포함되지 않도록 위의
+[보안 모범 사례](#보안-펌웨어-내-민감-정보-유출-방지)를 반드시 따르세요.
 
 **OTA 중 MD5 불일치 (`Aborting due to MD5 mismatch`)** — 보통 Home
 Assistant 앞단의 캐싱 프록시(가장 흔하게는 Cloudflare 터널)가 재게시

@@ -20,6 +20,19 @@ ESPHome 자체 내장 OTA를 그냥 쓰면 됩니다.
                                                  your remote devices
 ```
 
+> [!WARNING]
+> ### ⚠️ 보안 주의사항: 인증 없는 펌웨어 노출 및 민감 정보 보호
+> Home Assistant의 `/local/` 경로는 설계상 **인증 없이 공개(Unauthenticated)** 서빙됩니다. Home Assistant가 외부 인터넷(도메인/터널 등)으로 공개되어 있다면, 해당 경로의 펌웨어 `.bin` 파일은 URL만 알면 누구나 다운로드할 수 있습니다.
+> 
+> ESPHome YAML에 Wi-Fi SSID/비밀번호, API 암호화 키, OTA 비밀번호, 백업 AP 비밀번호 등의 **비밀 정보를 하드코딩하지 마세요.** 바이너리 내부(`.rodata` 섹션)에 평문으로 컴파일되어 누구나 문자열 추출을 통해 자격증명을 알아낼 수 있습니다.
+> 
+> **권장 보안 조치 (공식 Factory 펌웨어 패턴):**
+> 1. **동적 Wi-Fi 프로비저닝 사용:** `esp32_improv` (블루투스 BLE) 또는 `improv_serial` (USB WebSerial)을 사용하여 초기 설정 시 Wi-Fi 자격증명을 NVS에 안전하게 주입/저장합니다.
+> 2. **API 암호화 키 동적 생성:** `api: encryption:`에 고정 키를 하드코딩하지 않고 빈 블록으로 두어 Home Assistant 등록(Adoption) 시 무작위 키를 생성하여 관리하도록 합니다.
+> 3. **OTA 비밀번호 하드코딩 제거:** `ota:` 하위에 고정 비밀번호를 넣지 않습니다.
+> 
+> 공식 레퍼런스: [Home Assistant Voice PE 팩토리 펌웨어](https://github.com/esphome/home-assistant-voice-pe/blob/dev/home-assistant-voice.factory.yaml). 자세한 설명 및 YAML 설정 예시는 [DOCS.ko.md#보안-펌웨어-내-민감-정보-유출-방지](DOCS.ko.md#보안-펌웨어-내-민감-정보-유출-방지)를 참고하세요.
+
 펌웨어를 저기에 올리는 방법은 두 가지입니다:
 
 ## A. 간편 수동 게시 — 별도 설정 필요 없음 (추천)
