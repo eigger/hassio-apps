@@ -455,9 +455,6 @@ class App:
             )
             has_yaml = bool(node in local or metadata.find_configuration(self.settings.esphome_config_dir, node))
             injected = metadata.is_injected(self.settings.esphome_config_dir, node)
-            has_bak_info = metadata.get_yaml_backup_info(self.settings.esphome_config_dir, node)
-            has_bak = has_bak_info is not None
-            backup_mtime = has_bak_info["mtime"] if has_bak_info else None
             matched_ha = self.match_ha_update_entity(
                 node, friendly, rec.get("ha_entity_id"), update_entities
             )
@@ -485,8 +482,6 @@ class App:
                     ),
                     "has_yaml": has_yaml,
                     "injected": injected,
-                    "has_backup": has_bak,
-                    "backup_mtime": backup_mtime,
                     "ha_entity": matched_ha,
                     "auto_deactivate": rec.get("auto_deactivate") or {
                         "mode": "on_success",
@@ -768,24 +763,6 @@ async def eject_device(request: web.Request) -> web.Response:
     if not ok:
         return web.json_response({"error": msg}, status=400)
     return web.json_response({"ok": True, "node": node, "injected": False, "message": msg})
-
-
-@routes.post("/api/device/restore")
-async def restore_device(request: web.Request) -> web.Response:
-    """Restore device YAML from .bak backup."""
-    app: App = request.app["app"]
-    try:
-        body = await request.json()
-    except ValueError:
-        return web.json_response({"error": "invalid json"}, status=400)
-    node = (body.get("node") or "").strip()
-    if not metadata.NODE_RE.match(node):
-        return web.json_response({"error": "invalid node"}, status=400)
-
-    ok, msg = metadata.restore_device_yaml(app.settings.esphome_config_dir, node)
-    if not ok:
-        return web.json_response({"error": msg}, status=400)
-    return web.json_response({"ok": True, "node": node, "message": msg})
 
 
 @routes.post("/api/device/auto-deactivate")

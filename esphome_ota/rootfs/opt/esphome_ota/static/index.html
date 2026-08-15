@@ -417,6 +417,15 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
 
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-dot.animating,
+    .modal-content,
+    .batch-bar {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
   @media (max-width: 720px) {
     body { padding: 12px; }
     .card { padding: 12px; }
@@ -1805,7 +1814,14 @@ async function showSnippet(d) {
 }
 
 function escapeHtml(s) {
-  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[c]));
 }
 
 function formatPublishedAt(iso) {

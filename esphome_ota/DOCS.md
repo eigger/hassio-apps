@@ -311,8 +311,6 @@ To minimize public binary exposure on `/local/`, the add-on supports **Smart Aut
   - Enter release notes during publish/upload to have them displayed directly in Home Assistant's Update entity popup dialog.
 - **Batch Management Actions**:
   - Select multiple devices using checkboxes to perform bulk **Deactivate**, **Activate**, **Apply OTA**, or **Delete** actions.
-- **YAML Backup & 1-Click Restore**:
-  - Automatically creates a `.bak` backup before applying OTA packages, and provides a **Restore** button to instantly revert changes.
 
 ## Troubleshooting
 

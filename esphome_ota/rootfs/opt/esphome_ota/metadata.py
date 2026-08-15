@@ -613,11 +613,8 @@ def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
             addition = "\n" + addition
         new_content = content + addition
 
-    # Backup and atomic write
+    # Atomic write
     try:
-        bak_path = path.with_suffix(path.suffix + ".bak")
-        if not bak_path.exists():
-            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)
@@ -679,9 +676,6 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
     new_content = "".join(cleaned_lines)
 
     try:
-        bak_path = path.with_suffix(path.suffix + ".bak")
-        if not bak_path.exists():
-            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)
@@ -755,50 +749,5 @@ def validate_binary(
     }
     return True, "Valid firmware binary", info
 
-
-def find_backup_configuration(config_dir: Path, node: str) -> str | None:
-    for ext in (".yaml.bak", ".yml.bak"):
-        candidate = config_dir / f"{node}{ext}"
-        if candidate.is_file():
-            return candidate.name
-    return None
-
-
-def get_yaml_backup_info(config_dir: Path, node: str) -> dict[str, Any] | None:
-    bak_filename = find_backup_configuration(config_dir, node)
-    if not bak_filename:
-        return None
-    bak_path = config_dir / bak_filename
-    try:
-        mtime = datetime.fromtimestamp(bak_path.stat().st_mtime, tz=timezone.utc).isoformat()
-        return {"filename": bak_filename, "mtime": mtime}
-    except OSError:
-        return {"filename": bak_filename, "mtime": None}
-
-
-def has_yaml_backup(config_dir: Path, node: str) -> bool:
-    return find_backup_configuration(config_dir, node) is not None
-
-
-def restore_device_yaml(config_dir: Path, node: str) -> tuple[bool, str]:
-    """Restore device YAML from .bak backup file and clean up backup upon success."""
-    bak_filename = find_backup_configuration(config_dir, node)
-    if not bak_filename:
-        return False, f"No backup file found for {node}"
-    bak_path = config_dir / bak_filename
-    target_filename = bak_filename[:-4]  # strip .bak
-    target_path = config_dir / target_filename
-    try:
-        content = bak_path.read_text(encoding="utf-8")
-        tmp_path = target_path.with_suffix(target_path.suffix + ".tmp")
-        tmp_path.write_text(content, encoding="utf-8")
-        os.replace(tmp_path, target_path)
-        try:
-            bak_path.unlink()
-        except OSError:
-            pass
-    except OSError as err:
-        return False, f"Failed to restore {target_filename}: {err}"
-    return True, f"Successfully restored {target_filename} from backup"
 
 
