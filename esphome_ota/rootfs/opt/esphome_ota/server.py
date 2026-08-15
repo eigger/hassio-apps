@@ -549,16 +549,7 @@ class App:
 
                 app_desc = info.get("app_descriptor") or {}
                 if app_desc.get("idf_version"):
-                    job.log(
-                        f"ESP-IDF {app_desc['idf_version']} app descriptor verified "
-                        f"(project: {app_desc.get('project_name') or 'unknown'})"
-                    )
-                if app_desc.get("project_name") and app_desc["project_name"] != job.node:
-                    LOG.warning(
-                        "Binary app descriptor project_name (%s) differs from target node (%s)",
-                        app_desc["project_name"],
-                        job.node,
-                    )
+                    job.log(f"ESP-IDF {app_desc['idf_version']} app descriptor verified")
 
                 config = metadata.read_config(self.settings.esphome_config_dir, configuration)
                 origin = self.settings.esphome_config_dir / configuration
@@ -602,7 +593,6 @@ class App:
                 LOG.exception("Job %s failed", job.id)
                 job.error = str(err)
                 job.status = "failed"
-
 
 
 # -- routes ----------------------------------------------------------------
@@ -916,7 +906,10 @@ MAX_UPLOAD_BYTES = 32 * 1024 * 1024  # allows 16MB/32MB flash target builds
 
 @routes.post("/api/publish/manual")
 async def publish_manual(request: web.Request) -> web.Response:
-    """Accept an uploaded firmware binary and write the manifest."""
+    """Publish a firmware.ota.bin the operator downloaded from the ESPHome
+    dashboard themselves — the path that needs no WS connection to ESPHome at
+    all, for anyone who won't open ESPHome's public port for this add-on.
+    """
     app: App = request.app["app"]
     reader = await request.multipart()
 
@@ -966,19 +959,7 @@ async def publish_manual(request: web.Request) -> web.Response:
 
     app_desc = info.get("app_descriptor") or {}
     if app_desc.get("idf_version"):
-        LOG.info(
-            "Manual publish %s: ESP-IDF %s app descriptor verified (project: %s)",
-            node,
-            app_desc["idf_version"],
-            app_desc.get("project_name"),
-        )
-    if app_desc.get("project_name") and app_desc["project_name"] != node:
-        LOG.warning(
-            "Manual publish %s: Binary app descriptor project_name (%s) differs from target node (%s)",
-            node,
-            app_desc["project_name"],
-            node,
-        )
+        LOG.info("Manual publish %s: ESP-IDF %s app descriptor verified", node, app_desc["idf_version"])
 
     filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
     config: dict = {}

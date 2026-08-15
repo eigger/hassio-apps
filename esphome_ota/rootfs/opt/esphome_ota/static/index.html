@@ -1452,6 +1452,8 @@ const CHECK_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" 
 async function copySnippet(id, btn) {
   const text = $(id).textContent;
   let ok = true;
+  // HA ingress is plain HTTP, which is not a secure context in browsers, so
+  // navigator.clipboard is undefined. Fall back to document.execCommand('copy').
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -1554,6 +1556,8 @@ function finishJob() {
 async function run(d, compile, clickedBtn) {
   if (jobRunning) return;
   jobRunning = true;
+  // Disable everything before await so double-clicks don't spawn two runs
+  // while the POST is in flight, and so a slow queueing response is visible.
   setJobButtonsDisabled(true);
   const originalLabel = clickedBtn ? clickedBtn.textContent : '';
   if (clickedBtn) clickedBtn.textContent = compile ? T.building : T.publishing;
