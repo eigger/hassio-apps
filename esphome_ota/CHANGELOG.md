@@ -16,6 +16,10 @@
   - Replaced misplaced registration-form feedback messages with a modern, floating top-right **Toast Notification** system.
   - All device list actions (OTA apply/eject, binary upload, activate/deactivate, delete, batch operations, auto-hide save) now provide instant floating feedback at the top-right of the viewport.
   - Cleaned up redundant legend bar beneath the device table.
+- **Enhanced Button Contrast & Modal Localization**:
+  - Added high-contrast primary button styles (`button.primary`) with clear hover states across light and dark themes.
+  - Improved secondary action button hover contrast.
+  - Fully localized modal Cancel and Save buttons (`취소` / `저장`).
 
 ## 0.7.1
 
