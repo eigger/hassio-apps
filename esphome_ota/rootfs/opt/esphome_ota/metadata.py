@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -581,6 +580,9 @@ def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
             pkg_line_idx = i
             pkg_indent = match.group(1)
             break
+        # Guard against incompatible inline packages definitions (e.g. packages: !include ...)
+        if re.match(r"^packages:\s*\S+", line):
+            return False, f"Cannot inject into {filename}: inline 'packages:' format is not supported. Please use YAML snippet manually."
 
     if pkg_line_idx != -1:
         # Find if an `ota:` key already exists under `packages:`
@@ -613,8 +615,11 @@ def inject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
             addition = "\n" + addition
         new_content = content + addition
 
-    # Atomic write
+    # Create safety backup on disk if not already existing, and atomic write
     try:
+        bak_path = path.with_suffix(path.suffix + ".bak")
+        if not bak_path.exists():
+            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)
@@ -676,6 +681,9 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
     new_content = "".join(cleaned_lines)
 
     try:
+        bak_path = path.with_suffix(path.suffix + ".bak")
+        if not bak_path.exists():
+            bak_path.write_text(content, encoding="utf-8")
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(tmp_path, path)

@@ -9,8 +9,10 @@
   - Optimized action buttons layout with compact labels and nowrap alignment.
 - **Collapsible Release Notes on Upload**:
   - Moved release notes input from the device registration form to a collapsible `<details>` field in the binary upload/publish modal (auto-opened when notes already exist).
-- **Cleaned Up Unused YAML Backups**:
-  - Removed clutter from unused YAML `.bak` backups and retired backend restore routes/per-row backup stats.
+- **Cleaned Up YAML Restore UI**:
+  - Removed the `↺ 복구` (Restore) button from the web UI to streamline the table layout, and retired unused backend restore API routes/per-row filesystem stats.
+  - Device YAML safety backups (`.bak`) continue to be preserved on disk in `/config/esphome/` prior to OTA package injection for manual recovery.
+  - Added safety guard rejecting injection into incompatible inline `packages:` YAML syntax.
 - **Security & Accessibility**:
   - Enhanced `escapeHtml()` to escape single and double quotes, preventing attribute injection in tooltip attributes.
   - Added `@media (prefers-reduced-motion: reduce)` accessibility support.
