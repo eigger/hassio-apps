@@ -285,12 +285,42 @@
     color: #ffffff;
   }
 
-  /* Action Buttons */
+  /* Action & General Buttons */
   .actions { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  
+  button {
+    font: inherit;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card-subtle);
+    color: var(--fg);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  button:hover:not(:disabled) {
+    border-color: var(--line-focus);
+    background: var(--card);
+    color: var(--fg);
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .btn-action {
     font: inherit;
     height: 30px;
-    padding: 0 9px;
+    padding: 0 10px;
     border-radius: 6px;
     border: 1px solid var(--line);
     background: var(--card);
@@ -309,30 +339,62 @@
   .btn-action:hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
-    background: var(--accent-bg);
+    background: var(--card-subtle);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
   }
-  .btn-action:disabled { opacity: 0.45; cursor: default; }
+  .btn-action:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* High-Contrast Primary Buttons (Emphasis & Clear Hover) */
+  button.primary,
   .btn-action.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #ffffff;
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff !important;
     font-weight: 600;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
   }
+  button.primary:hover:not(:disabled),
   .btn-action.primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-    color: #ffffff;
+    background: #0369a1;
+    border-color: #0369a1;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.45);
   }
+  @media (prefers-color-scheme: dark) {
+    button.primary,
+    .btn-action.primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff !important;
+      box-shadow: 0 1px 4px rgba(56, 189, 248, 0.25);
+    }
+    button.primary:hover:not(:disabled),
+    .btn-action.primary:hover:not(:disabled) {
+      background: #0ea5e9;
+      border-color: #7dd3fc;
+      color: #0b0f19 !important;
+      font-weight: 700;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
+    }
+    .btn-action:hover:not(:disabled) {
+      background: #1e293b;
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+    }
+  }
+
   .btn-action.btn-danger {
     color: var(--err);
     border-color: color-mix(in srgb, var(--err) 25%, transparent);
+    background: var(--card);
   }
   .btn-action.btn-danger:hover:not(:disabled) {
-    background: var(--err-bg);
+    background: var(--err);
     border-color: var(--err);
-    color: var(--err);
+    color: #ffffff !important;
+    font-weight: 600;
   }
-
-  button { font: inherit; }
   .upload-notes-details { margin-top: 6px; }
   .upload-notes-details summary {
     cursor: pointer;
@@ -678,7 +740,7 @@
     </div>
     <div id="adStatusInfo" class="tiny muted" style="margin-top:4px"></div>
     <div class="modal-footer">
-      <button type="button" onclick="closeAutoDeactivateModal()">Cancel</button>
+      <button type="button" id="t-ad-cancel-btn" onclick="closeAutoDeactivateModal()">Cancel</button>
       <button type="button" class="primary" id="t-ad-save-btn" onclick="saveAutoDeactivateModal()">Save</button>
     </div>
   </div>
@@ -722,7 +784,7 @@
       <input type="text" id="upNotes" placeholder="e.g. Fixed sensor read interval" style="margin-top:6px">
     </details>
     <div class="modal-footer">
-      <button type="button" onclick="closeUploadModal()">Cancel</button>
+      <button type="button" id="t-upload-cancel-btn" onclick="closeUploadModal()">Cancel</button>
       <button type="button" class="primary" id="t-upload-confirm-btn" onclick="confirmUploadModal()">Publish</button>
     </div>
   </div>
@@ -884,6 +946,8 @@ const STRINGS = {
     uploadVerManualHint: '(No embedded header found in binary — please specify version)',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
+    btnCancel: 'Cancel',
+    btnSave: 'Save',
   },
   ko: {
     title: 'ESPHome OTA Publisher',
@@ -1039,6 +1103,8 @@ const STRINGS = {
     uploadVerManualHint: '(바이너리에 내장 헤더가 없습니다 — 버전을 직접 입력해주세요)',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
+    btnCancel: '취소',
+    btnSave: '저장',
   },
 };
 
@@ -1097,6 +1163,10 @@ function applyStaticText() {
   $('t-ad-mode-label').textContent = T.adModeLabel;
   $('t-ad-hours-label').textContent = T.adHoursLabel;
   $('t-ad-entity-label').textContent = T.adEntityLabel;
+  const adCancel = $('t-ad-cancel-btn');
+  if (adCancel) adCancel.textContent = T.btnCancel;
+  const adSave = $('t-ad-save-btn');
+  if (adSave) adSave.textContent = T.btnSave;
   $('t-upload-modal-title').textContent = T.uploadModalTitle;
   $('t-upload-node-label').textContent = T.uploadTarget;
   $('t-upload-file-label').textContent = T.uploadFile;
@@ -1106,6 +1176,8 @@ function applyStaticText() {
   const verHint = $('t-upload-ver-manual-hint');
   if (verHint) verHint.textContent = T.uploadVerManualHint;
   $('t-upload-notes-label').textContent = T.uploadNotes;
+  const upCancel = $('t-upload-cancel-btn');
+  if (upCancel) upCancel.textContent = T.btnCancel;
   $('t-upload-confirm-btn').textContent = T.uploadConfirm;
 }
 
