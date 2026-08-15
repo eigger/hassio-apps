@@ -171,6 +171,15 @@ class App:
         self.save_registry()
         return rec
 
+    def deactivate_firmware(self, node: str) -> bool:
+        return self.publisher.deactivate_binary(node)
+
+    def activate_firmware(self, node: str) -> bool:
+        return self.publisher.activate_binary(node)
+
+    def unpublish_firmware(self, node: str) -> None:
+        self.publisher.delete_binary(node)
+
     def unregister_device(self, node: str) -> None:
         self.registered.pop(node, None)
         self.save_registry()
@@ -670,14 +679,57 @@ async def publish_manual(request: web.Request) -> web.Response:
     return web.json_response(record)
 
 
+@routes.post("/api/firmware/deactivate")
+@routes.delete("/api/firmware/{node}")
+@routes.delete("/api/unpublish/{node}")
+async def deactivate_firmware_route(request: web.Request) -> web.Response:
+    app: App = request.app["app"]
+    node = request.match_info.get("node")
+    if not node:
+        try:
+            body = await request.json()
+            node = body.get("node")
+        except Exception:
+            pass
+    node = (node or "").strip()
+    if not node or "/" in node or node.startswith("."):
+        return web.json_response({"error": "invalid node"}, status=400)
+    app.deactivate_firmware(node)
+    LOG.info("Deactivated firmware for %s (removed from /local, kept in storage)", node)
+    return web.json_response({"ok": True, "node": node, "active": False})
+
+
+@routes.post("/api/firmware/activate")
+async def activate_firmware_route(request: web.Request) -> web.Response:
+    app: App = request.app["app"]
+    node = request.match_info.get("node")
+    if not node:
+        try:
+            body = await request.json()
+            node = body.get("node")
+        except Exception:
+            pass
+    node = (node or "").strip()
+    if not node or "/" in node or node.startswith("."):
+        return web.json_response({"error": "invalid node"}, status=400)
+    try:
+        app.activate_firmware(node)
+    except FileNotFoundError as err:
+        return web.json_response({"error": str(err)}, status=404)
+    LOG.info("Activated firmware for %s (deployed to /local)", node)
+    return web.json_response({"ok": True, "node": node, "active": True})
+
+
+@routes.delete("/api/device/{node}")
 @routes.delete("/api/publish/{node}")
-async def unpublish(request: web.Request) -> web.Response:
+async def unregister(request: web.Request) -> web.Response:
     app: App = request.app["app"]
     node = request.match_info["node"]
     if "/" in node or node.startswith("."):
         return web.json_response({"error": "invalid node"}, status=400)
     app.unregister_device(node)
-    return web.json_response({"ok": True})
+    LOG.info("Unregistered device %s", node)
+    return web.json_response({"ok": True, "node": node})
 
 
 def create_app() -> web.Application:

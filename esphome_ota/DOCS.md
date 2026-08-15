@@ -27,8 +27,8 @@ No connection to ESPHome is needed for this; it goes straight to
 Use this if you don't want to open ESPHome's public port (see below), or just
 for a one-off device.
 
-Published rows can be uploaded again, injected/ejected via one click, copied as a YAML snippet, or
-**Delete**d. If the dashboard is reachable for a published node, Build &
+Published rows can be uploaded again, injected/ejected via one click, copied as a YAML snippet,
+hidden/deactivated with 1 click via **Deactivate** (removes `.bin` from `/local` while safely storing in add-on private storage), restored via **Activate**, or completely removed via **Delete Device**. If the dashboard is reachable for a published node, Build &
 publish stays available on that row.
 
 ## Required ESPHome add-on setting (only for the automatic Build & publish path)
@@ -299,6 +299,12 @@ Do not include static OTA passwords or fallback credentials in the YAML:
 ota:
   - platform: http_request
 ```
+
+#### 4. Deactivate (Hide) Firmware Binary When Not Updating
+Publish firmware when actively deploying an update to your devices. Once the remote devices finish updating, click **Deactivate** (`비활성화 (숨김)`) on the device row:
+- This immediately removes the `.bin` binary from Home Assistant's `/local/` static path to prevent public credential exposure.
+- The binary is safely preserved in the add-on's private storage (`/data/firmware`), allowing instant 1-click restoration via **Activate** (`활성화 (공개)`) for future updates without re-uploading.
+- The `.json` manifest remains in `/local/` so ESPHome device status checks continue without 404 errors.
 
 ## Troubleshooting
 
