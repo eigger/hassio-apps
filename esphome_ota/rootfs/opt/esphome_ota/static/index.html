@@ -170,27 +170,78 @@
     font-feature-settings: "tnum";
   }
 
-  /* Multi-tier Structured Firmware Column */
-  .fw-col { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
-  .fw-tier-primary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .fw-version-num { font-size: 13.5px; font-weight: 700; color: var(--fg); letter-spacing: -0.01em; font-feature-settings: "tnum"; }
-  .fw-tier-secondary { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-  .fw-tier-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .fw-tier-meta code { font-size: 10.5px; padding: 1px 4px; border-radius: 4px; background: var(--card-subtle); color: var(--fg); border: 1px solid var(--line); font-family: ui-monospace, monospace; }
-  .fw-summary-note {
+  /* Structured Multi-Line Firmware Column */
+  .fw-col {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 230px;
+  }
+  .fw-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    line-height: 1.35;
+  }
+  .fw-line-title {
+    align-items: center;
+    gap: 7px;
+  }
+  .fw-version-num {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+    font-feature-settings: "tnum";
+  }
+  .fw-line-badges {
+    gap: 6px;
+  }
+  .fw-line-meta {
     font-size: 11px;
-    color: var(--accent);
-    background: var(--accent-bg);
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-    padding: 1px 6px;
+    color: var(--muted);
+    gap: 5px;
+  }
+  .meta-sep {
+    color: var(--line);
+    font-weight: 700;
+    user-select: none;
+  }
+  .fw-line-meta code {
+    font-size: 10.5px;
+    padding: 1px 4px;
     border-radius: 4px;
-    max-width: 260px;
+    background: var(--card-subtle);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    font-family: ui-monospace, monospace;
+  }
+  .fw-line-notes {
+    margin-top: 1px;
+  }
+  .fw-notes-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--fg);
+    background: var(--card-subtle);
+    border: 1px solid var(--line);
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .fw-notes-icon {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+  }
+  .fw-notes-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+    color: var(--muted);
   }
 
   /* YAML Config Buttons */
@@ -234,12 +285,42 @@
     color: #ffffff;
   }
 
-  /* Action Buttons */
+  /* Action & General Buttons */
   .actions { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  
+  button {
+    font: inherit;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--card-subtle);
+    color: var(--fg);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  button:hover:not(:disabled) {
+    border-color: var(--line-focus);
+    background: var(--card);
+    color: var(--fg);
+  }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .btn-action {
     font: inherit;
     height: 30px;
-    padding: 0 9px;
+    padding: 0 10px;
     border-radius: 6px;
     border: 1px solid var(--line);
     background: var(--card);
@@ -258,46 +339,62 @@
   .btn-action:hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
-    background: var(--accent-bg);
+    background: var(--card-subtle);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
   }
-  .btn-action:disabled { opacity: 0.45; cursor: default; }
+  .btn-action:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* High-Contrast Primary Buttons (Emphasis & Clear Hover) */
+  button.primary,
   .btn-action.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #ffffff;
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff !important;
     font-weight: 600;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
   }
+  button.primary:hover:not(:disabled),
   .btn-action.primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-    color: #ffffff;
+    background: #0369a1;
+    border-color: #0369a1;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.45);
   }
+  @media (prefers-color-scheme: dark) {
+    button.primary,
+    .btn-action.primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff !important;
+      box-shadow: 0 1px 4px rgba(56, 189, 248, 0.25);
+    }
+    button.primary:hover:not(:disabled),
+    .btn-action.primary:hover:not(:disabled) {
+      background: #0ea5e9;
+      border-color: #7dd3fc;
+      color: #0b0f19 !important;
+      font-weight: 700;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
+    }
+    .btn-action:hover:not(:disabled) {
+      background: #1e293b;
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+    }
+  }
+
   .btn-action.btn-danger {
     color: var(--err);
     border-color: color-mix(in srgb, var(--err) 25%, transparent);
+    background: var(--card);
   }
   .btn-action.btn-danger:hover:not(:disabled) {
-    background: var(--err-bg);
+    background: var(--err);
     border-color: var(--err);
-    color: var(--err);
+    color: #ffffff !important;
+    font-weight: 600;
   }
-
-  /* Modern Legend Bar */
-  .legend-bar {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-top: 14px;
-    padding: 10px 14px;
-    background: var(--card-subtle);
-    border-radius: 8px;
-    border: 1px solid var(--line);
-  }
-  .legend-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 2px; }
-  .legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--fg); font-weight: 500; }
-  .legend-divider { color: var(--line); margin: 0 4px; }
-
-  button { font: inherit; }
   .upload-notes-details { margin-top: 6px; }
   .upload-notes-details summary {
     cursor: pointer;
@@ -414,13 +511,56 @@
   .modal-close:hover { color: var(--fg); }
   .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
+  /* Modern Floating Toast Notifications */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    max-width: calc(100vw - 40px);
+  }
+  .toast-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+    animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .toast-item.toast-ok {
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  }
+  .toast-item.toast-err {
+    border-color: color-mix(in srgb, var(--err) 40%, transparent);
+    color: var(--err);
+    background: var(--err-bg);
+  }
+  .toast-item.toast-info {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
   @media (prefers-reduced-motion: reduce) {
     .pulse-dot.animating,
     .modal-content,
-    .batch-bar {
+    .batch-bar,
+    .toast-item {
       animation: none !important;
       transition: none !important;
     }
@@ -494,6 +634,7 @@
 </style>
 </head>
 <body>
+<div id="toastContainer" class="toast-container"></div>
 <div class="topbar">
   <div>
     <h1><span id="t-title">ESPHome OTA Publisher</span> <span id="t-addon-ver" class="tiny muted"></span></h1>
@@ -537,14 +678,6 @@
     </thead>
     <tbody id="rows"><tr class="empty-row"><td colspan="7" class="muted" id="t-loading">Loading…</td></tr></tbody>
   </table>
-  </div>
-  <div class="legend-bar">
-    <span class="legend-title" id="t-legend-title">Live Status</span>
-    <span class="legend-item"><span class="pulse-dot ok"></span> <span id="t-legend-ha-ok">HA Up to date</span></span>
-    <span class="legend-item"><span class="pulse-dot accent"></span> <span id="t-legend-ha-update">HA Update Available</span></span>
-    <span class="legend-item"><span class="pulse-dot warn animating"></span> <span id="t-legend-ha-install">HA Installing…</span></span>
-    <span class="legend-divider">|</span>
-    <span class="legend-item"><span class="badge-pill badge-purple"><span class="pulse-dot purple"></span> <span id="t-legend-auto-hide">Auto-hide on update success</span></span></span>
   </div>
 </div>
 
@@ -607,7 +740,7 @@
     </div>
     <div id="adStatusInfo" class="tiny muted" style="margin-top:4px"></div>
     <div class="modal-footer">
-      <button type="button" onclick="closeAutoDeactivateModal()">Cancel</button>
+      <button type="button" id="t-ad-cancel-btn" onclick="closeAutoDeactivateModal()">Cancel</button>
       <button type="button" class="primary" id="t-ad-save-btn" onclick="saveAutoDeactivateModal()">Save</button>
     </div>
   </div>
@@ -620,24 +753,38 @@
       <h3 id="t-upload-modal-title">Publish Firmware</h3>
       <button type="button" class="modal-close" onclick="closeUploadModal()">×</button>
     </div>
+    <div id="upErrorBox" style="display:none; padding:10px 12px; border-radius:6px; background:var(--err-bg); border:1px solid color-mix(in srgb, var(--err) 30%, transparent); color:var(--err); font-size:12px; margin-bottom:12px; font-weight:500;"></div>
     <div class="field" style="margin-bottom:10px">
       <label id="t-upload-node-label">Target Device</label>
       <input type="text" id="upNode" readonly style="background:var(--bg)">
     </div>
     <div class="field" style="margin-bottom:10px">
       <label id="t-upload-file-label">Firmware File</label>
-      <div id="upFileInfo" class="tiny" style="font-weight:600"></div>
+      <div id="upFileInfo" class="tiny" style="font-weight:600; padding:6px 8px; background:var(--card-subtle); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:6px;"></div>
     </div>
-    <div class="field" style="margin-bottom:10px">
+    <!-- Detected Version Display (Readonly) -->
+    <div class="field" id="upVerDetectedField" style="margin-bottom:10px; display:none;">
+      <label id="t-upload-ver-detected-label">Firmware Version (Detected from Binary)</label>
+      <div style="display:flex; align-items:center; gap:8px; padding-top:2px;">
+        <span id="upDetectedVerBadge" class="badge-pill badge-ok" style="font-size:13px; padding:3px 9px;">
+          <span class="pulse-dot ok"></span>
+          <span id="upDetectedVerText" style="font-weight:700"></span>
+        </span>
+        <span id="upDetectedVerDetail" class="tiny muted"></span>
+      </div>
+    </div>
+    <!-- Manual Version Fallback (when binary has no app descriptor header) -->
+    <div class="field" id="upVerManualField" style="margin-bottom:10px; display:none;">
       <label id="t-upload-ver-label" for="upVersion">Version</label>
       <input type="text" id="upVersion" required>
+      <span class="tiny muted" id="t-upload-ver-manual-hint" style="display:block; margin-top:2px;">(No embedded header found in binary — please specify version)</span>
     </div>
     <details class="field upload-notes-details" id="upNotesDetails" style="margin-bottom:12px">
       <summary id="t-upload-notes-label">Release Notes / Summary (optional)</summary>
       <input type="text" id="upNotes" placeholder="e.g. Fixed sensor read interval" style="margin-top:6px">
     </details>
     <div class="modal-footer">
-      <button type="button" onclick="closeUploadModal()">Cancel</button>
+      <button type="button" id="t-upload-cancel-btn" onclick="closeUploadModal()">Cancel</button>
       <button type="button" class="primary" id="t-upload-confirm-btn" onclick="confirmUploadModal()">Publish</button>
     </div>
   </div>
@@ -794,14 +941,13 @@ const STRINGS = {
     uploadModalTitle: 'Publish Firmware',
     uploadTarget: 'Target Device',
     uploadFile: 'Firmware File',
+    uploadVerDetectedLabel: 'Firmware Version (Detected from Binary)',
     uploadVer: 'Version',
+    uploadVerManualHint: '(No embedded header found in binary — please specify version)',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
-    legendTitle: 'Live Status',
-    legendHaOk: 'HA: Up to date',
-    legendHaUpdate: 'HA: Update Available',
-    legendHaInstall: 'HA: Installing…',
-    legendAutoHide: 'Auto-hide on update success',
+    btnCancel: 'Cancel',
+    btnSave: 'Save',
   },
   ko: {
     title: 'ESPHome OTA Publisher',
@@ -952,14 +1098,13 @@ const STRINGS = {
     uploadModalTitle: '펌웨어 게시',
     uploadTarget: '대상 기기',
     uploadFile: '펌웨어 파일',
+    uploadVerDetectedLabel: '펌웨어 버전 (바이너리 헤더에서 자동 감지)',
     uploadVer: '버전',
+    uploadVerManualHint: '(바이너리에 내장 헤더가 없습니다 — 버전을 직접 입력해주세요)',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
-    legendTitle: '상태 안내',
-    legendHaOk: 'HA 최신 상태',
-    legendHaUpdate: 'HA 업데이트 대기',
-    legendHaInstall: 'HA 설치 진행 중…',
-    legendAutoHide: '업데이트 완료 시 /local에서 자동 숨김',
+    btnCancel: '취소',
+    btnSave: '저장',
   },
 };
 
@@ -1018,17 +1163,22 @@ function applyStaticText() {
   $('t-ad-mode-label').textContent = T.adModeLabel;
   $('t-ad-hours-label').textContent = T.adHoursLabel;
   $('t-ad-entity-label').textContent = T.adEntityLabel;
+  const adCancel = $('t-ad-cancel-btn');
+  if (adCancel) adCancel.textContent = T.btnCancel;
+  const adSave = $('t-ad-save-btn');
+  if (adSave) adSave.textContent = T.btnSave;
   $('t-upload-modal-title').textContent = T.uploadModalTitle;
   $('t-upload-node-label').textContent = T.uploadTarget;
   $('t-upload-file-label').textContent = T.uploadFile;
+  const verDet = $('t-upload-ver-detected-label');
+  if (verDet) verDet.textContent = T.uploadVerDetectedLabel;
   $('t-upload-ver-label').textContent = T.uploadVer;
+  const verHint = $('t-upload-ver-manual-hint');
+  if (verHint) verHint.textContent = T.uploadVerManualHint;
   $('t-upload-notes-label').textContent = T.uploadNotes;
+  const upCancel = $('t-upload-cancel-btn');
+  if (upCancel) upCancel.textContent = T.btnCancel;
   $('t-upload-confirm-btn').textContent = T.uploadConfirm;
-  $('t-legend-title').textContent = T.legendTitle;
-  $('t-legend-ha-ok').textContent = T.legendHaOk;
-  $('t-legend-ha-update').textContent = T.legendHaUpdate;
-  $('t-legend-ha-install').textContent = T.legendHaInstall;
-  $('t-legend-auto-hide').textContent = T.legendAutoHide;
 }
 
 async function api(path, opts) {
@@ -1043,6 +1193,23 @@ function banner(title, body, kind) {
   div.className = 'card banner' + (kind === 'err' ? ' err' : '');
   div.innerHTML = `<b>${title}</b><br><span class="muted tiny">${body}</span>`;
   $('banners').appendChild(div);
+}
+
+function showToast(htmlMsg, type = 'ok') {
+  const container = $('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast-item toast-${type}`;
+  let iconHtml = '<span class="pulse-dot ok"></span>';
+  if (type === 'err') iconHtml = '<span class="pulse-dot warn"></span>';
+  else if (type === 'info') iconHtml = '<span class="pulse-dot accent"></span>';
+  toast.innerHTML = `${iconHtml}<span>${htmlMsg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-8px)';
+    setTimeout(() => toast.remove(), 250);
+  }, 3500);
 }
 
 async function loadStatus() {
@@ -1121,23 +1288,29 @@ function row(d) {
     const activeChip = `<span class="badge-pill badge-ok" title="${escapeHtml(T.activeChipTitle)}"><span class="pulse-dot ok"></span> ${escapeHtml(T.activeChip)}</span>`;
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="fw-version-num">${escapeHtml(pub.version)}</span>
-          ${haBadgeHtml}
+          ${activeChip}
           ${staleBadge}
         </div>
-        <div class="fw-tier-secondary">
-          ${activeChip}
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
-        <div class="fw-tier-meta">
+        <div class="fw-line fw-line-meta">
           <code>${pub.md5.slice(0, 8)}</code>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${sizeStr || '—'}</span>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${formatPublishedAt(pub.published_at)}</span>
-          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
         </div>
+        ${summaryStr ? `
+        <div class="fw-line fw-line-notes">
+          <div class="fw-notes-card" title="${summaryStr}">
+            <span class="fw-notes-icon">📝</span>
+            <span class="fw-notes-text">${summaryStr}</span>
+          </div>
+        </div>` : ''}
       </div>`;
   } else if (pub && (pub.has_stashed_bin || !pub.has_bin)) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
@@ -1145,31 +1318,37 @@ function row(d) {
     const inactiveChip = `<span class="badge-pill badge-neutral" title="${escapeHtml(T.inactiveChipTitle)}"><span class="pulse-dot neutral"></span> ${escapeHtml(T.inactiveChip)}</span>`;
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="fw-version-num">${escapeHtml(pub.version)}</span>
-          ${haBadgeHtml}
+          ${inactiveChip}
           ${staleBadge}
         </div>
-        <div class="fw-tier-secondary">
-          ${inactiveChip}
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
-        <div class="fw-tier-meta">
-          ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span>·</span>` : ''}
+        <div class="fw-line fw-line-meta">
+          ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span class="meta-sep">·</span>` : ''}
           <span>${sizeStr || '—'}</span>
-          <span>·</span>
+          <span class="meta-sep">·</span>
           <span>${formatPublishedAt(pub.published_at)}</span>
-          ${summaryStr ? `<span class="fw-summary-note" title="${summaryStr}">📝 ${summaryStr}</span>` : ''}
         </div>
+        ${summaryStr ? `
+        <div class="fw-line fw-line-notes">
+          <div class="fw-notes-card" title="${summaryStr}">
+            <span class="fw-notes-icon">📝</span>
+            <span class="fw-notes-text">${summaryStr}</span>
+          </div>
+        </div>` : ''}
       </div>`;
   } else {
     firmwareHtml = `
       <div class="fw-col">
-        <div class="fw-tier-primary">
+        <div class="fw-line fw-line-title">
           <span class="muted" style="font-size:13px">${escapeHtml(T.firmwareNotPublished)}</span>
-          ${haBadgeHtml}
         </div>
-        <div class="fw-tier-secondary">
+        <div class="fw-line fw-line-badges">
+          ${haBadgeHtml}
           ${adBadgeHtml}
         </div>
       </div>`;
@@ -1205,11 +1384,10 @@ function row(d) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ node: d.node }),
           });
-          const result = $('manualResult');
-          if (result) result.innerHTML = `<span class="toast">${T.ejectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          showToast(T.ejectSuccess(escapeHtml(d.friendly_name)), 'ok');
           loadDevices();
         } catch (err) {
-          alert(err.message);
+          showToast(escapeHtml(err.message), 'err');
           injectBtn.disabled = false;
           injectBtn.textContent = '✓ ' + T.yamlInjected;
         }
@@ -1228,11 +1406,10 @@ function row(d) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ node: d.node }),
           });
-          const result = $('manualResult');
-          if (result) result.innerHTML = `<span class="toast">${T.injectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          showToast(T.injectSuccess(escapeHtml(d.friendly_name)), 'ok');
           loadDevices();
         } catch (err) {
-          alert(err.message);
+          showToast(escapeHtml(err.message), 'err');
           injectBtn.disabled = false;
           injectBtn.textContent = '+ ' + T.yamlNotInjected;
         }
@@ -1369,7 +1546,7 @@ async function runBatchAction(action) {
 
   try {
     setJobButtonsDisabled(true);
-    await api('api/batch', {
+    const res = await api('api/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: Array.from(selectedNodes), action }),
@@ -1379,15 +1556,15 @@ async function runBatchAction(action) {
     const successCount = Object.keys(results).length - failedNodes.length;
 
     if (failedNodes.length > 0) {
-      alert(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`);
+      showToast(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`, 'err');
     } else {
-      alert(T.batchSuccess(actionLabel, successCount || count));
+      showToast(T.batchSuccess(actionLabel, successCount || count), 'ok');
     }
     selectedNodes.clear();
     updateBatchBar();
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   } finally {
     setJobButtonsDisabled(false);
   }
@@ -1450,33 +1627,145 @@ async function saveAutoDeactivateModal() {
       body: JSON.stringify({ node: currentAdNode, mode, timer_hours, ha_entity_id }),
     });
     closeAutoDeactivateModal();
+    showToast(T.adSaved, 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
+async function parseBinaryHeader(file) {
+  if (file.size < 4096) {
+    return { valid: false, error: (LOCALE === 'ko' ? '파일 크기가 너무 작아 유효한 펌웨어가 아닙니다' : 'File is too small to be a valid firmware') + ` (${formatBytes(file.size)} < 4KB)` };
+  }
+  if (file.size > 32 * 1024 * 1024) {
+    return { valid: false, error: T.fileTooBig };
+  }
+
+  let slice;
+  try {
+    slice = await file.slice(0, 512).arrayBuffer();
+  } catch (err) {
+    return { valid: false, error: 'Could not read file: ' + err.message };
+  }
+
+  const bytes = new Uint8Array(slice);
+  const view = new DataView(slice);
+
+  // UF2
+  if (bytes[0] === 0x55 && bytes[1] === 0x46 && bytes[2] === 0x32 && bytes[3] === 0x0A) {
+    return { valid: false, error: LOCALE === 'ko' ? 'UF2 파일이 감지되었습니다. ESPHome OTA는 컴파일된 .bin 파일이 필요합니다.' : 'UF2 file detected. ESPHome OTA requires an application .bin file.' };
+  }
+  // ELF
+  if (bytes[0] === 0x7F && bytes[1] === 0x45 && bytes[2] === 0x4C && bytes[3] === 0x46) {
+    return { valid: false, error: LOCALE === 'ko' ? 'ELF 실행 파일이 감지되었습니다. 컴파일된 .ota.bin 파일을 업로드해주세요.' : 'ELF executable detected. Please upload compiled .ota.bin file.' };
+  }
+
+  // ESP Image Magic (0xE9)
+  if (bytes[0] !== 0xE9) {
+    return { valid: false, error: (LOCALE === 'ko' ? '유효하지 않은 ESP 이미지 매직 바이트입니다' : 'Invalid image magic byte') + ` (0x${bytes[0].toString(16).toUpperCase().padStart(2, '0')} != 0xE9)` };
+  }
+
+  const CHIP_IDS = {
+    0x0000: 'ESP32',
+    0x0002: 'ESP32-S2',
+    0x0005: 'ESP32-C3',
+    0x0009: 'ESP32-S3',
+    0x000C: 'ESP32-C2',
+    0x000D: 'ESP32-C6',
+    0x0010: 'ESP32-H2',
+    0x0012: 'ESP32-P4',
+    0x0017: 'ESP32-C5',
+  };
+  const chipId = view.getUint16(12, true);
+  const chipFamily = CHIP_IDS[chipId] || null;
+
+  let version = null;
+  let projectName = null;
+  let idfVersion = null;
+
+  if (view.byteLength >= 0xA0) {
+    const magic = view.getUint32(0x20, true);
+    if (magic === 0xABCD5432) {
+      // 0x30..0x50: version (32 bytes)
+      const verSlice = bytes.subarray(0x30, 0x50);
+      let end = verSlice.indexOf(0);
+      if (end === -1) end = 32;
+      version = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
+
+      // 0x50..0x70: project_name (32 bytes)
+      const projSlice = bytes.subarray(0x50, 0x70);
+      let pEnd = projSlice.indexOf(0);
+      if (pEnd === -1) pEnd = 32;
+      projectName = new TextDecoder('utf-8').decode(projSlice.subarray(0, pEnd)).trim();
+
+      // 0x90..0xB0: idf_version (32 bytes)
+      const idfSlice = bytes.subarray(0x90, 0xB0);
+      let iEnd = idfSlice.indexOf(0);
+      if (iEnd === -1) iEnd = 32;
+      idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
+    }
+  }
+
+  return {
+    valid: true,
+    chipFamily,
+    version,
+    projectName,
+    idfVersion,
+    size: file.size,
+  };
+}
+
 // Upload Modal with Release Notes
-function openUploadModal(d, file) {
+async function openUploadModal(d, file) {
   if (jobRunning) return;
   if (!file.name.toLowerCase().endsWith('.bin')) {
     alert(T.notBin);
     return;
   }
-  if (file.size > 32 * 1024 * 1024) {
-    alert(T.fileTooBig);
-    return;
-  }
 
   pendingUpload = { d, file };
   $('upNode').value = d.friendly_name || d.node;
-  $('upFileInfo').textContent = `${file.name} (${formatBytes(file.size)})`;
-  $('upVersion').value = compiledVersion(d) || versionPrefill(d) || '1.0.0';
   $('upNotes').value = d.summary || '';
   const notesDetails = $('upNotesDetails');
   if (notesDetails) notesDetails.open = Boolean(d.summary);
+
+  const errorBox = $('upErrorBox');
+  const confirmBtn = $('t-upload-confirm-btn');
+  const detectedField = $('upVerDetectedField');
+  const manualField = $('upVerManualField');
+
+  const parsed = await parseBinaryHeader(file);
+
+  if (!parsed.valid) {
+    errorBox.textContent = '❌ ' + parsed.error;
+    errorBox.style.display = 'block';
+    $('upFileInfo').innerHTML = `<span style="color:var(--err)">${escapeHtml(file.name)} (${formatBytes(file.size)})</span>`;
+    detectedField.style.display = 'none';
+    manualField.style.display = 'none';
+    confirmBtn.disabled = true;
+  } else {
+    errorBox.style.display = 'none';
+    confirmBtn.disabled = false;
+
+    const chipTag = parsed.chipFamily ? `<span class="chip-platform">${escapeHtml(parsed.chipFamily)}</span>` : '';
+    $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code> ${chipTag}`;
+
+    if (parsed.version) {
+      detectedField.style.display = 'block';
+      manualField.style.display = 'none';
+      $('upDetectedVerText').textContent = parsed.version;
+      $('upDetectedVerDetail').textContent = parsed.idfVersion ? `(ESP-IDF ${parsed.idfVersion})` : '';
+      $('upVersion').value = parsed.version;
+    } else {
+      detectedField.style.display = 'none';
+      manualField.style.display = 'block';
+      $('upVersion').value = (d.published && d.published.version) || '1.0.0';
+    }
+  }
+
   $('uploadModal').style.display = 'flex';
-  setTimeout(() => $('upVersion').focus(), 50);
 }
 
 function closeUploadModal() {
@@ -1556,7 +1845,7 @@ function bindNextVersionInput(input, d) {
       flashInputSaved(input);
     } catch (err) {
       input.value = yamlVersion(d);
-      $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+      showToast(escapeHtml(err.message), 'err');
     }
   });
 }
@@ -1632,8 +1921,6 @@ function pickAndPublish(d) {
 async function executeUpload(d, file, version, summary) {
   jobRunning = true;
   setJobButtonsDisabled(true);
-  const result = $('manualResult');
-  if (result) result.innerHTML = `<span class="muted">${T.manualUploading}</span>`;
   try {
     const form = new FormData();
     form.append('node', d.node);
@@ -1643,12 +1930,10 @@ async function executeUpload(d, file, version, summary) {
     form.append('summary', summary || '');
     form.append('file', file);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
-    if (result) {
-      const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
-      result.innerHTML = `<span class="toast">${T.publishedOk(escapeHtml(d.friendly_name || body.node))}${extra}</span>`;
-    }
+    const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
+    showToast(T.publishedOk(escapeHtml(d.friendly_name || body.node)) + extra, 'ok');
   } catch (err) {
-    if (result) result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+    showToast(escapeHtml(err.message), 'err');
   } finally {
     finishJob();
   }
@@ -1662,11 +1947,10 @@ async function deactivateFirmware(d) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node: d.node }),
     });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.deactivateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.deactivateSuccess(escapeHtml(d.friendly_name)), 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1677,11 +1961,10 @@ async function activateFirmware(d) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node: d.node }),
     });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.activateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.activateSuccess(escapeHtml(d.friendly_name)), 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1689,13 +1972,12 @@ async function deletePublished(d) {
   if (!confirm(T.deleteConfirm(d.friendly_name))) return;
   try {
     await api(`api/device/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.deleteSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.deleteSuccess(escapeHtml(d.friendly_name)), 'ok');
     selectedNodes.delete(d.node);
     updateBatchBar();
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1807,7 +2089,7 @@ async function showSnippet(d) {
       await saveWrapperVersion(d, next);
       flashInputSaved(input);
     } catch (err) {
-      $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+      showToast(escapeHtml(err.message), 'err');
     }
   });
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1909,6 +2191,7 @@ $('manualForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ node, version, title: $('mTitle').value.trim() }),
     });
     result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
+    showToast(T.manualOk(body.node), 'ok');
     $('mYaml').value = '';
     $('mNode').value = '';
     $('mTitle').value = '';
@@ -1920,6 +2203,7 @@ $('manualForm').addEventListener('submit', async (e) => {
   } catch (err) {
     const msg = /already registered/i.test(err.message) ? T.alreadyRegistered : err.message;
     result.innerHTML = `<span style="color:var(--err)">${escapeHtml(msg)}</span>`;
+    showToast(escapeHtml(msg), 'err');
   } finally {
     submitBtn.textContent = originalLabel;
     submitBtn.disabled = false;
