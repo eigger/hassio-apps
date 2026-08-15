@@ -449,13 +449,56 @@
   .modal-close:hover { color: var(--fg); }
   .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
+  /* Modern Floating Toast Notifications */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    max-width: calc(100vw - 40px);
+  }
+  .toast-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+    animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .toast-item.toast-ok {
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  }
+  .toast-item.toast-err {
+    border-color: color-mix(in srgb, var(--err) 40%, transparent);
+    color: var(--err);
+    background: var(--err-bg);
+  }
+  .toast-item.toast-info {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-12px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
   @media (prefers-reduced-motion: reduce) {
     .pulse-dot.animating,
     .modal-content,
-    .batch-bar {
+    .batch-bar,
+    .toast-item {
       animation: none !important;
       transition: none !important;
     }
@@ -529,6 +572,7 @@
 </style>
 </head>
 <body>
+<div id="toastContainer" class="toast-container"></div>
 <div class="topbar">
   <div>
     <h1><span id="t-title">ESPHome OTA Publisher</span> <span id="t-addon-ver" class="tiny muted"></span></h1>
@@ -1079,6 +1123,23 @@ function banner(title, body, kind) {
   $('banners').appendChild(div);
 }
 
+function showToast(htmlMsg, type = 'ok') {
+  const container = $('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast-item toast-${type}`;
+  let iconHtml = '<span class="pulse-dot ok"></span>';
+  if (type === 'err') iconHtml = '<span class="pulse-dot warn"></span>';
+  else if (type === 'info') iconHtml = '<span class="pulse-dot accent"></span>';
+  toast.innerHTML = `${iconHtml}<span>${htmlMsg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-8px)';
+    setTimeout(() => toast.remove(), 250);
+  }, 3500);
+}
+
 async function loadStatus() {
   status = await api('api/status');
   $('banners').innerHTML = '';
@@ -1251,11 +1312,10 @@ function row(d) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ node: d.node }),
           });
-          const result = $('manualResult');
-          if (result) result.innerHTML = `<span class="toast">${T.ejectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          showToast(T.ejectSuccess(escapeHtml(d.friendly_name)), 'ok');
           loadDevices();
         } catch (err) {
-          alert(err.message);
+          showToast(escapeHtml(err.message), 'err');
           injectBtn.disabled = false;
           injectBtn.textContent = '✓ ' + T.yamlInjected;
         }
@@ -1274,11 +1334,10 @@ function row(d) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ node: d.node }),
           });
-          const result = $('manualResult');
-          if (result) result.innerHTML = `<span class="toast">${T.injectSuccess(escapeHtml(d.friendly_name))}</span>`;
+          showToast(T.injectSuccess(escapeHtml(d.friendly_name)), 'ok');
           loadDevices();
         } catch (err) {
-          alert(err.message);
+          showToast(escapeHtml(err.message), 'err');
           injectBtn.disabled = false;
           injectBtn.textContent = '+ ' + T.yamlNotInjected;
         }
@@ -1415,7 +1474,7 @@ async function runBatchAction(action) {
 
   try {
     setJobButtonsDisabled(true);
-    await api('api/batch', {
+    const res = await api('api/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: Array.from(selectedNodes), action }),
@@ -1425,15 +1484,15 @@ async function runBatchAction(action) {
     const successCount = Object.keys(results).length - failedNodes.length;
 
     if (failedNodes.length > 0) {
-      alert(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`);
+      showToast(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`, 'err');
     } else {
-      alert(T.batchSuccess(actionLabel, successCount || count));
+      showToast(T.batchSuccess(actionLabel, successCount || count), 'ok');
     }
     selectedNodes.clear();
     updateBatchBar();
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   } finally {
     setJobButtonsDisabled(false);
   }
@@ -1496,9 +1555,10 @@ async function saveAutoDeactivateModal() {
       body: JSON.stringify({ node: currentAdNode, mode, timer_hours, ha_entity_id }),
     });
     closeAutoDeactivateModal();
+    showToast(T.adSaved, 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1713,7 +1773,7 @@ function bindNextVersionInput(input, d) {
       flashInputSaved(input);
     } catch (err) {
       input.value = yamlVersion(d);
-      $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+      showToast(escapeHtml(err.message), 'err');
     }
   });
 }
@@ -1789,8 +1849,6 @@ function pickAndPublish(d) {
 async function executeUpload(d, file, version, summary) {
   jobRunning = true;
   setJobButtonsDisabled(true);
-  const result = $('manualResult');
-  if (result) result.innerHTML = `<span class="muted">${T.manualUploading}</span>`;
   try {
     const form = new FormData();
     form.append('node', d.node);
@@ -1800,12 +1858,10 @@ async function executeUpload(d, file, version, summary) {
     form.append('summary', summary || '');
     form.append('file', file);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
-    if (result) {
-      const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
-      result.innerHTML = `<span class="toast">${T.publishedOk(escapeHtml(d.friendly_name || body.node))}${extra}</span>`;
-    }
+    const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
+    showToast(T.publishedOk(escapeHtml(d.friendly_name || body.node)) + extra, 'ok');
   } catch (err) {
-    if (result) result.innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+    showToast(escapeHtml(err.message), 'err');
   } finally {
     finishJob();
   }
@@ -1819,11 +1875,10 @@ async function deactivateFirmware(d) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node: d.node }),
     });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.deactivateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.deactivateSuccess(escapeHtml(d.friendly_name)), 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1834,11 +1889,10 @@ async function activateFirmware(d) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node: d.node }),
     });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.activateSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.activateSuccess(escapeHtml(d.friendly_name)), 'ok');
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1846,13 +1900,12 @@ async function deletePublished(d) {
   if (!confirm(T.deleteConfirm(d.friendly_name))) return;
   try {
     await api(`api/device/${encodeURIComponent(d.node)}`, { method: 'DELETE' });
-    const result = $('manualResult');
-    if (result) result.innerHTML = `<span class="toast">${T.deleteSuccess(escapeHtml(d.friendly_name))}</span>`;
+    showToast(T.deleteSuccess(escapeHtml(d.friendly_name)), 'ok');
     selectedNodes.delete(d.node);
     updateBatchBar();
     loadDevices();
   } catch (err) {
-    alert(err.message);
+    showToast(escapeHtml(err.message), 'err');
   }
 }
 
@@ -1964,7 +2017,7 @@ async function showSnippet(d) {
       await saveWrapperVersion(d, next);
       flashInputSaved(input);
     } catch (err) {
-      $('manualResult').innerHTML = `<span style="color:var(--err)">${escapeHtml(err.message)}</span>`;
+      showToast(escapeHtml(err.message), 'err');
     }
   });
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2066,6 +2119,7 @@ $('manualForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ node, version, title: $('mTitle').value.trim() }),
     });
     result.innerHTML = `<span style="color:var(--ok)">${T.manualOk(body.node)}</span>`;
+    showToast(T.manualOk(body.node), 'ok');
     $('mYaml').value = '';
     $('mNode').value = '';
     $('mTitle').value = '';
@@ -2077,6 +2131,7 @@ $('manualForm').addEventListener('submit', async (e) => {
   } catch (err) {
     const msg = /already registered/i.test(err.message) ? T.alreadyRegistered : err.message;
     result.innerHTML = `<span style="color:var(--err)">${escapeHtml(msg)}</span>`;
+    showToast(escapeHtml(msg), 'err');
   } finally {
     submitBtn.textContent = originalLabel;
     submitBtn.disabled = false;

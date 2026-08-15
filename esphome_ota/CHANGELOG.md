@@ -12,6 +12,10 @@
     2. **Live Status & Security**: HA Live Status (`Up to date`/`Update Available`/`Installing…`) + Smart Auto-Hide policy badge.
     3. **File Metadata**: MD5 digest + File size + Formatted publication date.
     4. **Release Notes Card**: Clean full-width dedicated notes card with smooth text wrapping.
+- **Modern Floating Toast Notifications**:
+  - Replaced misplaced registration-form feedback messages with a modern, floating top-right **Toast Notification** system.
+  - All device list actions (OTA apply/eject, binary upload, activate/deactivate, delete, batch operations, auto-hide save) now provide instant floating feedback at the top-right of the viewport.
+  - Cleaned up redundant legend bar beneath the device table.
 
 ## 0.7.1
 
