@@ -770,7 +770,6 @@
           <span class="pulse-dot ok"></span>
           <span id="upDetectedVerText" style="font-weight:700"></span>
         </span>
-        <span id="upDetectedVerDetail" class="tiny muted"></span>
       </div>
       <input type="hidden" id="upVersion">
     </div>
@@ -1747,7 +1746,6 @@ async function openUploadModal(d, file) {
 
     detectedField.style.display = 'block';
     $('upDetectedVerText').textContent = targetVersion;
-    $('upDetectedVerDetail').textContent = d.published && d.published.version ? `(${T.published})` : `(${T.colYamlVer})`;
     $('upVersion').value = targetVersion;
   }
 
