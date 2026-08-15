@@ -89,39 +89,40 @@ class App:
         self.addon_version: str = ""
         self.registered: dict[str, dict[str, Any]] = {}
         self.auto_deactivate_task: asyncio.Task | None = None
+        self.session: aiohttp.ClientSession | None = None
 
     # -- startup -----------------------------------------------------------
 
     async def startup(self, _: web.Application) -> None:
         self.restart_required = self.publisher.ensure_dirs()
+        self.session = aiohttp.ClientSession()
 
-        async with aiohttp.ClientSession() as session:
-            self.addon_version = await supervisor.find_self_version(session) or ""
-            if self.settings.dashboard_url:
-                self.resolved_dashboard = self.settings.dashboard_url.rstrip("/")
-            else:
-                self.resolved_dashboard = await supervisor.find_dashboard_url(session) or ""
+        self.addon_version = await supervisor.find_self_version(self.session) or ""
+        if self.settings.dashboard_url:
+            self.resolved_dashboard = self.settings.dashboard_url.rstrip("/")
+        else:
+            self.resolved_dashboard = await supervisor.find_dashboard_url(self.session) or ""
 
-            # This add-on exists for devices ESPHome's own local/mDNS OTA can't
-            # reach — i.e. devices outside the LAN. The address that matters is
-            # therefore the one HA is already configured to be reached at from
-            # outside (Settings -> System -> Network), not the host's LAN IP.
-            # Resolution order: explicit option > HA's configured external_url
-            # > LAN IP as a last resort (logged loudly — it will not work for
-            # an off-LAN device, but a working LAN-only default beats none for
-            # local testing).
-            if self.settings.base_url:
-                self.resolved_base_url = self.settings.base_url.rstrip("/")
-                self.base_url_source = "configured"
+        # This add-on exists for devices ESPHome's own local/mDNS OTA can't
+        # reach — i.e. devices outside the LAN. The address that matters is
+        # therefore the one HA is already configured to be reached at from
+        # outside (Settings -> System -> Network), not the host's LAN IP.
+        # Resolution order: explicit option > HA's configured external_url
+        # > LAN IP as a last resort (logged loudly — it will not work for
+        # an off-LAN device, but a working LAN-only default beats none for
+        # local testing).
+        if self.settings.base_url:
+            self.resolved_base_url = self.settings.base_url.rstrip("/")
+            self.base_url_source = "configured"
+        else:
+            external_url = await supervisor.find_external_url(self.session)
+            if external_url:
+                self.resolved_base_url = external_url.rstrip("/")
+                self.base_url_source = "ha_external_url"
             else:
-                external_url = await supervisor.find_external_url(session)
-                if external_url:
-                    self.resolved_base_url = external_url.rstrip("/")
-                    self.base_url_source = "ha_external_url"
-                else:
-                    host_ip = await supervisor.find_host_ip(session)
-                    self.resolved_base_url = f"http://{host_ip}:8123" if host_ip else ""
-                    self.base_url_source = "lan_ip_fallback"
+                host_ip = await supervisor.find_host_ip(self.session)
+                self.resolved_base_url = f"http://{host_ip}:8123" if host_ip else ""
+                self.base_url_source = "lan_ip_fallback"
 
         if self.resolved_base_url:
             if self.base_url_source == "lan_ip_fallback":
@@ -145,12 +146,12 @@ class App:
             )
 
     async def shutdown(self, _: web.Application) -> None:
-        if self.auto_deactivate_task and not self.auto_deactivate_task.done():
+        if self.auto_deactivate_task:
             self.auto_deactivate_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.auto_deactivate_task
-            except asyncio.CancelledError:
-                pass
+        if self.session and not self.session.closed:
+            await self.session.close()
 
     # -- dashboard ---------------------------------------------------------
 
@@ -163,40 +164,35 @@ class App:
         return DashboardClient(self.resolved_dashboard, self.settings.dashboard_token)
 
     def load_registry(self) -> None:
-        data = registry.load(self.settings.esphome_config_dir)
-        changed = False
-        for node, rec in self.publisher.list_published().items():
-            if node in data:
-                continue
-            registry.upsert(data, node, rec.get("version") or "1.0.0", rec.get("title") or node)
-            changed = True
-        if changed:
-            registry.save(self.settings.esphome_config_dir, data)
-        self.registered = data
+        self.registered = registry.load(self.settings.esphome_config_dir)
 
     def save_registry(self) -> None:
         registry.save(self.settings.esphome_config_dir, self.registered)
 
     def register_device(self, node: str, version: str, title: str = "") -> dict[str, Any]:
+        self.load_registry()
         rec = registry.upsert(self.registered, node, version, title)
         self.save_registry()
+        self.write_device_wrapper(node, rec["version"])
         return rec
 
-    def deactivate_firmware(self, node: str) -> bool:
-        return self.publisher.deactivate_binary(node)
+    def deactivate_firmware(self, node: str) -> None:
+        """Deactivate firmware binary: removes .bin from /local and keeps in storage."""
+        self.publisher.deactivate_binary(node)
 
-    def activate_firmware(self, node: str) -> bool:
-        res = self.publisher.activate_binary(node)
+    def activate_firmware(self, node: str) -> None:
+        """Activate firmware binary: deploys stashed .bin from storage to /local."""
+        self.publisher.activate_binary(node)
         self._schedule_auto_deactivate(node)
-        return res
 
     def _schedule_auto_deactivate(self, node: str) -> None:
-        """Calculate and store expires_at timestamp based on auto_deactivate settings."""
+        """Schedule expiration timer when a firmware is published or activated."""
         self.load_registry()
         rec = self.registered.get(node) or {}
-        ad = dict(rec.get("auto_deactivate") or {"mode": "on_success", "timer_hours": 12})
+        ad = rec.get("auto_deactivate") or {"mode": "on_success", "timer_hours": 12}
         hours = ad.get("timer_hours", 12)
-        expires_at = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(timespec="seconds")
+        now = datetime.now(timezone.utc)
+        expires_at = (now + timedelta(hours=hours)).isoformat(timespec="seconds")
         registry.set_auto_deactivate(
             self.registered,
             node,
@@ -235,8 +231,8 @@ class App:
                 return update_entities[cand]
 
         for eid, entity in update_entities.items():
-            title = (entity.get("title") or entity.get("friendly_name") or "").lower()
-            if norm_node in eid.lower() or (friendly_name and friendly_name.lower() in title):
+            title = (entity.get("title") or entity.get("friendly_name") or "").strip().lower()
+            if friendly_name and title == friendly_name.strip().lower():
                 return entity
         return None
 
@@ -257,8 +253,17 @@ class App:
         if not active_nodes:
             return
 
-        async with aiohttp.ClientSession() as session:
-            update_entities = await supervisor.fetch_update_entities(session)
+        # Only query HA states if at least one active node uses on_success mode
+        needs_ha_states = any(
+            (self.registered.get(node) or {}).get("auto_deactivate", {}).get("mode", "on_success") == "on_success"
+            for node in active_nodes
+        )
+        update_entities: dict[str, dict[str, Any]] = {}
+        if needs_ha_states and self.session and not self.session.closed:
+            try:
+                update_entities = await supervisor.fetch_update_entities(self.session)
+            except Exception as err:
+                LOG.debug("Failed to fetch update entities: %s", err)
 
         now = datetime.now(timezone.utc)
         changed = False
@@ -294,7 +299,7 @@ class App:
                     pass
 
             # 2. On-success check
-            if mode == "on_success" and pub_ver:
+            if mode == "on_success" and pub_ver and update_entities:
                 matched = self.match_ha_update_entity(
                     node, rec.get("title") or node, rec.get("ha_entity_id"), update_entities
                 )
@@ -430,7 +435,9 @@ class App:
             )
             has_yaml = bool(node in local or metadata.find_configuration(self.settings.esphome_config_dir, node))
             injected = metadata.is_injected(self.settings.esphome_config_dir, node)
-            has_bak = metadata.has_yaml_backup(self.settings.esphome_config_dir, node)
+            has_bak_info = metadata.get_yaml_backup_info(self.settings.esphome_config_dir, node)
+            has_bak = has_bak_info is not None
+            backup_mtime = has_bak_info["mtime"] if has_bak_info else None
             matched_ha = self.match_ha_update_entity(
                 node, friendly, rec.get("ha_entity_id"), update_entities
             )
@@ -459,6 +466,7 @@ class App:
                     "has_yaml": has_yaml,
                     "injected": injected,
                     "has_backup": has_bak,
+                    "backup_mtime": backup_mtime,
                     "ha_entity": matched_ha,
                     "auto_deactivate": rec.get("auto_deactivate") or {
                         "mode": "on_success",
@@ -474,25 +482,27 @@ class App:
         rows.sort(key=lambda r: r["friendly_name"].lower())
         return rows, configs, dashboard_error
 
-    # -- jobs --------------------------------------------------------------
+    # -- job runner --------------------------------------------------------
 
     def start_job(self, node: str, configuration: str, compile_first: bool, summary: str = "") -> Job:
-        job = Job(node, "build" if compile_first else "publish")
+        job = Job(str(uuid.uuid4())[:8], node, configuration, compile_first)
         self.jobs[job.id] = job
-        asyncio.create_task(self._run_job(job, configuration, compile_first, summary))
+        asyncio.create_task(self._run_job(job, summary=summary))
         return job
 
-    async def _run_job(self, job: Job, configuration: str, compile_first: bool, summary: str = "") -> None:
-        # One build at a time: the dashboard's compile lane is a single worker
-        # anyway, and queueing here keeps our own log readable.
+    async def _run_job(self, job: Job, summary: str = "") -> None:
         async with self.lock:
+            job.status = "running"
+            configuration = job.configuration
             try:
-                async with self._client() as client:
-                    if compile_first:
-                        self.write_device_wrapper(job.node)
-                        job.log(f"Building {configuration} ...")
-                        await client.compile(configuration, on_output=job.log)
-                        job.log("Build finished.")
+                device: dict = {}
+                esphome_version = ""
+                async with self.dashboard_client() as client:
+                    if job.compile_first:
+                        job.log(f"Compiling {configuration} on the ESPHome dashboard ...")
+                        ok = await client.compile(configuration, job.log)
+                        if not ok:
+                            raise DashboardError(f"Compilation of {configuration} failed.")
                     elif not await client.has_ota_binary(configuration):
                         raise DashboardError(
                             f"{configuration} has no firmware.ota.bin yet — build it first."
@@ -502,20 +512,19 @@ class App:
                     blob = await client.download_ota(configuration)
                     job.log(f"Downloaded {len(blob)} bytes.")
                     esphome_version = client.server_info.get("esphome_version", "")
-                    if esphome_version:
-                        self.esphome_version = esphome_version
                     device = next(
                         (d for d in await client.devices() if d.get("configuration") == configuration),
                         {},
                     )
 
-                is_valid, msg, _info = metadata.validate_binary(blob)
+                target_platform = device.get("target_platform", "")
+                is_valid, msg, info = metadata.validate_binary(blob, target_platform, MAX_UPLOAD_BYTES)
                 if not is_valid:
                     raise DashboardError(f"Firmware binary validation failed: {msg}")
 
                 config = metadata.read_config(self.settings.esphome_config_dir, configuration)
                 origin = self.settings.esphome_config_dir / configuration
-                family, source = metadata.chip_family(device.get("target_platform", ""), blob)
+                family, source = metadata.chip_family(target_platform, blob)
                 if not family:
                     raise DashboardError(
                         f"Could not determine chipFamily for {configuration} "
@@ -528,6 +537,9 @@ class App:
                 )
                 if version:
                     job.log(f"version: {version} (esphome.project.version)")
+                elif info.get("app_descriptor", {}).get("version"):
+                    version = info["app_descriptor"]["version"]
+                    job.log(f"version: {version} (from esp_app_desc_t header)")
                 else:
                     version = esphome_version or "0.0.0"
                     job.log(
@@ -761,7 +773,6 @@ async def set_auto_deactivate_route(request: web.Request) -> web.Response:
         return web.json_response({"error": "invalid json"}, status=400)
     node = (body.get("node") or "").strip()
     mode = body.get("mode", "on_success")
-    timer_hours = int(body.get("timer_hours", 12))
     ha_entity_id = body.get("ha_entity_id")
 
     if not metadata.NODE_RE.match(node):
@@ -769,10 +780,36 @@ async def set_auto_deactivate_route(request: web.Request) -> web.Response:
     if mode not in ("on_success", "timer", "none"):
         return web.json_response({"error": "invalid mode"}, status=400)
 
+    try:
+        timer_hours = int(body.get("timer_hours", 12))
+        if not (1 <= timer_hours <= 720):
+            raise ValueError()
+    except (ValueError, TypeError):
+        return web.json_response({"error": "timer_hours must be an integer between 1 and 720"}, status=400)
+
     app.load_registry()
-    registry.set_auto_deactivate(app.registered, node, mode, timer_hours)
-    if ha_entity_id is not None:
-        registry.set_ha_entity_id(app.registered, node, ha_entity_id)
+    filename = metadata.find_configuration(app.settings.esphome_config_dir, node)
+    if not filename and node not in app.registered:
+        return web.json_response({"error": f"node '{node}' is not a registered or discovered device"}, status=404)
+
+    published = app.publisher.list_published()
+    pub = published.get(node) or {}
+    now = datetime.now(timezone.utc)
+    if pub.get("has_bin") and mode in ("on_success", "timer"):
+        expires_at = (now + timedelta(hours=timer_hours)).isoformat(timespec="seconds")
+    else:
+        expires_at = None
+
+    registry.set_auto_deactivate(
+        app.registered,
+        node,
+        mode,
+        timer_hours,
+        expires_at=expires_at,
+        last_status="Active (monitoring update)" if (pub.get("has_bin") and mode != "none") else None,
+    )
+    if "ha_entity_id" in body:
+        registry.set_ha_entity_id(app.registered, node, ha_entity_id if ha_entity_id else None)
     app.save_registry()
     return web.json_response({
         "ok": True,
@@ -785,8 +822,13 @@ async def set_auto_deactivate_route(request: web.Request) -> web.Response:
 @routes.get("/api/ha/update-entities")
 async def get_ha_update_entities(request: web.Request) -> web.Response:
     """Fetch all HA update.* entities."""
-    async with aiohttp.ClientSession() as session:
+    app: App = request.app["app"]
+    session = app.session if app.session and not app.session.closed else None
+    if session:
         entities = await supervisor.fetch_update_entities(session)
+    else:
+        async with aiohttp.ClientSession() as sess:
+            entities = await supervisor.fetch_update_entities(sess)
     return web.json_response({"entities": list(entities.values())})
 
 
@@ -834,7 +876,7 @@ async def batch_action(request: web.Request) -> web.Response:
 
 
 NODE_RE = metadata.NODE_RE
-MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # generous for any ESPHome target; caps abuse
+MAX_UPLOAD_BYTES = 32 * 1024 * 1024  # allows 16MB/32MB flash target builds
 
 
 @routes.post("/api/publish/manual")
@@ -885,8 +927,8 @@ async def publish_manual(request: web.Request) -> web.Response:
     if not blob:
         return web.json_response({"error": "file required"}, status=400)
 
-    # Validate binary integrity and structure
-    is_valid, val_msg, _info = metadata.validate_binary(blob)
+    # Validate binary integrity and structure with platform context
+    is_valid, val_msg, info = metadata.validate_binary(blob, chip_family, MAX_UPLOAD_BYTES)
     if not is_valid:
         return web.json_response({"error": f"Firmware validation error: {val_msg}"}, status=400)
 
@@ -918,10 +960,14 @@ async def publish_manual(request: web.Request) -> web.Response:
         version = compiled
         version_source = "project"
     elif not requested:
-        esphome_version = await app._dashboard_esphome_version()
-        if esphome_version:
-            version = esphome_version
-            version_source = "esphome"
+        if info.get("app_descriptor", {}).get("version"):
+            version = info["app_descriptor"]["version"]
+            version_source = "app_descriptor"
+        else:
+            esphome_version = await app._dashboard_esphome_version()
+            if esphome_version:
+                version = esphome_version
+                version_source = "esphome"
     if not version:
         return web.json_response(
             {

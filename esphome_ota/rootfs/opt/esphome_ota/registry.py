@@ -80,19 +80,22 @@ def upsert(
     return rec
 
 
+_UNSET = object()
+
+
 def set_auto_deactivate(
     data: dict[str, dict[str, Any]],
     node: str,
     mode: str,
     timer_hours: int = 12,
-    expires_at: str | None = None,
+    expires_at: Any = _UNSET,
     last_status: str | None = None,
 ) -> dict[str, Any]:
     rec = dict(data.get(node) or {})
     ad = dict(rec.get("auto_deactivate") or {})
     ad["mode"] = mode
     ad["timer_hours"] = max(1, min(720, int(timer_hours)))
-    if expires_at is not None:
+    if expires_at is not _UNSET:
         ad["expires_at"] = expires_at
     if last_status is not None:
         ad["last_status"] = last_status
@@ -104,9 +107,13 @@ def set_auto_deactivate(
 def set_ha_entity_id(
     data: dict[str, dict[str, Any]],
     node: str,
-    entity_id: str,
+    entity_id: str | None,
 ) -> dict[str, Any]:
     rec = dict(data.get(node) or {})
-    rec["ha_entity_id"] = entity_id.strip()
+    if entity_id and entity_id.strip():
+        rec["ha_entity_id"] = entity_id.strip()
+    else:
+        rec.pop("ha_entity_id", None)
     data[node] = rec
     return rec
+

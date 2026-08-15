@@ -497,7 +497,7 @@ const STRINGS = {
     reuploadTitle: 'Upload an OTA update .bin file from ESPHome (or drop it onto this row)',
     dropHere: '📁 Drop .bin file here to publish',
     notBin: 'Choose the OTA update .bin from ESPHome (Install → Advanced options → Download firmware binary → OTA update).',
-    fileTooBig: 'File is too large (8 MB max).',
+    fileTooBig: 'File is too large (32 MB max).',
     versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
     notPublishable: 'This YAML filename cannot be used as a publish name',
     activeChip: 'Active',
@@ -528,7 +528,7 @@ const STRINGS = {
     batchSuccess: (act, count) => `Successfully completed "${act}" on ${count} device(s).`,
     restoreBtn: 'Restore',
     restoreTitle: 'Restore original YAML from .bak backup file',
-    restoreConfirm: (n) => `Restore YAML configuration for "${n}" from .bak backup?`,
+    restoreConfirm: (n, t) => t ? `Restore YAML configuration for "${n}" from backup (${t})?` : `Restore YAML configuration for "${n}" from .bak backup?`,
     restoreSuccess: (n) => `Restored "${n}" YAML from backup.`,
     haOk: 'HA: Up to date',
     haUpdate: 'HA: Update Available',
@@ -655,7 +655,7 @@ const STRINGS = {
     reuploadTitle: 'ESPHome에서 다운로드한 OTA update .bin 파일을 업로드합니다 (이 행에 드래그 앤 드롭 가능)',
     dropHere: '📁 .bin 파일을 여기에 놓으면 바로 게시됩니다',
     notBin: 'ESPHome에서 Install → Advanced options → Download firmware binary → OTA update로 받은 .bin을 선택하세요.',
-    fileTooBig: '파일이 너무 큽니다 (최대 8 MB).',
+    fileTooBig: '파일이 너무 큽니다 (최대 32 MB).',
     versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
     activeChip: '공개됨',
@@ -686,7 +686,7 @@ const STRINGS = {
     batchSuccess: (act, count) => `${count}개 기기에 대해 "${act}" 작업이 완료되었습니다.`,
     restoreBtn: '복구',
     restoreTitle: '.bak 백업 파일로 원본 YAML 설정을 복구합니다',
-    restoreConfirm: (n) => `"${n}" 기기 설정을 .bak 백업 파일로 복구할까요?`,
+    restoreConfirm: (n, t) => t ? `"${n}" 기기 설정을 백업 파일(${t})로 복구할까요?` : `"${n}" 기기 설정을 .bak 백업 파일로 복구할까요?`,
     restoreSuccess: (n) => `"${n}" 기기 YAML이 복구되었습니다.`,
     haOk: 'HA: 최신 상태',
     haUpdate: 'HA: 업데이트 대기',
@@ -855,7 +855,7 @@ function row(d) {
 
   let firmwareHtml = '';
   const sizeStr = formatBytes(d.bin_size || (pub && pub.bin_size));
-  const summaryStr = d.summary ? `"${d.summary}"` : '';
+  const summaryStr = d.summary ? `"${escapeHtml(d.summary)}"` : '';
 
   if (pub && pub.has_bin) {
     const staleTitle = stale ? ` title="${escapeHtml(T.republishHint(d.own_project_version || yamlVer, pub.version))}"` : '';
@@ -945,7 +945,8 @@ function row(d) {
       restoreBtn.title = T.restoreTitle;
       restoreBtn.onclick = async (e) => {
         e.stopPropagation();
-        if (!confirm(T.restoreConfirm(d.friendly_name))) return;
+        const mtimeStr = d.backup_mtime ? formatPublishedAt(d.backup_mtime) : '';
+        if (!confirm(T.restoreConfirm(d.friendly_name, mtimeStr))) return;
         try {
           await api('api/device/restore', {
             method: 'POST',
@@ -1092,7 +1093,15 @@ async function runBatchAction(action) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: Array.from(selectedNodes), action }),
     });
-    alert(T.batchSuccess(actionLabel, count));
+    const results = (res && res.results) || {};
+    const failedNodes = Object.keys(results).filter((k) => !results[k] || !results[k].ok);
+    const successCount = Object.keys(results).length - failedNodes.length;
+
+    if (failedNodes.length > 0) {
+      alert(`${actionLabel}: ${successCount} succeeded, ${failedNodes.length} failed (${failedNodes.join(', ')})`);
+    } else {
+      alert(T.batchSuccess(actionLabel, successCount || count));
+    }
     selectedNodes.clear();
     updateBatchBar();
     loadDevices();
@@ -1129,7 +1138,7 @@ async function openAutoDeactivateModal(node) {
       entitySelect.value = d.ha_entity.entity_id;
     }
   } catch (e) {
-    LOG.debug('Could not load HA entities', e);
+    console.debug('Could not load HA entities', e);
   }
 
   $('adStatusInfo').textContent = ad.last_status ? `Status: ${ad.last_status}` : '';
@@ -1151,7 +1160,7 @@ async function saveAutoDeactivateModal() {
   if (!currentAdNode) return;
   const mode = $('adMode').value;
   const timer_hours = parseInt($('adHours').value, 10) || 12;
-  const ha_entity_id = $('adEntity').value || null;
+  const ha_entity_id = $('adEntity').value;
 
   try {
     await api('api/device/auto-deactivate', {
@@ -1173,7 +1182,7 @@ function openUploadModal(d, file) {
     alert(T.notBin);
     return;
   }
-  if (file.size > 8 * 1024 * 1024) {
+  if (file.size > 32 * 1024 * 1024) {
     alert(T.fileTooBig);
     return;
   }
