@@ -188,11 +188,13 @@ class App:
 
     def deactivate_firmware(self, node: str) -> None:
         """Deactivate firmware binary: removes .bin from /local and keeps in storage."""
-        self.publisher.deactivate_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        self.publisher.deactivate_binary(node, token=token)
 
     def activate_firmware(self, node: str) -> None:
         """Activate firmware binary: deploys stashed .bin from storage to /local."""
-        self.publisher.activate_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        self.publisher.activate_binary(node, token=token)
         self._schedule_auto_deactivate(node)
 
     def _schedule_auto_deactivate(self, node: str) -> None:
@@ -344,12 +346,14 @@ class App:
             self.save_registry()
 
     def unpublish_firmware(self, node: str) -> None:
-        self.publisher.delete_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        self.publisher.delete_binary(node, token=token)
 
     def unregister_device(self, node: str) -> None:
+        token = (self.registered.get(node) or {}).get("token") or ""
         self.registered.pop(node, None)
         self.save_registry()
-        self.publisher.unpublish(node)
+        self.publisher.unpublish(node, token=token)
         packages.delete_device_wrappers(self.settings.esphome_config_dir, node)
 
     def wrapper_version_for(self, node: str) -> str:
@@ -358,11 +362,13 @@ class App:
 
     def write_device_wrapper(self, node: str, version: str | None = None) -> str:
         """Create/update this device's snippet YAML. Not called until publish or snippet."""
+        rec = self.registered.get(node) or {}
+        token = rec.get("token") or ""
         ver = packages.normalize_version(version or "") or self.wrapper_version_for(node)
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver)
+        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver, token=token)
         return ver
 
     def advance_registered_version(self, node: str, published_version: str) -> None:
@@ -459,9 +465,13 @@ class App:
                 node, friendly, rec.get("ha_entity_id"), update_entities
             )
 
+            token = rec.get("token") or ""
+            slug = f"{node}_{token}" if token else node
             rows.append(
                 {
                     "node": node,
+                    "token": token,
+                    "slug": slug,
                     "configuration": dash.get("configuration") or local_row.get("configuration"),
                     "friendly_name": friendly,
                     "target_platform": dash.get("target_platform") or local_row.get("target_platform", ""),
@@ -569,6 +579,7 @@ class App:
                     )
 
                 title = device.get("friendly_name") or job.node
+                token = (self.registered.get(job.node) or {}).get("token") or ""
                 record = self.publisher.publish(
                     node=job.node,
                     blob=blob,
@@ -576,10 +587,12 @@ class App:
                     version=version,
                     title=title,
                     summary=summary,
+                    token=token,
                 )
+                slug_name = record.get("slug") or job.node
                 job.log(
                     f"Published {record['size']} bytes, md5 {record['md5'][:8]} — "
-                    f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{job.node}.json"
+                    f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{slug_name}.json"
                 )
                 self.advance_registered_version(job.node, version)
                 self._schedule_auto_deactivate(job.node)
@@ -1008,6 +1021,7 @@ async def publish_manual(request: web.Request) -> web.Response:
             status=400,
         )
 
+    token = (app.registered.get(node) or {}).get("token") or ""
     record = app.publisher.publish(
         node=node,
         blob=blob,
@@ -1015,12 +1029,13 @@ async def publish_manual(request: web.Request) -> web.Response:
         version=version,
         title=title or node,
         summary=summary,
+        token=token,
     )
     record["version_source"] = version_source
     if requested and requested != version:
         record["version_overridden"] = True
         record["requested_version"] = requested
-    LOG.info("Manually published %s (%s, %s bytes, %s)", node, chip_family, record["size"], version)
+    LOG.info("Manually published %s (%s, %s bytes, %s, slug=%s)", node, chip_family, record["size"], version, record.get("slug"))
     app.advance_registered_version(node, version)
     app._schedule_auto_deactivate(node)
     return web.json_response(record)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,11 @@ from packages import PACKAGE_DIR
 LOG = logging.getLogger("registry")
 
 REGISTRY_FILE = "registered.json"
+
+
+def generate_token() -> str:
+    """Generate a 32-character (128-bit) cryptographically secure random token."""
+    return secrets.token_hex(16)
 
 
 def registry_path(esphome_config_dir: Path) -> Path:
@@ -42,10 +48,15 @@ def load(esphome_config_dir: Path) -> dict[str, dict[str, Any]]:
     return result
 
 
-def save(esphome_config_dir: Path, data: dict[str, dict[str, Any]]) -> None:
+def save(esphome_config_dir: Path, data: dict[str, dict[str, Any]]) -> bool:
     path = registry_path(esphome_config_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return True
+    except OSError as err:
+        LOG.warning("Could not save %s: %s", path, err)
+        return False
 
 
 def upsert(
@@ -56,7 +67,9 @@ def upsert(
     summary: str = "",
     ha_entity_id: str | None = None,
     auto_deactivate: dict[str, Any] | None = None,
+    token: str | None = None,
 ) -> dict[str, Any]:
+    is_new = node not in data
     rec = dict(data.get(node) or {})
     rec["version"] = version
     if title:
@@ -75,9 +88,25 @@ def upsert(
             "expires_at": None,
             "last_status": None,
         }
+    if token:
+        rec["token"] = token
+    elif is_new:
+        # Fresh devices automatically get a fixed secret token on registration
+        rec["token"] = generate_token()
+
     rec.setdefault("registered_at", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     data[node] = rec
     return rec
+
+
+def get_token(data: dict[str, dict[str, Any]], node: str) -> str:
+    rec = data.get(node) or {}
+    return rec.get("token") or ""
+
+
+def get_slug(data: dict[str, dict[str, Any]], node: str) -> str:
+    token = get_token(data, node)
+    return f"{node}_{token}" if token else node
 
 
 _UNSET = object()

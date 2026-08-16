@@ -90,19 +90,26 @@ can't find the dashboard.
 
 ## Published files
 
-For a device `livingroom.yaml`:
+For a registered device `livingroom` (with its assigned secret token `a8f3b9c2e17d904f8e5b6c7a1d2e3f4a`):
 
 ```
-<config>/www/esphome_ota/livingroom.ota.bin       the firmware
-<config>/www/esphome_ota/livingroom.ota.bin.md5   hex digest (for md5_url)
-<config>/www/esphome_ota/livingroom.json          manifest (for update.http_request)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin       the firmware (protected)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin.md5   hex digest (for md5_url)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.json          manifest (for update.http_request)
 ```
+
+### 🔒 Secret Token Slugs (Scan Protection & Invariant URLs)
+Home Assistant's `/local/` static path is unauthenticated by design, and directory listing is disabled (`404 Not Found`). Newly registered devices automatically receive a fixed 128-bit cryptographically secure token affixed to their URL slug (`ota_slug`).
+
+* **Zero Guesswork**: External bots and scanning tools cannot guess the 32-character random hex token or enumerate published firmware files.
+* **Brick-Safe & Invariant**: The token is assigned once upon registration and remains permanently fixed in the device wrapper. Because the URL does not mutate across firmware releases, devices will never get orphaned or bricked during OTA.
+* **Token Rotation**: If you ever need to rotate a device's token, simply delete the device from the add-on, re-register it to issue a fresh token, and re-flash the updated wrapper snippet.
 
 The manifest's `ota.path` is **relative** and carries a `?v=<md5 prefix>`:
 
 ```json
 {"name":"Living Room","version":"1.0.0","builds":[{"chipFamily":"ESP32-C3",
- "ota":{"md5":"5bf1…","path":"livingroom.ota.bin?v=5bf1f6e2","summary":"…"}}]}
+ "ota":{"md5":"5bf1…","path":"livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin?v=5bf1f6e2","summary":"…"}}]}
 ```
 
 Relative, because ESPHome resolves it against the manifest's own URL — so the
