@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+
+- **Legacy Device Warning Badges**:
+  - Added an explicit `⚠️ Legacy (No Token)` warning badge for pre-existing devices operating on un-tokenized URLs, guiding operators on how to upgrade to tokenized protection.
+  - Added localized tooltips (`secTokenTitle`, `noTokenTitle`) in English and Korean.
+
 ## 0.8.0
 
 - **Secret Token Slugs (Cryptographic URL Protection)**:
@@ -9,9 +15,8 @@
 - **Invariant URLs & Zero-Downtime Reliability**:
   - The security token is generated upon device registration and permanently fixed in the device wrapper, ensuring the update URL remains invariant across all future firmware updates.
   - Completely eliminates remote device isolation and bricking risks without complex runtime migration bridges.
-- **UI Integration & Legacy Warning Badges**:
-  - Displays a `🔒 Secret Token` badge for protected devices and an explicit `⚠️ Legacy (No Token)` warning badge for pre-existing devices.
-  - Added localized tooltips (`secTokenTitle`, `noTokenTitle`) in English and Korean.
+- **UI Integration & Local Access Requirement**:
+  - Displays a `🔒 Secret Token` badge in the device list.
   - Added clear documentation clarifying that token rotation changes the OTA endpoint and requires initial re-flashing via local access (USB serial or LAN OTA).
 
 ## 0.7.4
