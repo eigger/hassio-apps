@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0
+
+- **Secret Token Slugs (Cryptographic URL Protection)**:
+  - Automatically assigns a 128-bit (32-character hex) cryptographically secure random token to newly registered devices (`ota_slug: {node}_{token}`).
+  - Published firmware files and manifests use the protected tokenized slug (e.g. `/local/esphome_ota/{node}_{token}.ota.bin`).
+  - Protects against external scanning bots and dictionary guessing attacks on Home Assistant's `/local/` static endpoint.
+- **Invariant URLs & Zero-Downtime Reliability**:
+  - The security token is generated upon device registration and permanently fixed in the device wrapper, ensuring the update URL remains invariant across all future firmware updates.
+  - Completely eliminates remote device isolation and bricking risks without complex runtime migration bridges.
+- **UI Integration & Local Access Requirement**:
+  - Displays a `🔒 Secret Token` badge in the device list with localized tooltip.
+  - Added clear documentation clarifying that token rotation changes the OTA endpoint and requires initial re-flashing via local access (USB serial or LAN OTA).
+
 ## 0.7.4
 
 - **YAML Snippet Card Toggle & Close Actions**:

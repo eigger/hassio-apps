@@ -88,20 +88,27 @@ LAN이 인증 없는 서비스를 두기에 편한 존이 아니라면 이걸 �
 
 ## 게시된 파일
 
-기기 `livingroom.yaml`이라면:
+등록된 기기 `livingroom` (발급된 시크릿 토큰 `a8f3b9c2e17d904f8e5b6c7a1d2e3f4a`)이라면:
 
 ```
-<config>/www/esphome_ota/livingroom.ota.bin       펌웨어
-<config>/www/esphome_ota/livingroom.ota.bin.md5   16진수 다이제스트 (md5_url용)
-<config>/www/esphome_ota/livingroom.json          매니페스트 (update.http_request용)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin       펌웨어 (보호됨)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin.md5   16진수 다이제스트 (md5_url용)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.json          매니페스트 (update.http_request용)
 ```
+
+### 🔒 시크릿 토큰 슬러그 (외부 스캔 차단 & 불변 URL)
+Home Assistant의 `/local/` 경로는 기본적으로 인증 없이 열려 있으며, 디렉토리 목록 조회는 차단(`404 Not Found`)되어 있습니다. 신규 등록 기기는 파일명에 128비트 암호학적 난수 토큰을 슬러그(`ota_slug`)로 부여받습니다.
+
+* **추측 공격 원천 차단**: 외부 해커나 자동화 봇이 32자리 난수 파일명을 유추하거나 사전 공격(Dictionary Attack)을 시도할 수 없습니다.
+* **불변 URL & 고립/벽돌 위험 제로**: 토큰은 기기 등록 시 최초 1회 생성되어 기기 YAML 래퍼에 영구 고정됩니다. 펌웨어 배포 시 URL이 바뀌지 않으므로 원격 기기가 고립되거나 벽돌이 될 위험이 전혀 없습니다.
+* **토큰 변경 (로컬 접근 필요)**: 기존 기기의 토큰을 변경하면 OTA URL 자체가 바뀌므로 기기의 이전 원격 업데이트 경로가 끊어집니다. 따라서 토큰을 재발급하려면 대시보드에서 기기를 삭제 후 재등록하고, 새로 생성된 스니펫을 **로컬 접근(USB 시리얼 또는 동일 LAN OTA)**을 통해 최초 1회 다시 플래시해야 합니다.
 
 매니페스트의 `ota.path`는 **상대 경로**이고 `?v=<md5 앞자리>`가
 붙습니다:
 
 ```json
 {"name":"Living Room","version":"1.0.0","builds":[{"chipFamily":"ESP32-C3",
- "ota":{"md5":"5bf1…","path":"livingroom.ota.bin?v=5bf1f6e2","summary":"…"}}]}
+ "ota":{"md5":"5bf1…","path":"livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin?v=5bf1f6e2","summary":"…"}}]}
 ```
 
 상대 경로인 이유는 ESPHome이 이걸 매니페스트 자신의 URL 기준으로

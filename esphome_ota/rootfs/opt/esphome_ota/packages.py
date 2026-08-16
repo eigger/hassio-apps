@@ -87,6 +87,7 @@ UPDATE_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -102,7 +103,7 @@ update:
   - platform: http_request
     id: ota_update
     name: Firmware
-    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.json
     update_interval: 6h
 """
 
@@ -146,6 +147,7 @@ BUTTON_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -165,9 +167,9 @@ button:
     on_press:
       - ota.http_request.flash:
           url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin?r=") + std::to_string(random_uint32());
           md5_url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin.md5?r=") + std::to_string(random_uint32());
 """
 
 OTA_PACKAGE = """\
@@ -206,6 +208,7 @@ OTA_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -221,7 +224,7 @@ update:
   - platform: http_request
     id: ota_update
     name: Firmware
-    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.json
     update_interval: 6h
 
 button:
@@ -232,9 +235,9 @@ button:
     on_press:
       - ota.http_request.flash:
           url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin?r=") + std::to_string(random_uint32());
           md5_url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin.md5?r=") + std::to_string(random_uint32());
 """
 
 
@@ -274,11 +277,12 @@ DEVICE_WRAPPER = """\
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
 #
-# Sets ota_device from the YAML filename and esphome.project so the device
-# YAML does not need either. Version is raised after a publish so the next
-# compile is a new update. Edit it in the add-on's Next column.
+# Sets ota_device and ota_slug from the registered token and esphome.project so
+# the device YAML does not need either. Version is raised after a publish so the
+# next compile is a new update.
 substitutions:
   ota_device: {node}
+  ota_slug: {slug}
 
 {project_block}packages:
   ota: !include {shared_include}
@@ -313,14 +317,7 @@ def next_firmware_version(
     bump: bool = False,
     override: str | None = None,
 ) -> str:
-    """Version compiled into firmware via the generated wrapper.
-
-    Device YAML does not need ``project.version``. The add-on fills this
-    automatically and the UI can override it. We only increment when
-    preparing the next compile (snippet) and the current wrapper version is
-    already published — so compile-then-upload still matches the bin, and
-    re-uploading the same bin does not jump the manifest ahead of it.
-    """
+    """Version compiled into firmware via the generated wrapper."""
     if override:
         return override.replace('"', "").strip()
     current = (current_wrapper or own or "").replace('"', "").strip()
@@ -344,6 +341,7 @@ def write_one_device_wrapper(
     esphome_config_dir: Path,
     node: str,
     version: str,
+    token: str = "",
 ) -> list[Path]:
     """Write the three wrappers for one published/snippet device. Does not touch others."""
     if not NODE_RE.match(node):
@@ -352,6 +350,7 @@ def write_one_device_wrapper(
     target.mkdir(parents=True, exist_ok=True)
     version = (version or "1.0.0").replace('"', "") or "1.0.0"
     project_block = PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+    slug = f"{node}_{token}" if token else node
     written: list[Path] = []
     for suffix, shared in (
         ("", PACKAGE_FILE),
@@ -364,6 +363,7 @@ def write_one_device_wrapper(
             DEVICE_WRAPPER.format(
                 header=HEADER,
                 node=node,
+                slug=slug,
                 project_block=project_block,
                 package_dir=PACKAGE_DIR,
                 devices_dir=DEVICES_DIR,
@@ -400,6 +400,8 @@ def write_device_wrappers(
     for item in devices:
         node = item["node"]
         version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
+        token = item.get("token") or ""
+        slug = f"{node}_{token}" if token else node
         if not NODE_RE.match(node):
             continue
         project_block = PROJECT_BLOCK.format(
@@ -413,6 +415,7 @@ def write_device_wrappers(
                 DEVICE_WRAPPER.format(
                     header=HEADER,
                     node=node,
+                    slug=slug,
                     project_block=project_block,
                     package_dir=PACKAGE_DIR,
                     devices_dir=DEVICES_DIR,
