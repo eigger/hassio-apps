@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -268,6 +269,27 @@ class Publisher:
             ).isoformat(timespec="seconds"),
         }
 
+    def cleanup_old_token(self, node: str, old_token: str) -> None:
+        """Remove all files associated with a previous secret token."""
+        if not old_token:
+            return
+        self.ensure_dirs()
+        old_slug = f"{node}_{old_token}"
+        for d in (self.dir, self.storage_dir):
+            if d.is_dir():
+                for name in (f"{old_slug}.json", f"{old_slug}.ota.bin", f"{old_slug}.ota.bin.md5"):
+                    (d / name).unlink(missing_ok=True)
+        LOG.info("Cleaned up previous token files for %s (old slug: %s)", node, old_slug)
+
+    def cleanup_legacy_bridge(self, node: str) -> None:
+        """Remove un-tokenized legacy files from /local and storage once a device has upgraded."""
+        self.ensure_dirs()
+        for d in (self.dir, self.storage_dir):
+            if d.is_dir():
+                for name in (f"{node}.json", f"{node}.ota.bin", f"{node}.ota.bin.md5"):
+                    (d / name).unlink(missing_ok=True)
+        LOG.info("Cleaned up un-tokenized legacy bridge files for %s", node)
+
     def list_published(self, registered: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
         """Every published node's manifest, read from disk (both /local and storage)."""
         result = {}
@@ -280,31 +302,46 @@ class Publisher:
                     result[node] = record
 
         # 2. Check disk for any other published manifests (legacy or unregistered)
+        # Using a regex to detect 32-hex secret token slugs
+        token_pattern = re.compile(r"^(.+)_([0-9a-fA-F]{32})$")
         for d in (self.dir, self.storage_dir):
             if d.is_dir():
-                for manifest_path in d.glob("*.json"):
+                for manifest_path in list(d.glob("*.json")):
                     stem = manifest_path.stem
-                    # Find if stem matches a node or node_token
-                    matched_node = stem
-                    if registered:
-                        for n, r in registered.items():
-                            t = r.get("token") or ""
-                            if stem in (n, f"{n}_{t}"):
-                                matched_node = n
-                                break
-                    if matched_node not in result:
-                        record = self.published(matched_node)
-                        if record:
-                            result[matched_node] = record
+                    m = token_pattern.match(stem)
+                    if m:
+                        base_node, file_token = m.group(1), m.group(2)
+                        if registered and base_node in registered:
+                            current_tok = (registered[base_node] or {}).get("token") or ""
+                            if current_tok != file_token:
+                                # Orphaned previous token file — clean it up instead of creating a ghost device
+                                self.cleanup_old_token(base_node, file_token)
+                                continue
+                        if base_node not in result:
+                            record = self.published(base_node, token=file_token)
+                            if record:
+                                result[base_node] = record
+                    else:
+                        # Legacy un-tokenized manifest
+                        if stem not in result:
+                            record = self.published(stem)
+                            if record:
+                                result[stem] = record
         return result
 
     def unpublish(self, node: str, token: str = "") -> None:
         """Delete all published files from /local and add-on storage for both slug and legacy."""
+        self.ensure_dirs()
         slug = f"{node}_{token}" if token else node
-        for s in (slug, node):
-            for name in (f"{s}.json", f"{s}.ota.bin", f"{s}.ota.bin.md5"):
-                (self.dir / name).unlink(missing_ok=True)
-                (self.storage_dir / name).unlink(missing_ok=True)
+        for d in (self.dir, self.storage_dir):
+            if not d.is_dir():
+                continue
+            for s in (slug, node):
+                for name in (f"{s}.json", f"{s}.ota.bin", f"{s}.ota.bin.md5"):
+                    (d / name).unlink(missing_ok=True)
+            # Glob cleanup for any other tokenized files matching {node}_<token>
+            for f in list(d.glob(f"{node}_*.json")) + list(d.glob(f"{node}_*.ota.bin")) + list(d.glob(f"{node}_*.ota.bin.md5")):
+                f.unlink(missing_ok=True)
 
     @staticmethod
     def _atomic_write(path: Path, payload: bytes) -> None:

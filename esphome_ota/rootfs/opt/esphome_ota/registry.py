@@ -56,10 +56,15 @@ def load(esphome_config_dir: Path) -> dict[str, dict[str, Any]]:
     return result
 
 
-def save(esphome_config_dir: Path, data: dict[str, dict[str, Any]]) -> None:
+def save(esphome_config_dir: Path, data: dict[str, dict[str, Any]]) -> bool:
     path = registry_path(esphome_config_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return True
+    except OSError as err:
+        LOG.warning("Could not save %s: %s", path, err)
+        return False
 
 
 def upsert(
@@ -73,6 +78,7 @@ def upsert(
     token: str | None = None,
     legacy_bridge: bool | None = None,
 ) -> dict[str, Any]:
+    is_new = node not in data
     rec = dict(data.get(node) or {})
     rec["version"] = version
     if title:
@@ -98,6 +104,9 @@ def upsert(
 
     if legacy_bridge is not None:
         rec["legacy_bridge"] = legacy_bridge
+    elif is_new:
+        # Fresh devices compiled with 0.8.0+ token wrappers do not need legacy un-tokenized paths
+        rec["legacy_bridge"] = False
     else:
         rec.setdefault("legacy_bridge", True)
 
@@ -114,6 +123,15 @@ def regenerate_token(data: dict[str, dict[str, Any]], node: str) -> str:
     rec["legacy_bridge"] = True
     data[node] = rec
     return token
+
+
+def disable_legacy_bridge(data: dict[str, dict[str, Any]], node: str) -> bool:
+    """Disable the legacy migration bridge once a device successfully installs the tokenized update."""
+    rec = data.get(node)
+    if rec and rec.get("legacy_bridge"):
+        rec["legacy_bridge"] = False
+        return True
+    return False
 
 
 def get_token(data: dict[str, dict[str, Any]], node: str) -> str:

@@ -99,10 +99,19 @@ For a device `livingroom.yaml` with a secret token (e.g. `a8f3b9c2e17d904f8e5b6c
 ```
 
 ### Why Secret Token Slugs?
-Home Assistant's `/local/` static path is unauthenticated by design, and directory listing is disabled (`404 Not Found`). By affixing a 128-bit cryptographically random token to file names, automated bots and external attackers cannot guess or brute-force the firmware URL, preventing Wi-Fi passwords and API encryption keys from being exposed.
+Home Assistant's `/local/` static path is unauthenticated by design, and directory listing is disabled (`404 Not Found`). By affixing a 128-bit cryptographically random token to file names, automated bots and external attackers cannot guess or brute-force the firmware URL on public endpoints, preventing casual scanning from extracting Wi-Fi passwords and API encryption keys.
+
+> [!NOTE]
+> **Security Scope & Limitations**:
+> The secret token URL is embedded as a plain text string inside the compiled firmware binary. If an attacker gains physical flash access or decompiles an already obtained `.bin` file, they can read the token string. The primary purpose of token slugs is to protect public `/local/` static endpoints against automated directory scans and dictionary attacks. If a token is ever compromised, use the **Regenerate Token** button in the dashboard to immediately invalidate previous files and issue a fresh secret URL.
 
 ### Zero-Downtime Dual-Publish Migration Bridge
-When an existing device without a secret token receives a new security-enabled firmware update, the add-on **dual-publishes** the firmware to both the legacy un-tokenized path (`livingroom.json`) and the new tokenized path (`livingroom_<token>.json`). The remote device downloads the update seamlessly through its legacy URL, and upon rebooting, automatically begins communicating exclusively via its secure tokenized URL. Once updated, Auto-Hide safely removes the binaries from public `/local/`.
+When an existing device (without a secret token) receives a new security-enabled firmware update, or when a token is regenerated, the add-on **dual-publishes** the firmware to both the legacy path (`livingroom.json`) and the new tokenized path (`livingroom_<token>.json`). 
+
+Once the device successfully reports installation of the new version (or the Auto-Hide timer expires), the add-on **automatically tears down the bridge**:
+1. Removes all un-tokenized legacy files (`{node}.json`, `{node}.ota.bin`, etc.) from `/local/` and storage.
+2. Disables `legacy_bridge` in the registry so subsequent publishes only write to the secure tokenized URL.
+3. Newly registered devices in 0.8.0+ skip the legacy bridge entirely and use tokenized URLs exclusively.
 
 The manifest's `ota.path` is **relative** and carries a `?v=<md5 prefix>`:
 

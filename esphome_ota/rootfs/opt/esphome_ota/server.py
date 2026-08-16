@@ -299,6 +299,8 @@ class App:
                         expires_at = expires_at.replace(tzinfo=timezone.utc)
                     if now >= expires_at:
                         self.deactivate_firmware(node)
+                        if registry.disable_legacy_bridge(self.registered, node):
+                            self.publisher.cleanup_legacy_bridge(node)
                         registry.set_auto_deactivate(
                             self.registered,
                             node,
@@ -328,6 +330,8 @@ class App:
                     in_progress = bool(matched.get("in_progress"))
                     if installed_ver == pub_ver and not in_progress:
                         self.deactivate_firmware(node)
+                        if registry.disable_legacy_bridge(self.registered, node):
+                            self.publisher.cleanup_legacy_bridge(node)
                         registry.set_auto_deactivate(
                             self.registered,
                             node,
@@ -1061,7 +1065,10 @@ async def regenerate_token_route(request: web.Request) -> web.Response:
     if node not in app.registered:
         return web.json_response({"error": f"node '{node}' is not registered"}, status=404)
 
+    old_token = (app.registered.get(node) or {}).get("token") or ""
     new_token = registry.regenerate_token(app.registered, node)
+    if old_token and old_token != new_token:
+        app.publisher.cleanup_old_token(node, old_token)
     app.save_registry()
     app.write_device_wrapper(node)
     slug = f"{node}_{new_token}"

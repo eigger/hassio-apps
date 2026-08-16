@@ -4,16 +4,17 @@
 
 - **Secret Token Slugs (Cryptographic URL Protection)**:
   - Added 128-bit (32-character hex) cryptographically secure secret token slugs to firmware binary and manifest paths (e.g. `/local/esphome_ota/{node}_{token}.ota.bin`).
-  - Completely prevents automated scanning bots and external attackers from guessing file names or extracting credentials/Wi-Fi passwords from published firmware binaries on `/local/`.
+  - Protects against automated scanning bots and dictionary guessing attacks targeting published firmware binaries on `/local/`.
   - Zero additional ports required: leverages existing Home Assistant external access URLs transparently.
 - **Dual-Publish Migration Bridge (Zero-Downtime Safe Upgrade)**:
-  - Automatically dual-publishes firmware to both legacy un-tokenized paths (`{node}.json`) and new tokenized paths (`{node}_{token}.json`) on the first update.
+  - Automatically dual-publishes firmware to both legacy un-tokenized paths (`{node}.json`) and new tokenized paths (`{node}_{token}.json`) on the first update or token regeneration.
   - Ensures existing remote devices with legacy firmware can safely receive the initial security upgrade without bricking or losing OTA connectivity.
-  - Automatically transitions to exclusive tokenized paths once the new firmware is installed.
+  - Automatically tears down the legacy bridge (deleting un-tokenized legacy files and setting `legacy_bridge: false`) as soon as the device successfully reports installation of the new version or the Auto-Hide timer expires.
+  - Fresh devices registered in 0.8.0+ skip the legacy bridge and use secure tokenized URLs exclusively.
 - **Device Security Token Management & UI Integration**:
   - Automatically assigns unique secret tokens to all existing and newly registered devices.
   - Added a `🔒 Secret Token` security badge in the device list.
-  - Added one-click `🔑 Regenerate Token` action in the YAML snippet modal with instant wrapper sync.
+  - Added one-click `🔑 Regenerate Token` action in the YAML snippet modal with instant wrapper sync and immediate cleanup of previous token files.
 
 ## 0.7.4
 
