@@ -189,13 +189,14 @@ class App:
     def deactivate_firmware(self, node: str) -> None:
         """Deactivate firmware binary: removes .bin from /local and keeps in storage."""
         token = (self.registered.get(node) or {}).get("token") or ""
-        self.publisher.deactivate_binary(node, token=token)
+        previous_token = (self.registered.get(node) or {}).get("previous_token")
+        self.publisher.deactivate_binary(node, token=token, previous_token=previous_token)
 
     def activate_firmware(self, node: str) -> None:
         """Activate firmware binary: deploys stashed .bin from storage to /local."""
         token = (self.registered.get(node) or {}).get("token") or ""
-        legacy_bridge = bool((self.registered.get(node) or {}).get("legacy_bridge", True))
-        self.publisher.activate_binary(node, token=token, legacy_bridge=legacy_bridge)
+        previous_token = (self.registered.get(node) or {}).get("previous_token")
+        self.publisher.activate_binary(node, token=token, previous_token=previous_token)
         self._schedule_auto_deactivate(node)
 
     def _schedule_auto_deactivate(self, node: str) -> None:
@@ -299,8 +300,10 @@ class App:
                         expires_at = expires_at.replace(tzinfo=timezone.utc)
                     if now >= expires_at:
                         self.deactivate_firmware(node)
-                        if registry.disable_legacy_bridge(self.registered, node):
-                            self.publisher.cleanup_legacy_bridge(node)
+                        prev_tok = rec.get("previous_token")
+                        if prev_tok is not None:
+                            self.publisher.cleanup_bridge(node, prev_tok)
+                            registry.clear_bridge(self.registered, node)
                         registry.set_auto_deactivate(
                             self.registered,
                             node,
@@ -330,8 +333,10 @@ class App:
                     in_progress = bool(matched.get("in_progress"))
                     if installed_ver == pub_ver and not in_progress:
                         self.deactivate_firmware(node)
-                        if registry.disable_legacy_bridge(self.registered, node):
-                            self.publisher.cleanup_legacy_bridge(node)
+                        prev_tok = rec.get("previous_token")
+                        if prev_tok is not None:
+                            self.publisher.cleanup_bridge(node, prev_tok)
+                            registry.clear_bridge(self.registered, node)
                         registry.set_auto_deactivate(
                             self.registered,
                             node,
@@ -476,7 +481,8 @@ class App:
                     "node": node,
                     "token": token,
                     "slug": slug,
-                    "legacy_bridge": rec.get("legacy_bridge", True) if token else False,
+                    "previous_token": rec.get("previous_token"),
+                    "has_bridge": rec.get("previous_token") is not None,
                     "configuration": dash.get("configuration") or local_row.get("configuration"),
                     "friendly_name": friendly,
                     "target_platform": dash.get("target_platform") or local_row.get("target_platform", ""),
@@ -585,7 +591,7 @@ class App:
 
                 title = device.get("friendly_name") or job.node
                 token = (self.registered.get(job.node) or {}).get("token") or ""
-                legacy_bridge = bool((self.registered.get(job.node) or {}).get("legacy_bridge", True))
+                previous_token = (self.registered.get(job.node) or {}).get("previous_token")
                 record = self.publisher.publish(
                     node=job.node,
                     blob=blob,
@@ -594,7 +600,7 @@ class App:
                     title=title,
                     summary=summary,
                     token=token,
-                    legacy_bridge=legacy_bridge,
+                    previous_token=previous_token,
                 )
                 slug_name = record.get("slug") or job.node
                 job.log(
@@ -1029,7 +1035,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         )
 
     token = (app.registered.get(node) or {}).get("token") or ""
-    legacy_bridge = bool((app.registered.get(node) or {}).get("legacy_bridge", True))
+    previous_token = (app.registered.get(node) or {}).get("previous_token")
     record = app.publisher.publish(
         node=node,
         blob=blob,
@@ -1038,7 +1044,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         title=title or node,
         summary=summary,
         token=token,
-        legacy_bridge=legacy_bridge,
+        previous_token=previous_token,
     )
     record["version_source"] = version_source
     if requested and requested != version:
@@ -1065,14 +1071,11 @@ async def regenerate_token_route(request: web.Request) -> web.Response:
     if node not in app.registered:
         return web.json_response({"error": f"node '{node}' is not registered"}, status=404)
 
-    old_token = (app.registered.get(node) or {}).get("token") or ""
     new_token = registry.regenerate_token(app.registered, node)
-    if old_token and old_token != new_token:
-        app.publisher.cleanup_old_token(node, old_token)
     app.save_registry()
     app.write_device_wrapper(node)
     slug = f"{node}_{new_token}"
-    LOG.info("Regenerated token for %s (new slug: %s)", node, slug)
+    LOG.info("Regenerated token for %s (new slug: %s, previous_token preserved for migration)", node, slug)
     return web.json_response({"ok": True, "node": node, "token": new_token, "slug": slug})
 
 

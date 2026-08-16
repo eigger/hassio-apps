@@ -48,7 +48,14 @@ def load(esphome_config_dir: Path) -> dict[str, dict[str, Any]]:
         # Automatically migrate legacy devices without a secret token
         if "token" not in rec or not rec["token"]:
             rec["token"] = generate_token()
-            rec.setdefault("legacy_bridge", True)
+            rec["previous_token"] = ""  # Bridge from un-tokenized legacy URL
+            changed = True
+        elif "legacy_bridge" in rec:
+            # Migrate old boolean flag to previous_token representation
+            if rec.pop("legacy_bridge", False):
+                rec.setdefault("previous_token", "")
+            else:
+                rec.setdefault("previous_token", None)
             changed = True
         result[node] = rec
     if changed:
@@ -76,7 +83,7 @@ def upsert(
     ha_entity_id: str | None = None,
     auto_deactivate: dict[str, Any] | None = None,
     token: str | None = None,
-    legacy_bridge: bool | None = None,
+    previous_token: str | None = None,
 ) -> dict[str, Any]:
     is_new = node not in data
     rec = dict(data.get(node) or {})
@@ -102,13 +109,12 @@ def upsert(
     elif "token" not in rec or not rec["token"]:
         rec["token"] = generate_token()
 
-    if legacy_bridge is not None:
-        rec["legacy_bridge"] = legacy_bridge
+    if previous_token is not None:
+        rec["previous_token"] = previous_token
     elif is_new:
-        # Fresh devices compiled with 0.8.0+ token wrappers do not need legacy un-tokenized paths
-        rec["legacy_bridge"] = False
+        rec["previous_token"] = None
     else:
-        rec.setdefault("legacy_bridge", True)
+        rec.setdefault("previous_token", None)
 
     rec.setdefault("registered_at", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     data[node] = rec
@@ -116,20 +122,21 @@ def upsert(
 
 
 def regenerate_token(data: dict[str, dict[str, Any]], node: str) -> str:
-    """Issue a new random token for a device and enable the legacy bridge for 1 transition."""
-    token = generate_token()
+    """Issue a new random token and preserve previous token for 1 seamless migration cycle."""
     rec = dict(data.get(node) or {})
-    rec["token"] = token
-    rec["legacy_bridge"] = True
+    old_token = rec.get("token") or ""
+    new_token = generate_token()
+    rec["previous_token"] = old_token  # Bridge from the old token URL
+    rec["token"] = new_token
     data[node] = rec
-    return token
+    return new_token
 
 
-def disable_legacy_bridge(data: dict[str, dict[str, Any]], node: str) -> bool:
-    """Disable the legacy migration bridge once a device successfully installs the tokenized update."""
+def clear_bridge(data: dict[str, dict[str, Any]], node: str) -> bool:
+    """Clear the migration bridge once a device successfully installs the tokenized update."""
     rec = data.get(node)
-    if rec and rec.get("legacy_bridge"):
-        rec["legacy_bridge"] = False
+    if rec and rec.get("previous_token") is not None:
+        rec["previous_token"] = None
         return True
     return False
 

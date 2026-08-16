@@ -6,15 +6,15 @@
   - Added 128-bit (32-character hex) cryptographically secure secret token slugs to firmware binary and manifest paths (e.g. `/local/esphome_ota/{node}_{token}.ota.bin`).
   - Protects against automated scanning bots and dictionary guessing attacks targeting published firmware binaries on `/local/`.
   - Zero additional ports required: leverages existing Home Assistant external access URLs transparently.
-- **Dual-Publish Migration Bridge (Zero-Downtime Safe Upgrade)**:
-  - Automatically dual-publishes firmware to both legacy un-tokenized paths (`{node}.json`) and new tokenized paths (`{node}_{token}.json`) on the first update or token regeneration.
-  - Ensures existing remote devices with legacy firmware can safely receive the initial security upgrade without bricking or losing OTA connectivity.
-  - Automatically tears down the legacy bridge (deleting un-tokenized legacy files and setting `legacy_bridge: false`) as soon as the device successfully reports installation of the new version or the Auto-Hide timer expires.
-  - Fresh devices registered in 0.8.0+ skip the legacy bridge and use secure tokenized URLs exclusively.
+- **Unified Dual-Publish Migration Bridge (Zero-Downtime Safe Upgrade)**:
+  - Supports seamless 1-cycle transitions for both legacy un-tokenized devices (`None → Token B`) and token regenerations (`Token A → Token B`).
+  - Dual-publishes firmware to both the device's previous URL and the new tokenized URL on the first deployment, ensuring remote devices receive the update without bricking or losing OTA connectivity.
+  - Automatically tears down the bridge (purging previous URL files from `/local/` and clearing `previous_token`) as soon as Home Assistant reports that the device installed the new version or the Auto-Hide timer expires.
+  - Fresh devices registered in 0.8.0+ skip the bridge entirely and use secure tokenized URLs exclusively.
 - **Device Security Token Management & UI Integration**:
-  - Automatically assigns unique secret tokens to all existing and newly registered devices.
+  - Automatically assigns unique 128-bit secret tokens to all registered devices.
   - Added a `🔒 Secret Token` security badge in the device list.
-  - Added one-click `🔑 Regenerate Token` action in the YAML snippet modal with instant wrapper sync and immediate cleanup of previous token files.
+  - Added one-click `🔑 Regenerate Token` action in the YAML snippet modal with instant wrapper sync and migration bridge support.
 
 ## 0.7.4
 

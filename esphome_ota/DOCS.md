@@ -106,12 +106,14 @@ Home Assistant's `/local/` static path is unauthenticated by design, and directo
 > The secret token URL is embedded as a plain text string inside the compiled firmware binary. If an attacker gains physical flash access or decompiles an already obtained `.bin` file, they can read the token string. The primary purpose of token slugs is to protect public `/local/` static endpoints against automated directory scans and dictionary attacks. If a token is ever compromised, use the **Regenerate Token** button in the dashboard to immediately invalidate previous files and issue a fresh secret URL.
 
 ### Zero-Downtime Dual-Publish Migration Bridge
-When an existing device (without a secret token) receives a new security-enabled firmware update, or when a token is regenerated, the add-on **dual-publishes** the firmware to both the legacy path (`livingroom.json`) and the new tokenized path (`livingroom_<token>.json`). 
+When an existing device (without a secret token) receives a new security-enabled firmware update, or when a token is regenerated (Token A → Token B), the remote device is still querying its **previous URL**. 
 
-Once the device successfully reports installation of the new version (or the Auto-Hide timer expires), the add-on **automatically tears down the bridge**:
-1. Removes all un-tokenized legacy files (`{node}.json`, `{node}.ota.bin`, etc.) from `/local/` and storage.
-2. Disables `legacy_bridge` in the registry so subsequent publishes only write to the secure tokenized URL.
-3. Newly registered devices in 0.8.0+ skip the legacy bridge entirely and use tokenized URLs exclusively.
+To prevent device bricking or OTA isolation, the add-on **dual-publishes** the update to both the **previous URL** (legacy un-tokenized or Token A) and the **new tokenized URL** (Token B).
+
+Once the device downloads the update and successfully reports installation of the new version (or the Auto-Hide fallback timer expires), the add-on **automatically tears down the bridge**:
+1. Permanently purges all previous URL files (`{node}.*` or `{node}_{prev_token}.*`) from `/local/` and private storage.
+2. Clears `previous_token` in the registry so subsequent publishes only write to the secure tokenized URL.
+3. Fresh devices registered in 0.8.0+ skip the bridge entirely (`previous_token: null`) and use secure tokenized URLs from day one.
 
 The manifest's `ota.path` is **relative** and carries a `?v=<md5 prefix>`:
 

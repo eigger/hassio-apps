@@ -63,7 +63,7 @@ class Publisher:
         title: str,
         summary: str = "",
         token: str = "",
-        legacy_bridge: bool = True,
+        previous_token: str | None = None,
     ) -> dict[str, Any]:
         self.ensure_dirs()
         digest = hashlib.md5(blob).hexdigest()  # noqa: S324 - ESPHome's OTA checksum is MD5
@@ -97,15 +97,18 @@ class Publisher:
         self._atomic_write(self.dir / f"{slug}.json", manifest_bytes)
         self._atomic_write(self.storage_dir / f"{slug}.json", manifest_bytes)
 
-        # 2. If token is active and legacy_bridge is requested, also publish legacy paths for existing devices
-        if token and legacy_bridge:
-            leg_bin = f"{node}.ota.bin"
-            self._atomic_write(self.dir / leg_bin, blob)
-            self._atomic_write(self.dir / f"{leg_bin}.md5", digest.encode("ascii"))
-            self._atomic_write(self.storage_dir / leg_bin, blob)
-            self._atomic_write(self.storage_dir / f"{leg_bin}.md5", digest.encode("ascii"))
+        # 2. If previous_token is set, also publish bridge paths for existing devices (1-cycle transition)
+        has_bridge = previous_token is not None
+        prev_slug = ""
+        if has_bridge:
+            prev_slug = f"{node}_{previous_token}" if previous_token else node
+            prev_bin = f"{prev_slug}.ota.bin"
+            self._atomic_write(self.dir / prev_bin, blob)
+            self._atomic_write(self.dir / f"{prev_bin}.md5", digest.encode("ascii"))
+            self._atomic_write(self.storage_dir / prev_bin, blob)
+            self._atomic_write(self.storage_dir / f"{prev_bin}.md5", digest.encode("ascii"))
 
-            leg_manifest = {
+            prev_manifest = {
                 "name": title or node,
                 "version": version,
                 "builds": [
@@ -113,21 +116,21 @@ class Publisher:
                         "chipFamily": chip_family,
                         "ota": {
                             "md5": digest,
-                            "path": f"{leg_bin}?v={digest[:8]}",
+                            "path": f"{prev_bin}?v={digest[:8]}",
                             "summary": summary or "Built by ESPHome OTA Publisher",
                         },
                     }
                 ],
             }
-            leg_bytes = json.dumps(leg_manifest, separators=(",", ":")).encode("utf-8")
-            self._atomic_write(self.dir / f"{node}.json", leg_bytes)
-            self._atomic_write(self.storage_dir / f"{node}.json", leg_bytes)
+            prev_bytes = json.dumps(prev_manifest, separators=(",", ":")).encode("utf-8")
+            self._atomic_write(self.dir / f"{prev_slug}.json", prev_bytes)
+            self._atomic_write(self.storage_dir / f"{prev_slug}.json", prev_bytes)
 
         record = {
             "node": node,
             "token": token,
             "slug": slug,
-            "legacy_bridge": legacy_bridge if token else False,
+            "previous_token": previous_token,
             "md5": digest,
             "version": version,
             "chip_family": chip_family,
@@ -140,20 +143,24 @@ class Publisher:
             "Published %s (slug=%s, bridge=%s, %s, %s bytes, %s)",
             node,
             slug,
-            legacy_bridge if token else False,
+            prev_slug if has_bridge else None,
             chip_family,
             len(blob),
             digest[:8],
         )
         return record
 
-    def deactivate_binary(self, node: str, token: str = "") -> bool:
+    def deactivate_binary(self, node: str, token: str = "", previous_token: str | None = None) -> bool:
         """Deactivate (hide) the binary from /local, keeping it in add-on storage and keeping .json manifest in /local."""
         self.ensure_dirs()
         slug = f"{node}_{token}" if token else node
+        targets = [slug]
+        if previous_token is not None:
+            targets.append(f"{node}_{previous_token}" if previous_token else node)
 
-        # Ensure binaries are in storage before unlinking from /local
-        for name in (f"{slug}.ota.bin", f"{node}.ota.bin"):
+        # Ensure binaries and manifests are in storage before unlinking from /local
+        for s in targets:
+            name = f"{s}.ota.bin"
             bin_src = self.dir / name
             bin_dst = self.storage_dir / name
             if bin_src.is_file() and not bin_dst.is_file():
@@ -162,26 +169,23 @@ class Publisher:
                 if md5_src.is_file():
                     self._atomic_write(self.storage_dir / f"{name}.md5", md5_src.read_bytes())
 
-        for json_name in (f"{slug}.json", f"{node}.json"):
-            json_src = self.dir / json_name
-            if json_src.is_file() and not (self.storage_dir / json_name).is_file():
-                self._atomic_write(self.storage_dir / json_name, json_src.read_bytes())
+            json_src = self.dir / f"{s}.json"
+            if json_src.is_file() and not (self.storage_dir / f"{s}.json").is_file():
+                self._atomic_write(self.storage_dir / f"{s}.json", json_src.read_bytes())
 
-        # Delete all active binary files for both slug and legacy from /local
-        for name in (
-            f"{slug}.ota.bin",
-            f"{slug}.ota.bin.md5",
-            f"{node}.ota.bin",
-            f"{node}.ota.bin.md5",
-        ):
-            (self.dir / name).unlink(missing_ok=True)
-        LOG.info("Deactivated firmware binary for %s (slug=%s, removed from /local)", node, slug)
+            (self.dir / f"{s}.ota.bin").unlink(missing_ok=True)
+            (self.dir / f"{s}.ota.bin.md5").unlink(missing_ok=True)
+
+        LOG.info("Deactivated firmware binary for %s (slug=%s, targets=%s, removed from /local)", node, slug, targets)
         return True
 
-    def activate_binary(self, node: str, token: str = "", legacy_bridge: bool = False) -> bool:
+    def activate_binary(self, node: str, token: str = "", previous_token: str | None = None) -> bool:
         """Activate (deploy) the stashed binary from add-on storage back to /local."""
         self.ensure_dirs()
         slug = f"{node}_{token}" if token else node
+        targets = [slug]
+        if previous_token is not None:
+            targets.append(f"{node}_{previous_token}" if previous_token else node)
 
         bin_stashed = self.storage_dir / f"{slug}.ota.bin"
         if not bin_stashed.is_file():
@@ -195,22 +199,14 @@ class Publisher:
             md5_stashed = self.storage_dir / f"{node}.ota.bin.md5"
         md5_bytes = md5_stashed.read_bytes() if md5_stashed.is_file() else hashlib.md5(blob).hexdigest().encode("ascii")
 
-        # Deploy slug binary and md5 to /local
-        self._atomic_write(self.dir / f"{slug}.ota.bin", blob)
-        self._atomic_write(self.dir / f"{slug}.ota.bin.md5", md5_bytes)
-
-        # Deploy legacy binary and md5 if legacy_bridge requested
-        if token and legacy_bridge:
-            self._atomic_write(self.dir / f"{node}.ota.bin", blob)
-            self._atomic_write(self.dir / f"{node}.ota.bin.md5", md5_bytes)
-
-        # Ensure manifests are present in /local
-        for s in (slug, node) if (token and legacy_bridge) else (slug,):
+        for s in targets:
+            self._atomic_write(self.dir / f"{s}.ota.bin", blob)
+            self._atomic_write(self.dir / f"{s}.ota.bin.md5", md5_bytes)
             json_stashed = self.storage_dir / f"{s}.json"
             if json_stashed.is_file() and not (self.dir / f"{s}.json").is_file():
                 self._atomic_write(self.dir / f"{s}.json", json_stashed.read_bytes())
 
-        LOG.info("Activated firmware binary for %s (slug=%s, deployed to /local)", node, slug)
+        LOG.info("Activated firmware binary for %s (slug=%s, targets=%s, deployed to /local)", node, slug, targets)
         return True
 
     def delete_binary(self, node: str, token: str = "") -> None:
@@ -281,14 +277,21 @@ class Publisher:
                     (d / name).unlink(missing_ok=True)
         LOG.info("Cleaned up previous token files for %s (old slug: %s)", node, old_slug)
 
-    def cleanup_legacy_bridge(self, node: str) -> None:
-        """Remove un-tokenized legacy files from /local and storage once a device has upgraded."""
+    def cleanup_bridge(self, node: str, previous_token: str | None) -> None:
+        """Remove bridge files (either old token or un-tokenized legacy) once a device has upgraded."""
+        if previous_token is None:
+            return
         self.ensure_dirs()
+        prev_slug = f"{node}_{previous_token}" if previous_token else node
         for d in (self.dir, self.storage_dir):
             if d.is_dir():
-                for name in (f"{node}.json", f"{node}.ota.bin", f"{node}.ota.bin.md5"):
+                for name in (f"{prev_slug}.json", f"{prev_slug}.ota.bin", f"{prev_slug}.ota.bin.md5"):
                     (d / name).unlink(missing_ok=True)
-        LOG.info("Cleaned up un-tokenized legacy bridge files for %s", node)
+        LOG.info("Cleaned up migration bridge files for %s (bridge slug: %s)", node, prev_slug)
+
+    def cleanup_legacy_bridge(self, node: str) -> None:
+        """Backward compatibility alias for cleanup_bridge(node, '')."""
+        self.cleanup_bridge(node, "")
 
     def list_published(self, registered: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
         """Every published node's manifest, read from disk (both /local and storage)."""
@@ -301,8 +304,7 @@ class Publisher:
                 if record:
                     result[node] = record
 
-        # 2. Check disk for any other published manifests (legacy or unregistered)
-        # Using a regex to detect 32-hex secret token slugs
+        # 2. Check disk for any other published manifests (legacy, bridge, or unregistered)
         token_pattern = re.compile(r"^(.+)_([0-9a-fA-F]{32})$")
         for d in (self.dir, self.storage_dir):
             if d.is_dir():
@@ -313,8 +315,9 @@ class Publisher:
                         base_node, file_token = m.group(1), m.group(2)
                         if registered and base_node in registered:
                             current_tok = (registered[base_node] or {}).get("token") or ""
-                            if current_tok != file_token:
-                                # Orphaned previous token file — clean it up instead of creating a ghost device
+                            prev_tok = (registered[base_node] or {}).get("previous_token")
+                            if file_token not in (current_tok, prev_tok):
+                                # Orphaned token file from a previous version — clean it up
                                 self.cleanup_old_token(base_node, file_token)
                                 continue
                         if base_node not in result:
@@ -323,6 +326,12 @@ class Publisher:
                                 result[base_node] = record
                     else:
                         # Legacy un-tokenized manifest
+                        if registered and stem in registered:
+                            prev_tok = (registered[stem] or {}).get("previous_token")
+                            # If device already has a token and no legacy bridge active, purge stale legacy file
+                            if (registered[stem] or {}).get("token") and prev_tok != "":
+                                self.cleanup_bridge(stem, "")
+                                continue
                         if stem not in result:
                             record = self.published(stem)
                             if record:
