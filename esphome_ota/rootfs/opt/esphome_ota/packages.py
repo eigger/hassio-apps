@@ -74,8 +74,8 @@ UPDATE_PACKAGE = """\
 # Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/livingroom.update.yaml
-# The wrapper sets ota_device and esphome.project; the device YAML does
-# not need those. Legacy: substitutions.ota_device + !include
+# The wrapper sets ota_device, ota_slug, and esphome.project; the device YAML
+# does not need those. Legacy: substitutions.ota_device + !include
 # {package_dir}/{update_file}
 #
 # If Install ever fails with "Failed to parse JSON..." in the device log
@@ -87,6 +87,7 @@ UPDATE_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -102,7 +103,7 @@ update:
   - platform: http_request
     id: ota_update
     name: Firmware
-    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.json
     update_interval: 6h
 """
 
@@ -119,7 +120,7 @@ BUTTON_PACKAGE = """\
 # Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/livingroom.button.yaml
-# The wrapper sets ota_device; the device YAML does not need that substitution.
+# The wrapper sets ota_device and ota_slug; the device YAML does not need that substitution.
 # Legacy: substitutions.ota_device + !include {package_dir}/{button_file}
 #
 # url/md5_url carry a random ?r= on every press (random_uint32(), evaluated
@@ -146,6 +147,7 @@ BUTTON_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -165,9 +167,9 @@ button:
     on_press:
       - ota.http_request.flash:
           url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin?r=") + std::to_string(random_uint32());
           md5_url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin.md5?r=") + std::to_string(random_uint32());
 """
 
 OTA_PACKAGE = """\
@@ -187,8 +189,8 @@ OTA_PACKAGE = """\
 # Include the per-device wrapper (slug = YAML filename without .yaml):
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/livingroom.yaml
-# The wrapper sets ota_device and esphome.project; the device YAML does
-# not need those. Legacy: substitutions.ota_device + !include
+# The wrapper sets ota_device, ota_slug, and esphome.project; the device YAML
+# does not need those. Legacy: substitutions.ota_device + !include
 # {package_dir}/{package_file}
 #
 # This button's id is `ota_flash_button` — press it programmatically from
@@ -206,6 +208,7 @@ OTA_PACKAGE = """\
 
 substitutions:
   ota_base_url: {base_url}
+  ota_slug: ${{ota_device}}
 
 http_request:
   timeout: 60s
@@ -221,7 +224,7 @@ update:
   - platform: http_request
     id: ota_update
     name: Firmware
-    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.json
+    source: ${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.json
     update_interval: 6h
 
 button:
@@ -232,9 +235,9 @@ button:
     on_press:
       - ota.http_request.flash:
           url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin?r=") + std::to_string(random_uint32());
           md5_url: !lambda |-
-            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_device}}.ota.bin.md5?r=") + std::to_string(random_uint32());
+            return std::string("${{ota_base_url}}/local/{publish_dir}/${{ota_slug}}.ota.bin.md5?r=") + std::to_string(random_uint32());
 """
 
 
@@ -274,11 +277,12 @@ DEVICE_WRAPPER = """\
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
 #
-# Sets ota_device from the YAML filename and esphome.project so the device
-# YAML does not need either. Version is raised after a publish so the next
-# compile is a new update. Edit it in the add-on's Next column.
+# Sets ota_device from the YAML filename, ota_slug (with secret token), and
+# esphome.project so the device YAML does not need any of them. Version is
+# raised after a publish so the next compile is a new update.
 substitutions:
   ota_device: {node}
+  ota_slug: {slug}
 
 {project_block}packages:
   ota: !include {shared_include}
@@ -344,6 +348,8 @@ def write_one_device_wrapper(
     esphome_config_dir: Path,
     node: str,
     version: str,
+    token: str | None = None,
+    slug: str | None = None,
 ) -> list[Path]:
     """Write the three wrappers for one published/snippet device. Does not touch others."""
     if not NODE_RE.match(node):
@@ -352,6 +358,7 @@ def write_one_device_wrapper(
     target.mkdir(parents=True, exist_ok=True)
     version = (version or "1.0.0").replace('"', "") or "1.0.0"
     project_block = PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+    token_slug = slug or (f"{node}_{token}" if token else node)
     written: list[Path] = []
     for suffix, shared in (
         ("", PACKAGE_FILE),
@@ -364,6 +371,7 @@ def write_one_device_wrapper(
             DEVICE_WRAPPER.format(
                 header=HEADER,
                 node=node,
+                slug=token_slug,
                 project_block=project_block,
                 package_dir=PACKAGE_DIR,
                 devices_dir=DEVICES_DIR,
@@ -402,6 +410,9 @@ def write_device_wrappers(
         version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
         if not NODE_RE.match(node):
             continue
+        token = item.get("token")
+        slug = item.get("slug")
+        token_slug = slug or (f"{node}_{token}" if token else node)
         project_block = PROJECT_BLOCK.format(
             project_name=project_name(node), version=version
         )
@@ -413,6 +424,7 @@ def write_device_wrappers(
                 DEVICE_WRAPPER.format(
                     header=HEADER,
                     node=node,
+                    slug=token_slug,
                     project_block=project_block,
                     package_dir=PACKAGE_DIR,
                     devices_dir=DEVICES_DIR,

@@ -86,22 +86,28 @@ LAN이 인증 없는 서비스를 두기에 편한 존이 아니라면 이걸 �
 | `base_url` | *(자동)* | 기기가 Home Assistant에 닿는 방법, 예: `https://your-tunnel-domain`. 결정 순서: 이 옵션(설정됐으면) → HA에 설정된 외부 URL(설정 → 시스템 → 네트워크) → 최후 수단으로 호스트의 LAN 주소(경고로 로그 남음 — 이건 같은 LAN에 있는 기기에만 동작하는데, 그런 기기는 대체로 이 add-on 자체가 필요 없습니다). 생성되는 패키지를 채우는 데만 쓰입니다. |
 | `log_level` | `info` | `debug`로 하면 모든 대시보드 프레임을 출력합니다. |
 
-## 게시된 파일
+## 게시된 파일 및 시크릿 토큰 보안
 
-기기 `livingroom.yaml`이라면:
+보안 토큰(예: `a8f3b9c2e17d904f8e5b6c7a1d2e3f4a`)이 부여된 기기 `livingroom.yaml`의 경우:
 
 ```
-<config>/www/esphome_ota/livingroom.ota.bin       펌웨어
-<config>/www/esphome_ota/livingroom.ota.bin.md5   16진수 다이제스트 (md5_url용)
-<config>/www/esphome_ota/livingroom.json          매니페스트 (update.http_request용)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin       펌웨어 (난수 토큰 보호)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin.md5   16진수 다이제스트 (md5_url용)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.json          매니페스트 (update.http_request용)
 ```
+
+### 왜 시크릿 토큰 슬러그를 사용하나요?
+Home Assistant의 `/local/` 정적 파일 경로는 기본적으로 인증 없이 열려 있으며, 폴더 목록 조회는 차단(`404 Not Found`)되어 있습니다. 파일명에 128비트 암호학적 난수 토큰을 붙여 저장함으로써, 외부 해커나 자동화 봇이 파일명을 추측(Brute-force)하여 Wi-Fi 비밀번호나 API 암호화 키를 추출하는 것을 원천 차단합니다.
+
+### 무중단 전환 브릿지 (Dual-Publish Bridge)
+토큰이 없던 기존 기기가 새로운 보안 펌웨어를 처음 수신할 때, 애드온은 구버전 경로(`livingroom.json`)와 신규 토큰 경로(`livingroom_<token>.json`) **양쪽에 파일을 동시에 게시**합니다. 원격 기기는 기존 구버전 URL을 통해 끊김 없이 업데이트를 받고, 재부팅 후에는 자동으로 신규 보안 토큰 URL로 통신을 시작합니다. 업데이트가 완료되면 자동 숨김(Auto-Hide)에 의해 바이너리가 `/local`에서 즉시 삭제됩니다.
 
 매니페스트의 `ota.path`는 **상대 경로**이고 `?v=<md5 앞자리>`가
 붙습니다:
 
 ```json
 {"name":"Living Room","version":"1.0.0","builds":[{"chipFamily":"ESP32-C3",
- "ota":{"md5":"5bf1…","path":"livingroom.ota.bin?v=5bf1f6e2","summary":"…"}}]}
+ "ota":{"md5":"5bf1…","path":"livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin?v=5bf1f6e2","summary":"…"}}]}
 ```
 
 상대 경로인 이유는 ESPHome이 이걸 매니페스트 자신의 URL 기준으로

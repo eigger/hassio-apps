@@ -940,6 +940,11 @@ const STRINGS = {
     uploadConfirm: 'Publish',
     btnCancel: 'Cancel',
     btnSave: 'Save',
+    secToken: 'Secret Token',
+    secTokenTitle: 'This device is protected by a 128-bit secret token URL to prevent unauthorized firmware downloads. Click to regenerate.',
+    regenToken: 'Regenerate Token',
+    regenTokenConfirm: (n) => `Regenerate secret token for "${n}"?\n\nThe secret URL will be changed. The device will automatically receive the new URL during its next update via the transition bridge.`,
+    regenTokenSuccess: (n) => `Secret security token regenerated for "${n}".`,
   },
   ko: {
     title: 'ESPHome OTA Publisher',
@@ -1095,6 +1100,11 @@ const STRINGS = {
     uploadConfirm: '게시',
     btnCancel: '취소',
     btnSave: '저장',
+    secToken: '보안 토큰',
+    secTokenTitle: '외부인이 펌웨어를 무단 다운로드하지 못하도록 128비트 비밀 토큰 URL로 안전하게 보호 중입니다. 클릭 시 토큰을 재생성합니다.',
+    regenToken: '토큰 재생성',
+    regenTokenConfirm: (n) => `"${n}" 기기의 보안 토큰을 새로 발급할까요?\n\n비밀 URL이 변경되며, 기기는 다음 업데이트 시 전환 브릿지를 통해 자동으로 새 URL을 수신합니다.`,
+    regenTokenSuccess: (n) => `"${n}" 기기의 보안 토큰이 새로 발급되었습니다.`,
   },
 };
 
@@ -1266,6 +1276,11 @@ function row(d) {
   }
   const adBadgeHtml = `<span class="${adClass}" title="${escapeHtml(T.autoHideBadgeTitle)}" onclick="openAutoDeactivateModal('${escapeHtml(d.node)}')"><span class="pulse-dot ${adDot}"></span> ${escapeHtml(adLabel)}</span>`;
 
+  // Secret Token Badge
+  const tokenBadgeHtml = d.token
+    ? `<span class="badge-pill badge-purple clickable" title="${escapeHtml(T.secTokenTitle)}" onclick="regenerateToken('${escapeHtml(d.node)}')">🔒 ${escapeHtml(T.secToken)}</span>`
+    : '';
+
   let firmwareHtml = '';
   const sizeStr = formatBytes(d.bin_size || (pub && pub.bin_size));
   const summaryStr = d.summary ? escapeHtml(d.summary) : '';
@@ -1284,6 +1299,7 @@ function row(d) {
         <div class="fw-line fw-line-badges">
           ${haBadgeHtml}
           ${adBadgeHtml}
+          ${tokenBadgeHtml}
         </div>
         <div class="fw-line fw-line-meta">
           <code>${pub.md5.slice(0, 8)}</code>
@@ -1314,6 +1330,7 @@ function row(d) {
         <div class="fw-line fw-line-badges">
           ${haBadgeHtml}
           ${adBadgeHtml}
+          ${tokenBadgeHtml}
         </div>
         <div class="fw-line fw-line-meta">
           ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span class="meta-sep">·</span>` : ''}
@@ -1338,6 +1355,7 @@ function row(d) {
         <div class="fw-line fw-line-badges">
           ${haBadgeHtml}
           ${adBadgeHtml}
+          ${tokenBadgeHtml}
         </div>
       </div>`;
   }
@@ -2047,7 +2065,10 @@ async function showSnippet(d) {
   detail.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
       <b>${T.yamlHeader(d.friendly_name)}</b>
-      <button type="button" class="btn-action" style="padding:2px 8px; font-size:12px; line-height:1;" onclick="closeSnippet()" title="${T.btnCancel || 'Close'}">✕</button>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button type="button" class="btn-action" style="font-size:11.5px; height:26px" onclick="regenerateToken('${escapeHtml(d.node)}')">🔑 ${escapeHtml(T.regenToken)}</button>
+        <button type="button" class="btn-action" style="padding:2px 8px; font-size:12px; line-height:1; height:26px" onclick="closeSnippet()" title="${T.btnCancel || 'Close'}">✕</button>
+      </div>
     </div>
     <div class="field" style="margin-top:10px; max-width:220px">
       <label class="tiny muted" for="rowVersion">${T.nextCompileVersion}</label>
@@ -2092,6 +2113,25 @@ async function showSnippet(d) {
     }
   });
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function regenerateToken(node) {
+  const d = devicesCache.find((row) => row.node === node) || { node, friendly_name: node };
+  if (!confirm(T.regenTokenConfirm(d.friendly_name || node))) return;
+  try {
+    const res = await api('api/device/regenerate-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node }),
+    });
+    showToast(T.regenTokenSuccess(escapeHtml(d.friendly_name || node)), 'ok');
+    if (currentSnippetNode === node) {
+      showSnippet(d);
+    }
+    loadDevices();
+  } catch (err) {
+    showToast(escapeHtml(err.message), 'err');
+  }
 }
 
 function escapeHtml(s) {

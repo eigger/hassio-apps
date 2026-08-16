@@ -88,21 +88,27 @@ can't find the dashboard.
 | `base_url` | *(auto)* | How your devices reach Home Assistant, e.g. `https://your-tunnel-domain`. Resolution order: this option, if set → HA's configured external URL (Settings → System → Network) → the host's LAN address as a last resort (logged as a warning — this only works for devices on the same LAN, which generally don't need this add-on at all). Only used to fill in the generated packages. |
 | `log_level` | `info` | `debug` prints every dashboard frame. |
 
-## Published files
+## Published files & Secret Token Security
 
-For a device `livingroom.yaml`:
+For a device `livingroom.yaml` with a secret token (e.g. `a8f3b9c2e17d904f8e5b6c7a1d2e3f4a`):
 
 ```
-<config>/www/esphome_ota/livingroom.ota.bin       the firmware
-<config>/www/esphome_ota/livingroom.ota.bin.md5   hex digest (for md5_url)
-<config>/www/esphome_ota/livingroom.json          manifest (for update.http_request)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin       the firmware (protected)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin.md5   hex digest (for md5_url)
+<config>/www/esphome_ota/livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.json          manifest (for update.http_request)
 ```
+
+### Why Secret Token Slugs?
+Home Assistant's `/local/` static path is unauthenticated by design, and directory listing is disabled (`404 Not Found`). By affixing a 128-bit cryptographically random token to file names, automated bots and external attackers cannot guess or brute-force the firmware URL, preventing Wi-Fi passwords and API encryption keys from being exposed.
+
+### Zero-Downtime Dual-Publish Migration Bridge
+When an existing device without a secret token receives a new security-enabled firmware update, the add-on **dual-publishes** the firmware to both the legacy un-tokenized path (`livingroom.json`) and the new tokenized path (`livingroom_<token>.json`). The remote device downloads the update seamlessly through its legacy URL, and upon rebooting, automatically begins communicating exclusively via its secure tokenized URL. Once updated, Auto-Hide safely removes the binaries from public `/local/`.
 
 The manifest's `ota.path` is **relative** and carries a `?v=<md5 prefix>`:
 
 ```json
 {"name":"Living Room","version":"1.0.0","builds":[{"chipFamily":"ESP32-C3",
- "ota":{"md5":"5bf1…","path":"livingroom.ota.bin?v=5bf1f6e2","summary":"…"}}]}
+ "ota":{"md5":"5bf1…","path":"livingroom_a8f3b9c2e17d904f8e5b6c7a1d2e3f4a.ota.bin?v=5bf1f6e2","summary":"…"}}]}
 ```
 
 Relative, because ESPHome resolves it against the manifest's own URL — so the

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,11 @@ from packages import PACKAGE_DIR
 LOG = logging.getLogger("registry")
 
 REGISTRY_FILE = "registered.json"
+
+
+def generate_token() -> str:
+    """Generate a 32-character (128-bit) cryptographically secure hex token."""
+    return secrets.token_hex(16)
 
 
 def registry_path(esphome_config_dir: Path) -> Path:
@@ -35,10 +41,18 @@ def load(esphome_config_dir: Path) -> dict[str, dict[str, Any]]:
     if not isinstance(data, dict):
         return {}
     result: dict[str, dict[str, Any]] = {}
+    changed = False
     for node, rec in data.items():
         if not isinstance(node, str) or not isinstance(rec, dict):
             continue
+        # Automatically migrate legacy devices without a secret token
+        if "token" not in rec or not rec["token"]:
+            rec["token"] = generate_token()
+            rec.setdefault("legacy_bridge", True)
+            changed = True
         result[node] = rec
+    if changed:
+        save(esphome_config_dir, result)
     return result
 
 
@@ -56,6 +70,8 @@ def upsert(
     summary: str = "",
     ha_entity_id: str | None = None,
     auto_deactivate: dict[str, Any] | None = None,
+    token: str | None = None,
+    legacy_bridge: bool | None = None,
 ) -> dict[str, Any]:
     rec = dict(data.get(node) or {})
     rec["version"] = version
@@ -75,9 +91,34 @@ def upsert(
             "expires_at": None,
             "last_status": None,
         }
+    if token:
+        rec["token"] = token
+    elif "token" not in rec or not rec["token"]:
+        rec["token"] = generate_token()
+
+    if legacy_bridge is not None:
+        rec["legacy_bridge"] = legacy_bridge
+    else:
+        rec.setdefault("legacy_bridge", True)
+
     rec.setdefault("registered_at", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     data[node] = rec
     return rec
+
+
+def regenerate_token(data: dict[str, dict[str, Any]], node: str) -> str:
+    """Issue a new random token for a device and enable the legacy bridge for 1 transition."""
+    token = generate_token()
+    rec = dict(data.get(node) or {})
+    rec["token"] = token
+    rec["legacy_bridge"] = True
+    data[node] = rec
+    return token
+
+
+def get_token(data: dict[str, dict[str, Any]], node: str) -> str:
+    rec = data.get(node) or {}
+    return rec.get("token") or ""
 
 
 _UNSET = object()
@@ -116,4 +157,5 @@ def set_ha_entity_id(
         rec.pop("ha_entity_id", None)
     data[node] = rec
     return rec
+
 

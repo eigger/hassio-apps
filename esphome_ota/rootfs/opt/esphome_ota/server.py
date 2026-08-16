@@ -167,7 +167,7 @@ class App:
     def load_registry(self) -> None:
         data = registry.load(self.settings.esphome_config_dir)
         changed = False
-        for node, rec in self.publisher.list_published().items():
+        for node, rec in self.publisher.list_published(data).items():
             if node in data:
                 continue
             registry.upsert(data, node, rec.get("version") or "1.0.0", rec.get("title") or node)
@@ -188,11 +188,14 @@ class App:
 
     def deactivate_firmware(self, node: str) -> None:
         """Deactivate firmware binary: removes .bin from /local and keeps in storage."""
-        self.publisher.deactivate_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        self.publisher.deactivate_binary(node, token=token)
 
     def activate_firmware(self, node: str) -> None:
         """Activate firmware binary: deploys stashed .bin from storage to /local."""
-        self.publisher.activate_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        legacy_bridge = bool((self.registered.get(node) or {}).get("legacy_bridge", True))
+        self.publisher.activate_binary(node, token=token, legacy_bridge=legacy_bridge)
         self._schedule_auto_deactivate(node)
 
     def _schedule_auto_deactivate(self, node: str) -> None:
@@ -344,12 +347,14 @@ class App:
             self.save_registry()
 
     def unpublish_firmware(self, node: str) -> None:
-        self.publisher.delete_binary(node)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        self.publisher.delete_binary(node, token=token)
 
     def unregister_device(self, node: str) -> None:
+        token = (self.registered.get(node) or {}).get("token") or ""
         self.registered.pop(node, None)
         self.save_registry()
-        self.publisher.unpublish(node)
+        self.publisher.unpublish(node, token=token)
         packages.delete_device_wrappers(self.settings.esphome_config_dir, node)
 
     def wrapper_version_for(self, node: str) -> str:
@@ -362,7 +367,8 @@ class App:
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver)
+        token = (self.registered.get(node) or {}).get("token") or ""
+        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver, token=token)
         return ver
 
     def advance_registered_version(self, node: str, published_version: str) -> None:
@@ -396,7 +402,7 @@ class App:
         """
         self.load_registry()
         configs, _stems = metadata.scan_esphome_dir(self.settings.esphome_config_dir)
-        published = self.publisher.list_published()
+        published = self.publisher.list_published(self.registered)
         local = {row["node"]: row for row in configs}
 
         update_entities: dict[str, dict[str, Any]] = {}
@@ -458,10 +464,15 @@ class App:
             matched_ha = self.match_ha_update_entity(
                 node, friendly, rec.get("ha_entity_id"), update_entities
             )
+            token = rec.get("token") or ""
+            slug = f"{node}_{token}" if token else node
 
             rows.append(
                 {
                     "node": node,
+                    "token": token,
+                    "slug": slug,
+                    "legacy_bridge": rec.get("legacy_bridge", True) if token else False,
                     "configuration": dash.get("configuration") or local_row.get("configuration"),
                     "friendly_name": friendly,
                     "target_platform": dash.get("target_platform") or local_row.get("target_platform", ""),
@@ -569,6 +580,8 @@ class App:
                     )
 
                 title = device.get("friendly_name") or job.node
+                token = (self.registered.get(job.node) or {}).get("token") or ""
+                legacy_bridge = bool((self.registered.get(job.node) or {}).get("legacy_bridge", True))
                 record = self.publisher.publish(
                     node=job.node,
                     blob=blob,
@@ -576,10 +589,13 @@ class App:
                     version=version,
                     title=title,
                     summary=summary,
+                    token=token,
+                    legacy_bridge=legacy_bridge,
                 )
+                slug_name = record.get("slug") or job.node
                 job.log(
                     f"Published {record['size']} bytes, md5 {record['md5'][:8]} — "
-                    f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{job.node}.json"
+                    f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{slug_name}.json"
                 )
                 self.advance_registered_version(job.node, version)
                 self._schedule_auto_deactivate(job.node)
@@ -1008,6 +1024,8 @@ async def publish_manual(request: web.Request) -> web.Response:
             status=400,
         )
 
+    token = (app.registered.get(node) or {}).get("token") or ""
+    legacy_bridge = bool((app.registered.get(node) or {}).get("legacy_bridge", True))
     record = app.publisher.publish(
         node=node,
         blob=blob,
@@ -1015,15 +1033,40 @@ async def publish_manual(request: web.Request) -> web.Response:
         version=version,
         title=title or node,
         summary=summary,
+        token=token,
+        legacy_bridge=legacy_bridge,
     )
     record["version_source"] = version_source
     if requested and requested != version:
         record["version_overridden"] = True
         record["requested_version"] = requested
-    LOG.info("Manually published %s (%s, %s bytes, %s)", node, chip_family, record["size"], version)
+    LOG.info("Manually published %s (%s, %s bytes, %s, slug=%s)", node, chip_family, record["size"], version, record.get("slug"))
     app.advance_registered_version(node, version)
     app._schedule_auto_deactivate(node)
     return web.json_response(record)
+
+
+@routes.post("/api/device/regenerate-token")
+async def regenerate_token_route(request: web.Request) -> web.Response:
+    """Issue a new random security token for a device and update its wrapper."""
+    app: App = request.app["app"]
+    try:
+        body = await request.json()
+    except ValueError:
+        return web.json_response({"error": "invalid json"}, status=400)
+    node = (body.get("node") or "").strip()
+    if not metadata.NODE_RE.match(node):
+        return web.json_response({"error": "invalid node"}, status=400)
+    app.load_registry()
+    if node not in app.registered:
+        return web.json_response({"error": f"node '{node}' is not registered"}, status=404)
+
+    new_token = registry.regenerate_token(app.registered, node)
+    app.save_registry()
+    app.write_device_wrapper(node)
+    slug = f"{node}_{new_token}"
+    LOG.info("Regenerated token for %s (new slug: %s)", node, slug)
+    return web.json_response({"ok": True, "node": node, "token": new_token, "slug": slug})
 
 
 @routes.post("/api/firmware/deactivate")
