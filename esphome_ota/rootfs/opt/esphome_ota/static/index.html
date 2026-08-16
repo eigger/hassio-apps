@@ -898,6 +898,7 @@ const STRINGS = {
     fileTooBig: 'File is too large (32 MB max).',
     versionPrompt: 'Firmware has no project.version — enter the ESPHome release this .bin was compiled with:',
     notPublishable: 'This YAML filename cannot be used as a publish name',
+    secTokenTitle: (s) => `Secure Token Slug: ${s}`,
     activeChip: 'Active',
     activeChipTitle: 'Firmware binary is deployed to /local and ready for devices to download.',
     inactiveChip: 'Stashed',
@@ -1053,6 +1054,7 @@ const STRINGS = {
     fileTooBig: '파일이 너무 큽니다 (최대 32 MB).',
     versionPrompt: 'project.version이 없습니다. 이 .bin을 컴파일한 ESPHome 릴리스를 입력하세요:',
     notPublishable: '이 YAML 파일명은 게시 이름으로 쓸 수 없습니다',
+    secTokenTitle: (s) => `보안 토큰 슬러그: ${s}`,
     activeChip: '공개됨',
     activeChipTitle: '/local에 바이너리가 배포되어 기기가 OTA 업데이트를 다운로드할 수 있는 상태입니다.',
     inactiveChip: '보관중',
@@ -1239,7 +1241,7 @@ function row(d) {
 
   let badge = '';
   if (d.token) {
-    badge += ` <span class="chip-tag chip-secure" title="Secure Token Slug: ${escapeHtml(d.slug)}">🔒 ${escapeHtml(d.token.slice(0, 6))}…</span>`;
+    badge += ` <span class="chip-tag chip-secure" title="${escapeHtml(T.secTokenTitle(d.slug || d.node))}">🔒 ${escapeHtml(d.token.slice(0, 6))}…</span>`;
   }
   if (d.source === 'published' || d.manual) {
     badge += ` <span class="chip-tag" title="${T.manualBadgeTitle}">${T.manualBadge}</span>`;

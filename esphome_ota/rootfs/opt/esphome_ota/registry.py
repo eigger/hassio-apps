@@ -88,7 +88,7 @@ def upsert(
             "expires_at": None,
             "last_status": None,
         }
-    if token:
+    if token is not None:
         rec["token"] = token
     elif is_new:
         # Fresh devices automatically get a fixed secret token on registration

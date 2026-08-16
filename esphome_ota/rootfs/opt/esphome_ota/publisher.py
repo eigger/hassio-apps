@@ -22,11 +22,15 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 LOG = logging.getLogger("publisher")
+
+
+TOKEN_SUFFIX_RE = re.compile(r"^(.+)_([0-9a-fA-F]{32})$")
 
 
 class Publisher:
@@ -119,20 +123,22 @@ class Publisher:
         slug = f"{node}_{token}" if token else node
 
         # Ensure binaries and manifest are in storage before unlinking from /local
-        bin_src = self.dir / f"{slug}.ota.bin"
-        bin_dst = self.storage_dir / f"{slug}.ota.bin"
-        if bin_src.is_file() and not bin_dst.is_file():
-            self._atomic_write(bin_dst, bin_src.read_bytes())
-            md5_src = self.dir / f"{slug}.ota.bin.md5"
-            if md5_src.is_file():
-                self._atomic_write(self.storage_dir / f"{slug}.ota.bin.md5", md5_src.read_bytes())
-            json_src = self.dir / f"{slug}.json"
-            if json_src.is_file():
-                self._atomic_write(self.storage_dir / f"{slug}.json", json_src.read_bytes())
+        for s in {slug, node}:
+            bin_src = self.dir / f"{s}.ota.bin"
+            bin_dst = self.storage_dir / f"{s}.ota.bin"
+            if bin_src.is_file() and not bin_dst.is_file():
+                self._atomic_write(bin_dst, bin_src.read_bytes())
+                md5_src = self.dir / f"{s}.ota.bin.md5"
+                if md5_src.is_file():
+                    self._atomic_write(self.storage_dir / f"{s}.ota.bin.md5", md5_src.read_bytes())
+                json_src = self.dir / f"{s}.json"
+                if json_src.is_file():
+                    self._atomic_write(self.storage_dir / f"{s}.json", json_src.read_bytes())
 
-        # Delete from /local public path
-        for name in (f"{slug}.ota.bin", f"{slug}.ota.bin.md5"):
-            (self.dir / name).unlink(missing_ok=True)
+        # Delete all binary variations from /local public path (both slug and legacy node)
+        for s in {slug, node}:
+            for name in (f"{s}.ota.bin", f"{s}.ota.bin.md5"):
+                (self.dir / name).unlink(missing_ok=True)
         LOG.info("Deactivated firmware binary for %s (slug=%s, removed from /local, preserved in storage)", node, slug)
         return True
 
@@ -172,15 +178,26 @@ class Publisher:
     def published(self, node: str, token: str = "") -> dict[str, Any] | None:
         slug = f"{node}_{token}" if token else node
         manifest_path = self.dir / f"{slug}.json"
+        effective_token = token
+        effective_slug = slug
+
         if not manifest_path.is_file():
             manifest_path = self.storage_dir / f"{slug}.json"
-        if not manifest_path.is_file():
-            # Fallback to legacy un-tokenized filename
+
+        # If not found with token, try fallback to un-tokenized legacy node filename
+        if not manifest_path.is_file() and token:
             manifest_path = self.dir / f"{node}.json"
-            if not manifest_path.is_file():
+            if manifest_path.is_file():
+                effective_token = ""
+                effective_slug = node
+            else:
                 manifest_path = self.storage_dir / f"{node}.json"
-                if not manifest_path.is_file():
-                    return None
+                if manifest_path.is_file():
+                    effective_token = ""
+                    effective_slug = node
+
+        if not manifest_path.is_file():
+            return None
 
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -189,12 +206,12 @@ class Publisher:
         build = (manifest.get("builds") or [{}])[0]
         ota = build.get("ota") or {}
 
-        bin_local = self.dir / f"{slug}.ota.bin"
-        if not bin_local.is_file():
+        bin_local = self.dir / f"{effective_slug}.ota.bin"
+        if not bin_local.is_file() and effective_slug != node:
             bin_local = self.dir / f"{node}.ota.bin"
 
-        bin_stashed = self.storage_dir / f"{slug}.ota.bin"
-        if not bin_stashed.is_file():
+        bin_stashed = self.storage_dir / f"{effective_slug}.ota.bin"
+        if not bin_stashed.is_file() and effective_slug != node:
             bin_stashed = self.storage_dir / f"{node}.ota.bin"
 
         has_bin = bin_local.is_file()
@@ -206,8 +223,8 @@ class Publisher:
         )
         return {
             "node": node,
-            "token": token,
-            "slug": slug,
+            "token": effective_token,
+            "slug": effective_slug,
             "title": manifest.get("name", node),
             "version": manifest.get("version", ""),
             "summary": ota.get("summary", ""),
@@ -222,29 +239,54 @@ class Publisher:
         }
 
     def list_published(self, registered: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
-        """Every published node's manifest, read from disk (both /local and storage)."""
-        result = {}
+        """Every published node's manifest, read from disk (both /local and storage).
+
+        Always keys by node name (never by slug) to prevent duplicate ghost rows.
+        """
+        result: dict[str, dict[str, Any]] = {}
+        seen_stems: set[str] = set()
+
+        # 1. First pass: inspect registered devices
         if registered:
             for node, rec in registered.items():
-                token = rec.get("token") or ""
-                record = self.published(node, token=token)
+                tok = rec.get("token") or ""
+                record = self.published(node, token=tok)
                 if record:
                     result[node] = record
+                seen_stems.add(node)
+                if tok:
+                    seen_stems.add(f"{node}_{tok}")
 
+        # 2. Second pass: scan disk for un-registered published files
         for d in (self.dir, self.storage_dir):
             if d.is_dir():
                 for manifest_path in d.glob("*.json"):
                     stem = manifest_path.stem
-                    if stem not in result:
-                        record = self.published(stem)
-                        if record:
-                            result[stem] = record
+                    if stem in seen_stems:
+                        continue
+                    seen_stems.add(stem)
+
+                    # Check if stem is formatted as {node}_{32hex}
+                    m = TOKEN_SUFFIX_RE.match(stem)
+                    if m:
+                        node_name = m.group(1)
+                        tok = m.group(2)
+                        seen_stems.add(node_name)
+                        if node_name not in result:
+                            record = self.published(node_name, token=tok)
+                            if record:
+                                result[node_name] = record
+                    else:
+                        if stem not in result:
+                            record = self.published(stem, token="")
+                            if record:
+                                result[stem] = record
         return result
 
     def unpublish(self, node: str, token: str = "") -> None:
         """Delete all published files from /local and add-on storage for slug and legacy."""
         slug = f"{node}_{token}" if token else node
-        for s in (slug, node):
+        for s in {slug, node}:
             for name in (f"{s}.json", f"{s}.ota.bin", f"{s}.ota.bin.md5"):
                 (self.dir / name).unlink(missing_ok=True)
                 (self.storage_dir / name).unlink(missing_ok=True)

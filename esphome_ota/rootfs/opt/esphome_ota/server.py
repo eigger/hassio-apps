@@ -77,8 +77,8 @@ class Job:
 
 
 class App:
-    def __init__(self) -> None:
-        self.settings = Settings()
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings or Settings()
         self.publisher = Publisher(self.settings.www_root, self.settings.publish_dir)
         self.resolved_dashboard: str = ""
         self.resolved_base_url: str = ""
@@ -167,10 +167,18 @@ class App:
     def load_registry(self) -> None:
         data = registry.load(self.settings.esphome_config_dir)
         changed = False
-        for node, rec in self.publisher.list_published().items():
+        published = self.publisher.list_published(data)
+        for node, rec in published.items():
             if node in data:
                 continue
-            registry.upsert(data, node, rec.get("version") or "1.0.0", rec.get("title") or node)
+            token = rec.get("token") or ""
+            registry.upsert(
+                data,
+                node,
+                rec.get("version") or "1.0.0",
+                rec.get("title") or node,
+                token=token,
+            )
             changed = True
         if changed:
             registry.save(self.settings.esphome_config_dir, data)
@@ -181,7 +189,12 @@ class App:
 
     def register_device(self, node: str, version: str, title: str = "") -> dict[str, Any]:
         self.load_registry()
-        rec = registry.upsert(self.registered, node, version, title)
+        token = None
+        if node not in self.registered:
+            pub = self.publisher.published(node)
+            if pub and not pub.get("token"):
+                token = ""
+        rec = registry.upsert(self.registered, node, version, title, token=token)
         self.save_registry()
         self.write_device_wrapper(node, rec["version"])
         return rec

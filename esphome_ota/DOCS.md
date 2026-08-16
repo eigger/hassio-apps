@@ -103,7 +103,7 @@ Home Assistant's `/local/` static path is unauthenticated by design, and directo
 
 * **Zero Guesswork**: External bots and scanning tools cannot guess the 32-character random hex token or enumerate published firmware files.
 * **Brick-Safe & Invariant**: The token is assigned once upon registration and remains permanently fixed in the device wrapper. Because the URL does not mutate across firmware releases, devices will never get orphaned or bricked during OTA.
-* **Token Rotation**: If you ever need to rotate a device's token, simply delete the device from the add-on, re-register it to issue a fresh token, and re-flash the updated wrapper snippet.
+* **Token Rotation (Requires Local Access)**: Changing an existing device's token modifies its OTA URL, which breaks the previous remote update path. To rotate a token, delete the device from the add-on, re-register it to issue a fresh token, and re-flash the newly generated wrapper via **local access (USB serial or LAN OTA)**.
 
 The manifest's `ota.path` is **relative** and carries a `?v=<md5 prefix>`:
 
