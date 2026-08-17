@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+- **Fix: Upload modal now shows version read directly from the binary**:
+  - The "Firmware Version" badge in the upload modal previously showed the YAML `project.version` or the previously-published version instead of the actual version embedded in the uploaded `.bin` file.
+  - Version is now read exclusively from the firmware binary's `esp_app_desc_t.version` field (populated by ESPHome at compile time).
+  - If the binary contains no version (no app descriptor), the badge switches to a **warning state** (`⚠️ 바이너리에서 버전을 읽을 수 없습니다 — 게시 불가`) and the Publish button is disabled, preventing a silent publish with a wrong version.
+
 ## 0.8.1
 
 - **Legacy Device Warning Badges**:
