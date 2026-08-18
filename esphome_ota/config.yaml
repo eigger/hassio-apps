@@ -1,6 +1,6 @@
 ---
 name: ESPHome OTA Publisher
-version: "0.9.0"
+version: "0.9.1"
 slug: esphome_ota
 description: Publish ESPHome firmware for http_request OTA — pulled straight from the ESPHome Device Builder add-on, served by Home Assistant on /local
 url: https://github.com/eigger/hassio-apps/tree/master/esphome_ota

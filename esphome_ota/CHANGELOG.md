@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.1
+
+- **UX: Firmware Age check in upload modal**:
+  - Reworked the 6th upload validation item into a practical **Firmware Age** check that no longer implies build metadata must always exist.
+  - Comparison priority is now:
+    1. `build_time` vs published `build_time` (when both exist),
+    2. file modified time (`file.lastModified`) vs published time (`published_at`) as fallback,
+    3. skip when no reliable comparison source is available.
+  - Warning details now include both file/published timestamps for quick operator judgment.
+- **Refactor**:
+  - Removed duplicate datetime-formatting paths by introducing a shared formatter helper used by published time, file time, and build time displays.
+  - Removed a redundant nested comparison condition in the age-check branch.
+
 ## 0.9.0
 
 - **Feature: Build Timestamp Extraction & Age Warning**:
