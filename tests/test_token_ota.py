@@ -52,7 +52,7 @@ class TestSecretTokenOTA(unittest.TestCase):
     def test_packages_slug_substitution(self):
         # Write packages
         packages.write_packages(self.esphome_config, "https://my-ha.duckdns.org", "esphome_ota")
-        update_yaml = (self.esphome_config / "ota_server" / "update.yaml").read_text()
+        update_yaml = (self.esphome_config / "ota_server" / "update.yaml").read_text(encoding="utf-8")
         self.assertIn("${ota_slug}.json", update_yaml)
 
         # Write wrapper with token
@@ -61,7 +61,7 @@ class TestSecretTokenOTA(unittest.TestCase):
         
         wrapper_path = self.esphome_config / "ota_server" / "devices" / "livingroom.yaml"
         self.assertTrue(wrapper_path.is_file())
-        content = wrapper_path.read_text()
+        content = wrapper_path.read_text(encoding="utf-8")
         self.assertIn("ota_device: livingroom", content)
         self.assertIn(f"ota_slug: livingroom_{token}", content)
 
