@@ -961,7 +961,6 @@ const STRINGS = {
     valStatusReadyWarn: 'Compatible',
     valStatusBlocked: 'Blocked',
     valSkipped: 'Not checked',
-    valErrNotBin: 'Only .bin firmware files are supported',
     valErrTooSmall: 'File size is too small (< 4KB)',
     valErrUf2: 'UF2 file detected. ESPHome requires .bin',
     valErrElf: 'ELF executable detected. Compile to .bin',
@@ -974,8 +973,6 @@ const STRINGS = {
     valDetailGenericEsp: 'Generic ESP',
     valDetailNoDesc: 'No descriptor (Standard for ESP8266)',
     valDetailReadErr: (msg) => `Read error: ${msg}`,
-    valDetailUnknown: 'Unknown',
-    valDetailNone: 'None',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
     btnCancel: 'Cancel',
@@ -1142,7 +1139,6 @@ const STRINGS = {
     valStatusReadyWarn: '호환 (일반)',
     valStatusBlocked: '게시 불가',
     valSkipped: '검사 안 함',
-    valErrNotBin: '.bin 확장자의 펌웨어 파일만 업로드할 수 있습니다',
     valErrTooSmall: '파일 크기가 너무 작습니다 (< 4KB)',
     valErrUf2: 'UF2 파일은 지원되지 않습니다. .bin을 사용하세요',
     valErrElf: 'ELF 실행 파일입니다. 컴파일된 .bin을 사용하세요',
@@ -1155,8 +1151,6 @@ const STRINGS = {
     valDetailGenericEsp: '일반 ESP',
     valDetailNoDesc: '디스크립터 없음 (ESP8266 기본)',
     valDetailReadErr: (msg) => `읽기 오류: ${msg}`,
-    valDetailUnknown: '알 수 없음',
-    valDetailNone: '없음',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
     btnCancel: '취소',
@@ -1719,7 +1713,8 @@ async function parseBinaryHeader(file, targetPlatform = '') {
   // 1. Format Check
   if (!file.name.toLowerCase().endsWith('.bin')) {
     checks.format.status = 'fail';
-    checks.format.detail = T.valErrNotBin;
+    const ext = file.name.includes('.') ? file.name.split('.').pop().toUpperCase() : 'UNKNOWN';
+    checks.format.detail = ext;
     return bail(checks, 'format', T.notBin);
   }
   checks.format.detail = file.name;
@@ -1825,7 +1820,7 @@ async function parseBinaryHeader(file, targetPlatform = '') {
     checks.desc.status = 'pass';
     const parts = [];
     if (idfVersion) parts.push(`IDF ${idfVersion}`);
-    if (esphomeVer) parts.push(`Build ${esphomeVer}`);
+    if (esphomeVer) parts.push(`ESPHome ${esphomeVer}`);
     checks.desc.detail = parts.join(', ');
   } else {
     checks.desc.status = 'warn';
