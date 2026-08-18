@@ -762,8 +762,6 @@ def parse_app_descriptor(blob: bytes) -> dict[str, str]:
         build_dt = _parse_build_datetime(build_date_str, build_time_str)
         if build_dt:
             result["build_time"] = build_dt
-        elif build_date_str:
-            result["build_time_raw"] = f"{build_date_str} {build_time_str}".strip()
         return result
     except Exception:
         return {}

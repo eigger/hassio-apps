@@ -4,10 +4,19 @@
 
 - **Feature: Build Timestamp Extraction & Age Warning**:
   - ESP32 firmware binaries (`esp_app_desc_t` struct) now have their GCC `__DATE__`/`__TIME__` build timestamp extracted both server-side (`metadata.py`) and client-side (upload modal JS).
-  - When uploading a `.bin`, the new **Build Time** validation check compares the binary's build timestamp against the currently published firmware's build timestamp.
-  - If the uploaded binary is **older** than the current firmware, the check shows a ⚠️ warning with the current firmware's build date — upload is still allowed (to support intentional rollback).
-  - If newer or equal, the check shows the build timestamp as a pass.
+  - When uploading a `.bin`, the new **Build Time** validation check (6th check) compares the binary's build timestamp against the currently published firmware's build timestamp.
+  - If the uploaded binary is **older** than the current firmware, the check shows a ⚠️ warning — upload is still allowed (to support intentional rollback).
+  - If newer or equal, the check shows the formatted build timestamp as a pass.
   - The `build_time` field is persisted in the manifest JSON and returned in all `/api/devices` and publish API responses.
+- **UI: Build Time in Device List**:
+  - The firmware metadata line in the device list now shows **build time** (from `esp_app_desc_t`) instead of upload time when available.
+  - Hovering shows the upload time in a tooltip (`title` attribute).
+  - ESP8266 and other binaries without a build descriptor continue to show upload time as before.
+- **Refactor (post-review)**:
+  - `formatBuildTime` de-duplicated as an alias of `formatPublishedAt`.
+  - IIFE in row template replaced with `firmwareTimestampHtml()` helper, consistent with existing style.
+  - Build time labels use consistent `빌드: <dt>` prefix form in both modal and device list (Korean locale).
+  - `build_time_raw` dead-code path removed from `metadata.py`.
 
 ## 0.8.9
 
