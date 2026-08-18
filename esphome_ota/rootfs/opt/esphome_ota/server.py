@@ -984,20 +984,20 @@ async def publish_manual(request: web.Request) -> web.Response:
     )
     requested = version
     version_source = "supplied"
-    if compiled:
-        version = compiled
-        version_source = "project"
+    if app_desc.get("version"):
+        version = app_desc["version"]
+        version_source = "binary"
     elif requested:
         version = requested
         version_source = "supplied"
+    elif compiled:
+        version = compiled
+        version_source = "project"
     else:
-        pub = app.published_metadata(node)
+        pub = app.publisher.published(node)
         if pub and pub.get("version"):
             version = pub["version"]
             version_source = "published"
-        elif app_desc.get("version"):
-            version = app_desc["version"]
-            version_source = "binary"
         else:
             esphome_version = await app._dashboard_esphome_version()
             version = esphome_version or "1.0.0"
