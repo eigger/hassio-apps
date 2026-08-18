@@ -623,7 +623,16 @@ routes = web.RouteTableDef()
 
 @routes.get("/")
 async def index(_: web.Request) -> web.FileResponse:
-    return web.FileResponse(HERE / "static" / "index.html")
+    # The UI is one self-contained HTML file. FileResponse sends ETag/
+    # Last-Modified but never Cache-Control, so browsers apply RFC 9111
+    # heuristic freshness and can skip revalidation for a long time —
+    # pinning the whole app to a stale version while /api/* (no validators)
+    # stays fresh. no-cache forces revalidation on every load; ETag keeps
+    # that cheap (304s) when the file hasn't actually changed.
+    return web.FileResponse(
+        HERE / "static" / "index.html",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @routes.get("/api/status")

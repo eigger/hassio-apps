@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.9
+
+- **Fix: Stale UI After Update**:
+  - The `/` route now sends `Cache-Control: no-cache`, forcing browsers to revalidate the single-file UI on every load instead of applying HTTP heuristic freshness and serving a stale cached copy for a long time after an update. `ETag`/`Last-Modified` (already sent by aiohttp's `FileResponse`) make revalidation cheap — unchanged loads still get a 304.
+  - Previously only `/api/*` responses (which carry no cache validators) were always fresh, so the version badge could show the new version while the rest of the UI stayed on the old one until the browser cache was cleared manually.
+
 ## 0.8.8
 
 - **Feature: Binary Validation Checklist in Upload Modal**:
