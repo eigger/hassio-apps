@@ -736,24 +736,24 @@ def _parse_build_datetime(date_str: str, time_str: str) -> str | None:
         return None
 
 
-def parse_app_descriptor(blob: bytes) -> dict[str, str]:
-    """Parse esp_app_desc_t at offset 0x20 if present in ESP32 app images."""
-    if len(blob) < 0x20 + 160:
+def _decode_cstr(blob: bytes, start: int, size: int) -> str:
+    return blob[start : start + size].split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
+
+
+def _parse_app_descriptor_at(blob: bytes, base: int) -> dict[str, str]:
+    """Parse esp_app_desc_t at a candidate *base* offset."""
+    end_needed = base + 0x90 + 32
+    if len(blob) < end_needed:
         return {}
-    magic = int.from_bytes(blob[0x20:0x24], "little")
+    magic = int.from_bytes(blob[base : base + 4], "little")
     if magic != ESP_APP_DESC_MAGIC:
         return {}
     try:
-        ver_bytes = blob[0x30:0x50].split(b"\x00")[0]
-        version = ver_bytes.decode("utf-8", errors="ignore").strip()
-        proj_bytes = blob[0x50:0x70].split(b"\x00")[0]
-        project = proj_bytes.decode("utf-8", errors="ignore").strip()
-        time_bytes = blob[0x70:0x80].split(b"\x00")[0]
-        build_time_str = time_bytes.decode("utf-8", errors="ignore").strip()
-        date_bytes = blob[0x80:0x90].split(b"\x00")[0]
-        build_date_str = date_bytes.decode("utf-8", errors="ignore").strip()
-        idf_bytes = blob[0x90:0xB0].split(b"\x00")[0]
-        idf_ver = idf_bytes.decode("utf-8", errors="ignore").strip()
+        version = _decode_cstr(blob, base + 0x10, 32)
+        project = _decode_cstr(blob, base + 0x30, 32)
+        build_time_str = _decode_cstr(blob, base + 0x50, 16)
+        build_date_str = _decode_cstr(blob, base + 0x60, 16)
+        idf_ver = _decode_cstr(blob, base + 0x70, 32)
         result: dict[str, str] = {
             "version": version,
             "project_name": project,
@@ -765,6 +765,35 @@ def parse_app_descriptor(blob: bytes) -> dict[str, str]:
         return result
     except Exception:
         return {}
+
+
+def parse_app_descriptor(blob: bytes) -> dict[str, str]:
+    """Parse esp_app_desc_t from ESP32 app image.
+
+    Preferred location is fixed base 0x20 (esp_image_header_t + first segment
+    header). Some binaries may place the descriptor elsewhere; fall back to
+    scanning the first 64 KiB for ESP_APP_DESC_MAGIC and parse the first valid
+    candidate.
+    """
+    if len(blob) < 0x20 + 160:
+        return {}
+
+    fixed = _parse_app_descriptor_at(blob, 0x20)
+    if fixed:
+        return fixed
+
+    max_scan = min(len(blob) - 4, 64 * 1024)
+    magic = ESP_APP_DESC_MAGIC.to_bytes(4, "little")
+    start = 0
+    while True:
+        idx = blob.find(magic, start, max_scan + 4)
+        if idx == -1:
+            break
+        parsed = _parse_app_descriptor_at(blob, idx)
+        if parsed:
+            return parsed
+        start = idx + 1
+    return {}
 
 
 def validate_binary(

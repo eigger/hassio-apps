@@ -48,27 +48,34 @@ class TestParseBuildDateTime(unittest.TestCase):
 class TestParseAppDescriptor(unittest.TestCase):
     """Integration: build a synthetic esp_app_desc_t blob and verify round-trip."""
 
-    def _make_blob(self, version: str, project: str, time_str: str, date_str: str, idf: str) -> bytes:
-        # esp_image_header_t (24 bytes) + app descriptor starting at offset 0x20 (32)
-        # Total we need: 0x20 (header) + 0x90 (end of idf_ver field) + 32 = 0xB0 bytes minimum
-        blob = bytearray(0xC0)
+    def _make_blob(
+        self,
+        version: str,
+        project: str,
+        time_str: str,
+        date_str: str,
+        idf: str,
+        desc_base: int = 0x20,
+    ) -> bytes:
+        # Build enough room for descriptor at requested base.
+        blob = bytearray(max(0xC0, desc_base + 0xB0 + 0x10))
         blob[0] = 0xE9  # ESP_IMAGE_MAGIC
         # ESP32 header sanity guard fields
         blob[19] = blob[20] = blob[21] = blob[22] = 0
         blob[23] = 0  # hash_appended
 
-        # Write magic at 0x20
-        struct.pack_into("<I", blob, 0x20, ESP_APP_DESC_MAGIC)
+        # Write magic at descriptor base.
+        struct.pack_into("<I", blob, desc_base, ESP_APP_DESC_MAGIC)
 
         def write_str(offset, s, size):
             b = s.encode("utf-8")[:size]
             blob[offset:offset + len(b)] = b
 
-        write_str(0x30, version, 32)    # version
-        write_str(0x50, project, 32)    # project_name
-        write_str(0x70, time_str, 16)   # time
-        write_str(0x80, date_str, 16)   # date
-        write_str(0x90, idf, 32)        # idf_ver
+        write_str(desc_base + 0x10, version, 32)    # version
+        write_str(desc_base + 0x30, project, 32)    # project_name
+        write_str(desc_base + 0x50, time_str, 16)   # time
+        write_str(desc_base + 0x60, date_str, 16)   # date
+        write_str(desc_base + 0x70, idf, 32)        # idf_ver
 
         return bytes(blob)
 
@@ -96,6 +103,21 @@ class TestParseAppDescriptor(unittest.TestCase):
         blob[0] = 0xE9
         result = parse_app_descriptor(bytes(blob))
         self.assertEqual(result, {})
+
+    def test_descriptor_shifted_from_fixed_offset_is_found(self):
+        blob = self._make_blob(
+            "2026.8.18",
+            "shifted.proj",
+            "17:33:44",
+            "Aug 18 2026",
+            "v5.3.0",
+            desc_base=0x140,
+        )
+        result = parse_app_descriptor(blob)
+        self.assertEqual(result["version"], "2026.8.18")
+        self.assertEqual(result["project_name"], "shifted.proj")
+        self.assertEqual(result["idf_version"], "v5.3.0")
+        self.assertEqual(result["build_time"], "2026-08-18T17:33:44")
 
 
 if __name__ == "__main__":

@@ -1745,7 +1745,9 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
 
   let slice;
   try {
-    slice = await file.slice(0, 512).arrayBuffer();
+    // Read a wider prefix so we can scan for esp_app_desc_t if it is not
+    // located at the fixed 0x20 base.
+    slice = await file.slice(0, Math.min(file.size, 64 * 1024)).arrayBuffer();
   } catch (err) {
     checks.magic.status = 'fail';
     checks.magic.detail = T.valDetailReadErr(err.message);
@@ -1809,35 +1811,33 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
     checks.chip.detail = is8266 ? T.valDetailEsp8266 : (targetPlatform || T.valDetailGenericEsp);
   }
 
-  // 5. App Descriptor Check (offset 0x20)
-  // esp_app_desc_t layout (all offsets from blob start):
-  //   0x20: magic, 0x30: version[32], 0x50: project_name[32]
-  //   0x70: time[16] (HH:MM:SS), 0x80: date[16] (Mmm DD YYYY), 0x90: idf_ver[32]
+  // 5. App Descriptor Check
+  // esp_app_desc_t layout (all offsets from descriptor base):
+  //   +0x00: magic, +0x10: version[32], +0x30: project_name[32]
+  //   +0x50: time[16] (HH:MM:SS), +0x60: date[16] (Mmm DD YYYY), +0x70: idf_ver[32]
   let idfVersion = null;
   let esphomeVer = null;
   let buildTime = null;
-  if (view.byteLength >= 0xA0) {
-    const magic = view.getUint32(0x20, true);
-    if (magic === 0xABCD5432) {
-      const verSlice = bytes.subarray(0x30, 0x50);
-      let end = verSlice.indexOf(0);
-      if (end === -1) end = 32;
-      esphomeVer = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
+  const appDescBase = findAppDescBase(bytes);
+  if (appDescBase !== null && view.byteLength >= appDescBase + 0x90) {
+    const verSlice = bytes.subarray(appDescBase + 0x10, appDescBase + 0x30);
+    let end = verSlice.indexOf(0);
+    if (end === -1) end = 32;
+    esphomeVer = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
 
-      const idfSlice = bytes.subarray(0x90, 0xB0);
-      let iEnd = idfSlice.indexOf(0);
-      if (iEnd === -1) iEnd = 32;
-      idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
+    const idfSlice = bytes.subarray(appDescBase + 0x70, appDescBase + 0x90);
+    let iEnd = idfSlice.indexOf(0);
+    if (iEnd === -1) iEnd = 32;
+    idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
 
-      // Build time from __TIME__ (0x70) and __DATE__ (0x80)
-      const timeSlice = bytes.subarray(0x70, 0x80);
-      let tEnd = timeSlice.indexOf(0); if (tEnd === -1) tEnd = 16;
-      const timeStr = new TextDecoder('utf-8').decode(timeSlice.subarray(0, tEnd)).trim();
-      const dateSlice = bytes.subarray(0x80, 0x90);
-      let dEnd = dateSlice.indexOf(0); if (dEnd === -1) dEnd = 16;
-      const dateStr = new TextDecoder('utf-8').decode(dateSlice.subarray(0, dEnd)).trim();
-      buildTime = parseBuildDateTime(dateStr, timeStr);
-    }
+    // Build time from __TIME__ (+0x50) and __DATE__ (+0x60)
+    const timeSlice = bytes.subarray(appDescBase + 0x50, appDescBase + 0x60);
+    let tEnd = timeSlice.indexOf(0); if (tEnd === -1) tEnd = 16;
+    const timeStr = new TextDecoder('utf-8').decode(timeSlice.subarray(0, tEnd)).trim();
+    const dateSlice = bytes.subarray(appDescBase + 0x60, appDescBase + 0x70);
+    let dEnd = dateSlice.indexOf(0); if (dEnd === -1) dEnd = 16;
+    const dateStr = new TextDecoder('utf-8').decode(dateSlice.subarray(0, dEnd)).trim();
+    buildTime = parseBuildDateTime(dateStr, timeStr);
   }
 
   if (idfVersion || esphomeVer) {
@@ -1877,6 +1877,26 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
 }
 
 const MONTH_MAP = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+function findAppDescBase(bytes) {
+  const fixedBase = 0x20;
+  if (bytes.length >= fixedBase + 4) {
+    const fixedMagic = (bytes[fixedBase]) |
+      (bytes[fixedBase + 1] << 8) |
+      (bytes[fixedBase + 2] << 16) |
+      (bytes[fixedBase + 3] << 24);
+    if ((fixedMagic >>> 0) === 0xABCD5432) return fixedBase;
+  }
+  // Fallback scan in already-read prefix
+  for (let i = 0; i + 4 <= bytes.length; i += 1) {
+    const magic = (bytes[i]) |
+      (bytes[i + 1] << 8) |
+      (bytes[i + 2] << 16) |
+      (bytes[i + 3] << 24);
+    if ((magic >>> 0) === 0xABCD5432) return i;
+  }
+  return null;
+}
+
 function parseBuildDateTime(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null;
   try {
