@@ -961,6 +961,8 @@ const STRINGS = {
     valDetailBuildTimeOlder: (dt) => `⚠️ Older than current firmware (built ${dt})`,
     valDetailBuildTimeNewer: (dt) => `Built ${dt}`,
     valDetailBuildTimeUnknown: 'No build timestamp in binary',
+    buildTimeLabel: 'Built',
+    uploadedAtLabel: (dt) => `Uploaded: ${dt}`,
     valStatusReady: 'Verified',
     valStatusReadyWarn: 'Compatible',
     valStatusBlocked: 'Blocked',
@@ -1143,6 +1145,8 @@ const STRINGS = {
     valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (${dt} 빌드)`,
     valDetailBuildTimeNewer: (dt) => `${dt} 빌드`,
     valDetailBuildTimeUnknown: '바이너리에 빌드 타임스탬프 없음',
+    buildTimeLabel: '빌드',
+    uploadedAtLabel: (dt) => `업로드: ${dt}`,
     valStatusReady: '검증 완료',
     valStatusReadyWarn: '호환 (일반)',
     valStatusBlocked: '게시 불가',
@@ -1366,7 +1370,7 @@ function row(d) {
           <span class="meta-sep">·</span>
           <span>${sizeStr || '—'}</span>
           <span class="meta-sep">·</span>
-          <span>${formatPublishedAt(pub.published_at)}</span>
+          ${(() => { const ts = firmwareTimestamp(pub); return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`; })()}
         </div>
         ${summaryStr ? `
         <div class="fw-line fw-line-notes">
@@ -1395,7 +1399,7 @@ function row(d) {
           ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span class="meta-sep">·</span>` : ''}
           <span>${sizeStr || '—'}</span>
           <span class="meta-sep">·</span>
-          <span>${formatPublishedAt(pub.published_at)}</span>
+          ${(() => { const ts = firmwareTimestamp(pub); return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`; })()}
         </div>
         ${summaryStr ? `
         <div class="fw-line fw-line-notes">
@@ -2317,6 +2321,32 @@ function formatPublishedAt(iso) {
   return date.toLocaleString(LOCALE === 'ko' ? 'ko-KR' : 'en-US', {
     dateStyle: 'short', timeStyle: 'short',
   });
+}
+
+// build_time is a local-time ISO string without timezone (from GCC __DATE__/__TIME__).
+// Treat it as local time by appending nothing — browsers parse "YYYY-MM-DDTHH:MM:SS" as local.
+function formatBuildTime(buildTimeIso) {
+  if (!buildTimeIso) return null;
+  const date = new Date(buildTimeIso);
+  if (Number.isNaN(date.getTime())) return buildTimeIso;
+  return date.toLocaleString(LOCALE === 'ko' ? 'ko-KR' : 'en-US', {
+    dateStyle: 'short', timeStyle: 'short',
+  });
+}
+
+// Returns { label, title } for the firmware timestamp cell.
+// Prefers build_time; falls back to published_at.
+function firmwareTimestamp(pub) {
+  if (!pub) return { label: '—', title: '' };
+  const bt = formatBuildTime(pub.build_time);
+  const pt = pub.published_at ? formatPublishedAt(pub.published_at) : null;
+  if (bt) {
+    return {
+      label: `${T.buildTimeLabel} ${bt}`,
+      title: pt ? T.uploadedAtLabel(pt) : '',
+    };
+  }
+  return { label: pt || '—', title: '' };
 }
 
 function setJobButtonsDisabled(disabled) {
