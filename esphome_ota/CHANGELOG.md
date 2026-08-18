@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.8
+
+- **Feature: Binary Validation Checklist in Upload Modal**:
+  - Replaced speculative/pre-publish version display with a transparent 5-stage binary validation checklist (`Format`, `Size`, `Magic`, `Chip`, `Descriptor`).
+  - Added ESP32 header sanity guard to prevent false positive chip identification on ESP8266 binaries.
+  - Enabled non-`.bin` files to open modal and clearly surface the format validation failure reason instead of using an alert popup.
+  - Actual published version is cleanly surfaced in the post-publish toast notification from server response.
+
 ## 0.8.7
 
 - Revert upload modal version display changes and restore stable codebase state.
