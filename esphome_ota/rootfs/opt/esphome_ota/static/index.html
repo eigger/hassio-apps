@@ -959,7 +959,7 @@ const STRINGS = {
     valCheckDesc: 'App Descriptor',
     valCheckBuildTime: 'Build Time',
     valDetailBuildTimeOlder: (dt) => `⚠️ Older than current firmware (built ${dt})`,
-    valDetailBuildTimeNewer: (dt) => `Built ${dt}`,
+    valDetailBuildTimeNewer: (dt) => `Built: ${dt}`,
     valDetailBuildTimeUnknown: 'No build timestamp in binary',
     buildTimeLabel: 'Built',
     uploadedAtLabel: (dt) => `Uploaded: ${dt}`,
@@ -1142,8 +1142,8 @@ const STRINGS = {
     valCheckChip: '대상 아키텍처',
     valCheckDesc: '앱 디스크립터',
     valCheckBuildTime: '빌드 시간',
-    valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (${dt} 빌드)`,
-    valDetailBuildTimeNewer: (dt) => `${dt} 빌드`,
+    valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (빌드: ${dt})`,
+    valDetailBuildTimeNewer: (dt) => `빌드: ${dt}`,
     valDetailBuildTimeUnknown: '바이너리에 빌드 타임스탬프 없음',
     buildTimeLabel: '빌드',
     uploadedAtLabel: (dt) => `업로드: ${dt}`,
@@ -1370,7 +1370,7 @@ function row(d) {
           <span class="meta-sep">·</span>
           <span>${sizeStr || '—'}</span>
           <span class="meta-sep">·</span>
-          ${(() => { const ts = firmwareTimestamp(pub); return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`; })()}
+          ${firmwareTimestampHtml(pub)}
         </div>
         ${summaryStr ? `
         <div class="fw-line fw-line-notes">
@@ -1399,7 +1399,7 @@ function row(d) {
           ${pub.md5 ? `<code>${pub.md5.slice(0, 8)}</code><span class="meta-sep">·</span>` : ''}
           <span>${sizeStr || '—'}</span>
           <span class="meta-sep">·</span>
-          ${(() => { const ts = firmwareTimestamp(pub); return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`; })()}
+          ${firmwareTimestampHtml(pub)}
         </div>
         ${summaryStr ? `
         <div class="fw-line fw-line-notes">
@@ -1857,10 +1857,10 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
   if (buildTime) {
     if (publishedBuildTime && buildTime < publishedBuildTime) {
       checks.buildtime.status = 'warn';
-      checks.buildtime.detail = T.valDetailBuildTimeOlder(publishedBuildTime);
+      checks.buildtime.detail = T.valDetailBuildTimeOlder(formatBuildTime(publishedBuildTime));
     } else {
       checks.buildtime.status = 'pass';
-      checks.buildtime.detail = T.valDetailBuildTimeNewer(buildTime);
+      checks.buildtime.detail = T.valDetailBuildTimeNewer(formatBuildTime(buildTime));
     }
   } else {
     checks.buildtime.status = 'skip';
@@ -2324,15 +2324,8 @@ function formatPublishedAt(iso) {
 }
 
 // build_time is a local-time ISO string without timezone (from GCC __DATE__/__TIME__).
-// Treat it as local time by appending nothing — browsers parse "YYYY-MM-DDTHH:MM:SS" as local.
-function formatBuildTime(buildTimeIso) {
-  if (!buildTimeIso) return null;
-  const date = new Date(buildTimeIso);
-  if (Number.isNaN(date.getTime())) return buildTimeIso;
-  return date.toLocaleString(LOCALE === 'ko' ? 'ko-KR' : 'en-US', {
-    dateStyle: 'short', timeStyle: 'short',
-  });
-}
+// Browsers parse "YYYY-MM-DDTHH:MM:SS" as local time, which is what we want.
+const formatBuildTime = (x) => (x ? formatPublishedAt(x) : null);
 
 // Returns { label, title } for the firmware timestamp cell.
 // Prefers build_time; falls back to published_at.
@@ -2347,6 +2340,11 @@ function firmwareTimestamp(pub) {
     };
   }
   return { label: pt || '—', title: '' };
+}
+
+function firmwareTimestampHtml(pub) {
+  const ts = firmwareTimestamp(pub);
+  return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`;
 }
 
 function setJobButtonsDisabled(disabled) {
