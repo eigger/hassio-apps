@@ -66,6 +66,7 @@ class Publisher:
         title: str,
         summary: str = "",
         token: str = "",
+        build_time: str = "",
     ) -> dict[str, Any]:
         self.ensure_dirs()
         digest = hashlib.md5(blob).hexdigest()  # noqa: S324 - ESPHome's OTA checksum is MD5
@@ -80,7 +81,7 @@ class Publisher:
         self._atomic_write(self.dir / bin_name, blob)
         self._atomic_write((self.dir / f"{bin_name}.md5"), digest.encode("ascii"))
 
-        manifest = {
+        manifest: dict[str, Any] = {
             "name": title or node,
             "version": version,
             "builds": [
@@ -97,12 +98,14 @@ class Publisher:
                 }
             ],
         }
+        if build_time:
+            manifest["build_time"] = build_time
         manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
         # Manifest in both places:
         self._atomic_write(self.dir / f"{slug}.json", manifest_bytes)
         self._atomic_write(self.storage_dir / f"{slug}.json", manifest_bytes)
 
-        record = {
+        record: dict[str, Any] = {
             "node": node,
             "token": token,
             "slug": slug,
@@ -114,6 +117,8 @@ class Publisher:
             "has_bin": True,
             "has_stashed_bin": True,
         }
+        if build_time:
+            record["build_time"] = build_time
         LOG.info("Published %s (slug=%s, %s, %s bytes, %s)", node, slug, chip_family, len(blob), digest[:8])
         return record
 
@@ -221,7 +226,7 @@ class Publisher:
             if has_bin
             else (bin_stashed.stat().st_size if has_stashed_bin else 0)
         )
-        return {
+        result: dict[str, Any] = {
             "node": node,
             "token": effective_token,
             "slug": effective_slug,
@@ -237,6 +242,9 @@ class Publisher:
                 manifest_path.stat().st_mtime, tz=timezone.utc
             ).isoformat(timespec="seconds"),
         }
+        if manifest.get("build_time"):
+            result["build_time"] = manifest["build_time"]
+        return result
 
     def list_published(self, registered: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
         """Every published node's manifest, read from disk (both /local and storage).

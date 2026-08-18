@@ -695,6 +695,46 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
 
 ESP_APP_DESC_MAGIC = 0xABCD5432
 
+# esp_app_desc_t layout (relative to struct start at blob offset 0x20):
+#   +0x00  magic        uint32
+#   +0x04  secure_ver   uint32
+#   +0x08  reserv1[2]   uint32×2
+#   +0x10  version[32]  char  ← app version string
+#   +0x30  project_name[32] char
+#   +0x50  time[16]     char  ← GCC __TIME__  "HH:MM:SS"
+#   +0x60  date[16]     char  ← GCC __DATE__  "Mmm DD YYYY"
+#   +0x70  idf_ver[32]  char
+#   +0x90  app_elf_sha256[32] bytes
+
+
+_MONTH_MAP = {
+    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+    "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+}
+
+
+def _parse_build_datetime(date_str: str, time_str: str) -> str | None:
+    """Convert GCC __DATE__/__TIME__ strings to an ISO-8601 UTC-unaware string.
+
+    GCC encodes the local build time with no timezone info, so we emit the
+    raw value as-is rather than pretending it is UTC.  The returned string
+    is ``"YYYY-MM-DDTHH:MM:SS"`` (no timezone suffix), which the frontend
+    can display verbatim.
+    """
+    try:
+        parts = date_str.split()
+        if len(parts) != 3:
+            return None
+        month = _MONTH_MAP.get(parts[0])
+        day = int(parts[1])
+        year = int(parts[2])
+        if not month:
+            return None
+        h, m, s = (int(x) for x in time_str.split(":"))
+        return f"{year:04d}-{month:02d}-{day:02d}T{h:02d}:{m:02d}:{s:02d}"
+    except Exception:
+        return None
+
 
 def parse_app_descriptor(blob: bytes) -> dict[str, str]:
     """Parse esp_app_desc_t at offset 0x20 if present in ESP32 app images."""
@@ -708,13 +748,23 @@ def parse_app_descriptor(blob: bytes) -> dict[str, str]:
         version = ver_bytes.decode("utf-8", errors="ignore").strip()
         proj_bytes = blob[0x50:0x70].split(b"\x00")[0]
         project = proj_bytes.decode("utf-8", errors="ignore").strip()
+        time_bytes = blob[0x70:0x80].split(b"\x00")[0]
+        build_time_str = time_bytes.decode("utf-8", errors="ignore").strip()
+        date_bytes = blob[0x80:0x90].split(b"\x00")[0]
+        build_date_str = date_bytes.decode("utf-8", errors="ignore").strip()
         idf_bytes = blob[0x90:0xB0].split(b"\x00")[0]
         idf_ver = idf_bytes.decode("utf-8", errors="ignore").strip()
-        return {
+        result: dict[str, str] = {
             "version": version,
             "project_name": project,
             "idf_version": idf_ver,
         }
+        build_dt = _parse_build_datetime(build_date_str, build_time_str)
+        if build_dt:
+            result["build_time"] = build_dt
+        elif build_date_str:
+            result["build_time_raw"] = f"{build_date_str} {build_time_str}".strip()
+        return result
     except Exception:
         return {}
 
