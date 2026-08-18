@@ -957,10 +957,12 @@ const STRINGS = {
     valCheckMagic: 'ESP Image Magic',
     valCheckChip: 'Target Architecture',
     valCheckDesc: 'App Descriptor',
-    valCheckBuildTime: 'Build Time',
+    valCheckBuildTime: 'Firmware Age',
     valDetailBuildTimeOlder: (dt) => `⚠️ Older than current firmware (built ${dt})`,
     valDetailBuildTimeNewer: (dt) => `Built: ${dt}`,
     valDetailBuildTimeUnknown: 'No build timestamp in binary',
+    valDetailFileTimeOlder: (f, p) => `⚠️ File looks older than current publish (file: ${f} · published: ${p})`,
+    valDetailFileTimeChecked: (f) => `File date: ${f}`,
     uploadedAtLabel: (dt) => `Uploaded: ${dt}`,
     valStatusReady: 'Verified',
     valStatusReadyWarn: 'Compatible',
@@ -1140,10 +1142,12 @@ const STRINGS = {
     valCheckMagic: '이미지 매직 바이트',
     valCheckChip: '대상 아키텍처',
     valCheckDesc: '앱 디스크립터',
-    valCheckBuildTime: '빌드 시간',
+    valCheckBuildTime: '펌웨어 신선도',
     valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (빌드: ${dt})`,
     valDetailBuildTimeNewer: (dt) => `빌드: ${dt}`,
     valDetailBuildTimeUnknown: '바이너리에 빌드 타임스탬프 없음',
+    valDetailFileTimeOlder: (f, p) => `⚠️ 파일 시각이 현재 게시본보다 오래됨 (파일: ${f} · 게시: ${p})`,
+    valDetailFileTimeChecked: (f) => `파일 시각: ${f}`,
     uploadedAtLabel: (dt) => `업로드: ${dt}`,
     valStatusReady: '검증 완료',
     valStatusReadyWarn: '호환 (일반)',
@@ -1711,7 +1715,7 @@ function bail(checks, failedKey, error) {
   return { valid: false, checks, error };
 }
 
-async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime = null) {
+async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime = null, publishedAt = null) {
   const checks = {
     format:    { id: 'format',    name: T.valCheckFormat,    status: 'pass', detail: '' },
     size:      { id: 'size',      name: T.valCheckSize,      status: 'pass', detail: '' },
@@ -1851,15 +1855,35 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
     checks.desc.detail = T.valDetailNoDesc;
   }
 
-  // 6. Build Time check — compare against currently published firmware
-  if (buildTime) {
-    if (publishedBuildTime && buildTime < publishedBuildTime) {
+  // 6. Version-age safety check:
+  // 1) Prefer build_time when both sides have it
+  // 2) Fallback to local file mtime vs published_at
+  if (buildTime && publishedBuildTime) {
+    if (buildTime < publishedBuildTime) {
       checks.buildtime.status = 'warn';
       checks.buildtime.detail = T.valDetailBuildTimeOlder(formatBuildTime(publishedBuildTime));
     } else {
       checks.buildtime.status = 'pass';
       checks.buildtime.detail = T.valDetailBuildTimeNewer(formatBuildTime(buildTime));
     }
+  } else if (publishedAt && Number.isFinite(file.lastModified) && file.lastModified > 0) {
+    const publishedMs = Date.parse(publishedAt);
+    const fileMs = file.lastModified;
+    const fileDt = formatDateTime(fileMs);
+    const pubDt = Number.isFinite(publishedMs) ? formatDateTime(publishedMs) : null;
+    if (Number.isFinite(publishedMs) && fileMs < publishedMs) {
+      checks.buildtime.status = 'warn';
+      checks.buildtime.detail = T.valDetailFileTimeOlder(fileDt || '—', pubDt || '—');
+    } else if (fileDt) {
+      checks.buildtime.status = 'pass';
+      checks.buildtime.detail = T.valDetailFileTimeChecked(fileDt);
+    } else {
+      checks.buildtime.status = 'skip';
+      checks.buildtime.detail = T.valDetailBuildTimeUnknown;
+    }
+  } else if (buildTime) {
+    checks.buildtime.status = 'pass';
+    checks.buildtime.detail = T.valDetailBuildTimeNewer(formatBuildTime(buildTime));
   } else {
     checks.buildtime.status = 'skip';
     checks.buildtime.detail = T.valDetailBuildTimeUnknown;
@@ -1911,7 +1935,13 @@ async function openUploadModal(d, file) {
 
   // Parse & Validate — pass published build_time for comparison
   const publishedBuildTime = (d.published && d.published.build_time) || null;
-  const parsed = await parseBinaryHeader(file, d.target_platform || d.chip_family || '', publishedBuildTime);
+  const publishedAt = (d.published && d.published.published_at) || null;
+  const parsed = await parseBinaryHeader(
+    file,
+    d.target_platform || d.chip_family || '',
+    publishedBuildTime,
+    publishedAt,
+  );
 
   // File info summary
   $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code>`;
@@ -2313,17 +2343,20 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function formatPublishedAt(iso) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString(LOCALE === 'ko' ? 'ko-KR' : 'en-US', {
     dateStyle: 'short', timeStyle: 'short',
   });
 }
 
+function formatPublishedAt(iso) { return formatDateTime(iso) ?? iso; }
+const formatMillis = formatDateTime;
+
 // build_time is a local-time ISO string without timezone (from GCC __DATE__/__TIME__).
 // Browsers parse "YYYY-MM-DDTHH:MM:SS" as local time, which is what we want.
-const formatBuildTime = (x) => (x ? formatPublishedAt(x) : null);
+const formatBuildTime = (x) => (x ? formatDateTime(x) : null);
 
 // Returns { label, title } for the firmware timestamp cell.
 // Prefers build_time; falls back to published_at.
