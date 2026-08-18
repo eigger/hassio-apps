@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.6
+
+- **Fix: Upload modal displays device compile project version**:
+  - The upload modal displays the target `project.version` (e.g. `1.0.1`) for the device.
+  - ESPHome and ESP-IDF toolchain build info are separated into the file details subtitle.
+  - Publishing is blocked if no `project.version` is configured.
+
 ## 0.8.5
 
 - **Fix: Modal extracts and displays version purely from uploaded binary**:
