@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.3
+
+- **Fix: Upload modal extracts version directly from uploaded binary**:
+  - The upload modal now extracts and displays the version directly from the uploaded `.bin` file (`esp_app_desc_t.version`).
+  - Removed reliance on current device/YAML version fallbacks in upload modal and server `publish_manual`.
+  - If no embedded version is found in the binary, publishing is safely blocked with a warning.
+
 ## 0.8.2
 
 - **Fix: Upload modal now shows version read directly from the binary**:

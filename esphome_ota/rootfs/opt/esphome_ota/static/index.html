@@ -1724,6 +1724,7 @@ async function parseBinaryHeader(file) {
   return {
     valid: true,
     chipFamily,
+    version: esphomeVersion,
     esphomeVersion,
     projectName,
     idfVersion,
@@ -1750,15 +1751,7 @@ async function openUploadModal(d, file) {
   const detectedField = $('upVerDetectedField');
 
   const parsed = await parseBinaryHeader(file);
-  // The server (publish_manual) uses this priority:
-  //   1. YAML project.version  (compiled / wrapper version)
-  //   2. client-supplied version
-  //   3. binary app_desc.version
-  // We mirror that priority so the displayed version matches what actually gets published.
-  const yamlVer    = compiledVersion(d);   // YAML project.version from registry
-  const binaryVer  = (parsed.valid && parsed.esphomeVersion) || '';
-  const targetVersion = yamlVer || binaryVer;
-  const versionSource = yamlVer ? 'yaml' : (binaryVer ? 'binary' : '');
+  const binaryVer = (parsed.valid && parsed.version) || '';
 
   if (!parsed.valid) {
     errorBox.textContent = '❌ ' + parsed.error;
@@ -1772,7 +1765,6 @@ async function openUploadModal(d, file) {
     const chipFamily = parsed.chipFamily || d.chip_family;
     const chipTag = chipFamily ? `<span class="chip-platform">${escapeHtml(chipFamily)}</span>` : '';
     const buildDetails = [];
-    if (binaryVer && versionSource !== 'binary') buildDetails.push(`binary: ${binaryVer}`);
     if (parsed.idfVersion) buildDetails.push(`IDF ${parsed.idfVersion}`);
     const buildTag = buildDetails.length > 0 ? `<span class="tiny muted">(${escapeHtml(buildDetails.join(', '))})</span>` : '';
 
@@ -1780,21 +1772,20 @@ async function openUploadModal(d, file) {
 
     const badge = $('upDetectedVerBadge');
     const dot = badge ? badge.querySelector('.pulse-dot') : null;
-    if (targetVersion) {
+    const srcSpan = $('upVersionSource');
+    if (srcSpan) srcSpan.textContent = '';
+
+    if (binaryVer) {
       if (badge) { badge.className = 'badge-pill badge-ok'; }
       if (dot)   { dot.className = 'pulse-dot ok'; }
-      $('upDetectedVerText').textContent = targetVersion;
-      const srcSpan = $('upVersionSource');
-      if (srcSpan) srcSpan.textContent = versionSource === 'yaml' ? 'YAML' : 'binary';
-      $('upVersion').value = targetVersion;
+      $('upDetectedVerText').textContent = binaryVer;
+      $('upVersion').value = binaryVer;
       confirmBtn.disabled = false;
     } else {
-      // Neither YAML nor binary provides a version — block publish
+      // Binary has no embedded version — cannot publish with unknown version
       if (badge) { badge.className = 'badge-pill badge-warn'; }
       if (dot)   { dot.className = 'pulse-dot warn'; }
       $('upDetectedVerText').textContent = T.uploadNoVersion;
-      const srcSpanErr = $('upVersionSource');
-      if (srcSpanErr) srcSpanErr.textContent = '';
       $('upVersion').value = '';
       confirmBtn.disabled = true;
     }
