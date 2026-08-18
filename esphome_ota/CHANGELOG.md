@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.4
+
+- **Fix: Upload modal displays project version for the device**:
+  - The upload modal now displays the device's compile `project.version` (e.g. `1.0.1`) instead of the ESPHome toolchain version or previous published version.
+  - If no `project.version` is defined for the device, publishing is safely blocked with a warning.
+
 ## 0.8.3
 
 - **Fix: Upload modal extracts version directly from uploaded binary**:
