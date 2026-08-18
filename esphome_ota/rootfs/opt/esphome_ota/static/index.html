@@ -957,6 +957,10 @@ const STRINGS = {
     valCheckMagic: 'ESP Image Magic',
     valCheckChip: 'Target Architecture',
     valCheckDesc: 'App Descriptor',
+    valCheckBuildTime: 'Build Time',
+    valDetailBuildTimeOlder: (dt) => `⚠️ Older than current firmware (built ${dt})`,
+    valDetailBuildTimeNewer: (dt) => `Built ${dt}`,
+    valDetailBuildTimeUnknown: 'No build timestamp in binary',
     valStatusReady: 'Verified',
     valStatusReadyWarn: 'Compatible',
     valStatusBlocked: 'Blocked',
@@ -1135,6 +1139,10 @@ const STRINGS = {
     valCheckMagic: '이미지 매직 바이트',
     valCheckChip: '대상 아키텍처',
     valCheckDesc: '앱 디스크립터',
+    valCheckBuildTime: '빌드 시간',
+    valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (${dt} 빌드)`,
+    valDetailBuildTimeNewer: (dt) => `${dt} 빌드`,
+    valDetailBuildTimeUnknown: '바이너리에 빌드 타임스탬프 없음',
     valStatusReady: '검증 완료',
     valStatusReadyWarn: '호환 (일반)',
     valStatusBlocked: '게시 불가',
@@ -1690,7 +1698,7 @@ async function saveAutoDeactivateModal() {
   }
 }
 
-const CHECK_ORDER = ['format', 'size', 'magic', 'chip', 'desc'];
+const CHECK_ORDER = ['format', 'size', 'magic', 'chip', 'desc', 'buildtime'];
 
 function bail(checks, failedKey, error) {
   const from = CHECK_ORDER.indexOf(failedKey) + 1;
@@ -1701,13 +1709,14 @@ function bail(checks, failedKey, error) {
   return { valid: false, checks, error };
 }
 
-async function parseBinaryHeader(file, targetPlatform = '') {
+async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime = null) {
   const checks = {
-    format: { id: 'format', name: T.valCheckFormat, status: 'pass', detail: '' },
-    size:   { id: 'size',   name: T.valCheckSize,   status: 'pass', detail: '' },
-    magic:  { id: 'magic',  name: T.valCheckMagic,  status: 'pass', detail: '' },
-    chip:   { id: 'chip',   name: T.valCheckChip,   status: 'pass', detail: '' },
-    desc:   { id: 'desc',   name: T.valCheckDesc,   status: 'pass', detail: '' },
+    format:    { id: 'format',    name: T.valCheckFormat,    status: 'pass', detail: '' },
+    size:      { id: 'size',      name: T.valCheckSize,      status: 'pass', detail: '' },
+    magic:     { id: 'magic',     name: T.valCheckMagic,     status: 'pass', detail: '' },
+    chip:      { id: 'chip',      name: T.valCheckChip,      status: 'pass', detail: '' },
+    desc:      { id: 'desc',      name: T.valCheckDesc,      status: 'pass', detail: '' },
+    buildtime: { id: 'buildtime', name: T.valCheckBuildTime, status: 'skip', detail: '' },
   };
 
   // 1. Format Check
@@ -1799,8 +1808,12 @@ async function parseBinaryHeader(file, targetPlatform = '') {
   }
 
   // 5. App Descriptor Check (offset 0x20)
+  // esp_app_desc_t layout (all offsets from blob start):
+  //   0x20: magic, 0x30: version[32], 0x50: project_name[32]
+  //   0x70: time[16] (HH:MM:SS), 0x80: date[16] (Mmm DD YYYY), 0x90: idf_ver[32]
   let idfVersion = null;
   let esphomeVer = null;
+  let buildTime = null;
   if (view.byteLength >= 0xA0) {
     const magic = view.getUint32(0x20, true);
     if (magic === 0xABCD5432) {
@@ -1813,6 +1826,15 @@ async function parseBinaryHeader(file, targetPlatform = '') {
       let iEnd = idfSlice.indexOf(0);
       if (iEnd === -1) iEnd = 32;
       idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
+
+      // Build time from __TIME__ (0x70) and __DATE__ (0x80)
+      const timeSlice = bytes.subarray(0x70, 0x80);
+      let tEnd = timeSlice.indexOf(0); if (tEnd === -1) tEnd = 16;
+      const timeStr = new TextDecoder('utf-8').decode(timeSlice.subarray(0, tEnd)).trim();
+      const dateSlice = bytes.subarray(0x80, 0x90);
+      let dEnd = dateSlice.indexOf(0); if (dEnd === -1) dEnd = 16;
+      const dateStr = new TextDecoder('utf-8').decode(dateSlice.subarray(0, dEnd)).trim();
+      buildTime = parseBuildDateTime(dateStr, timeStr);
     }
   }
 
@@ -1827,14 +1849,45 @@ async function parseBinaryHeader(file, targetPlatform = '') {
     checks.desc.detail = T.valDetailNoDesc;
   }
 
+  // 6. Build Time check — compare against currently published firmware
+  if (buildTime) {
+    if (publishedBuildTime && buildTime < publishedBuildTime) {
+      checks.buildtime.status = 'warn';
+      checks.buildtime.detail = T.valDetailBuildTimeOlder(publishedBuildTime);
+    } else {
+      checks.buildtime.status = 'pass';
+      checks.buildtime.detail = T.valDetailBuildTimeNewer(buildTime);
+    }
+  } else {
+    checks.buildtime.status = 'skip';
+    checks.buildtime.detail = T.valDetailBuildTimeUnknown;
+  }
+
   return {
     valid: true,
     chipFamily,
     idfVersion,
     esphomeVer,
+    buildTime,
     checks,
     size: file.size,
   };
+}
+
+const MONTH_MAP = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+function parseBuildDateTime(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  try {
+    const parts = dateStr.trim().split(/\s+/);
+    if (parts.length !== 3) return null;
+    const month = MONTH_MAP[parts[0]];
+    const day = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    if (!month || isNaN(day) || isNaN(year)) return null;
+    const [h, m, s] = timeStr.split(':').map((x) => parseInt(x, 10));
+    if (isNaN(h) || isNaN(m) || isNaN(s)) return null;
+    return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  } catch { return null; }
 }
 
 // Upload Modal with Release Notes
@@ -1854,8 +1907,9 @@ async function openUploadModal(d, file) {
   const overallText = $('upValOverallText');
   const overallDot = overallBadge ? overallBadge.querySelector('.pulse-dot') : null;
 
-  // Parse & Validate
-  const parsed = await parseBinaryHeader(file, d.target_platform || d.chip_family || '');
+  // Parse & Validate — pass published build_time for comparison
+  const publishedBuildTime = (d.published && d.published.build_time) || null;
+  const parsed = await parseBinaryHeader(file, d.target_platform || d.chip_family || '', publishedBuildTime);
 
   // File info summary
   $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code>`;

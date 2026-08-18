@@ -568,6 +568,8 @@ class App:
                 app_desc = info.get("app_descriptor") or {}
                 if app_desc.get("idf_version"):
                     job.log(f"ESP-IDF {app_desc['idf_version']} app descriptor verified")
+                if app_desc.get("build_time"):
+                    job.log(f"Build time: {app_desc['build_time']}")
 
                 config = metadata.read_config(self.settings.esphome_config_dir, configuration)
                 origin = self.settings.esphome_config_dir / configuration
@@ -601,6 +603,7 @@ class App:
                     title=title,
                     summary=summary,
                     token=token,
+                    build_time=app_desc.get("build_time", ""),
                 )
                 slug_name = record.get("slug") or job.node
                 job.log(
@@ -972,6 +975,8 @@ async def publish_manual(request: web.Request) -> web.Response:
     app_desc = info.get("app_descriptor") or {}
     if app_desc.get("idf_version"):
         LOG.info("Manual publish %s: ESP-IDF %s app descriptor verified", node, app_desc["idf_version"])
+    if app_desc.get("build_time"):
+        LOG.info("Manual publish %s: build time %s", node, app_desc["build_time"])
 
     if not chip_family and info.get("chip_family"):
         chip_family = info["chip_family"]
@@ -1052,6 +1057,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         title=title or node,
         summary=summary,
         token=token,
+        build_time=app_desc.get("build_time", ""),
     )
     record["version_source"] = version_source
     if requested and requested != version:
