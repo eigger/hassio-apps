@@ -984,15 +984,15 @@ async def publish_manual(request: web.Request) -> web.Response:
     )
     requested = version
     version_source = "supplied"
-    if requested:
+    if app_desc.get("version"):
+        version = app_desc["version"]
+        version_source = "binary"
+    elif requested:
         version = requested
         version_source = "supplied"
     elif compiled:
         version = compiled
         version_source = "project"
-    elif app_desc.get("version"):
-        version = app_desc["version"]
-        version_source = "binary"
     else:
         pub = app.publisher.published(node)
         if pub and pub.get("version"):

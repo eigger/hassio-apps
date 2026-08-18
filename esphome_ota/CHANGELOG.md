@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5
+
+- **Fix: Modal extracts and displays version purely from uploaded binary**:
+  - The upload modal now extracts and displays the version directly from the uploaded `.bin` file without any fallback or lookup to device YAML / registry.
+  - Publishing is blocked if no version is embedded in the binary.
+
 ## 0.8.4
 
 - **Fix: Upload modal displays project version for the device**:

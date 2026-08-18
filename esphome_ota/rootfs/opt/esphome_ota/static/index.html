@@ -952,7 +952,7 @@ const STRINGS = {
     uploadTarget: 'Target Device',
     uploadFile: 'Firmware File',
     uploadVerDetectedLabel: 'Firmware Version',
-    uploadNoVersion: 'No project.version found for this device — cannot publish',
+    uploadNoVersion: 'No version found in binary — cannot publish',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
     btnCancel: 'Cancel',
@@ -1111,7 +1111,7 @@ const STRINGS = {
     uploadTarget: '대상 기기',
     uploadFile: '펌웨어 파일',
     uploadVerDetectedLabel: '게시할 펌웨어 버전',
-    uploadNoVersion: '기기의 project.version을 찾을 수 없습니다 — 게시 불가',
+    uploadNoVersion: '바이너리에서 버전을 읽을 수 없습니다 — 게시 불가',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
     btnCancel: '취소',
@@ -1765,7 +1765,6 @@ async function openUploadModal(d, file) {
     const chipFamily = parsed.chipFamily || d.chip_family;
     const chipTag = chipFamily ? `<span class="chip-platform">${escapeHtml(chipFamily)}</span>` : '';
     const buildDetails = [];
-    if (parsed.esphomeVersion) buildDetails.push(`ESPHome ${parsed.esphomeVersion}`);
     if (parsed.idfVersion) buildDetails.push(`IDF ${parsed.idfVersion}`);
     const buildTag = buildDetails.length > 0 ? `<span class="tiny muted">(${escapeHtml(buildDetails.join(', '))})</span>` : '';
 
@@ -1773,16 +1772,16 @@ async function openUploadModal(d, file) {
 
     const badge = $('upDetectedVerBadge');
     const dot = badge ? badge.querySelector('.pulse-dot') : null;
-    const projVersion = compiledVersion(d);
+    const detectedVersion = (parsed.valid && parsed.version) || '';
 
-    if (projVersion) {
+    if (detectedVersion) {
       if (badge) { badge.className = 'badge-pill badge-ok'; }
       if (dot)   { dot.className = 'pulse-dot ok'; }
-      $('upDetectedVerText').textContent = projVersion;
-      $('upVersion').value = projVersion;
+      $('upDetectedVerText').textContent = detectedVersion;
+      $('upVersion').value = detectedVersion;
       confirmBtn.disabled = false;
     } else {
-      // Device has no project version configured — block publish
+      // Binary has no embedded version — cannot publish with unknown version
       if (badge) { badge.className = 'badge-pill badge-warn'; }
       if (dot)   { dot.className = 'pulse-dot warn'; }
       $('upDetectedVerText').textContent = T.uploadNoVersion;
