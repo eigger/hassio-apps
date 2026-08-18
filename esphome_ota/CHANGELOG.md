@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.7
+
+- Revert upload modal version display changes and restore stable codebase state.
+
 ## 0.8.1
 
 - **Legacy Device Warning Badges**:
