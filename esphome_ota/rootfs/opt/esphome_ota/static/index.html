@@ -774,16 +774,16 @@
       <label id="t-upload-file-label">Firmware File</label>
       <div id="upFileInfo" class="tiny" style="font-weight:600; padding:6px 8px; background:var(--card-subtle); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:6px;"></div>
     </div>
-    <!-- Target Firmware Version Display (Readonly) -->
-    <div class="field" id="upVerDetectedField" style="margin-bottom:10px;">
-      <label id="t-upload-ver-detected-label">Firmware Version</label>
-      <div style="display:flex; align-items:center; gap:8px; padding-top:2px;">
-        <span id="upDetectedVerBadge" class="badge-pill badge-ok" style="font-size:13.5px; padding:3px 10px;">
+    <!-- Binary Validation Checklist -->
+    <div class="field" id="upValidationField" style="margin-bottom:12px;">
+      <label id="t-upload-val-label" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Binary Validation</span>
+        <span id="upValOverallBadge" class="badge-pill badge-ok" style="font-size:11px; padding:2px 8px;">
           <span class="pulse-dot ok"></span>
-          <span id="upDetectedVerText" style="font-weight:700"></span>
+          <span id="upValOverallText">Ready</span>
         </span>
-      </div>
-      <input type="hidden" id="upVersion">
+      </label>
+      <div id="upValidationList" class="val-check-list" style="background:var(--card-subtle); border:1px solid var(--line); border-radius:6px; padding:8px 10px; margin-top:4px; font-size:12px; display:flex; flex-direction:column; gap:6px;"></div>
     </div>
     <details class="field upload-notes-details" id="upNotesDetails" style="margin-bottom:12px">
       <summary id="t-upload-notes-label">Release Notes / Summary (optional)</summary>
@@ -950,7 +950,21 @@ const STRINGS = {
     uploadModalTitle: 'Publish Firmware',
     uploadTarget: 'Target Device',
     uploadFile: 'Firmware File',
-    uploadVerDetectedLabel: 'Firmware Version',
+    uploadValLabel: 'Binary Validation',
+    valCheckFormat: 'File Format',
+    valCheckSize: 'File Size',
+    valCheckMagic: 'ESP Image Magic',
+    valCheckChip: 'Target Architecture',
+    valCheckDesc: 'App Descriptor',
+    valStatusReady: 'Verified',
+    valStatusReadyWarn: 'Compatible',
+    valStatusBlocked: 'Blocked',
+    valErrNotBin: 'Only .bin firmware files are supported',
+    valErrTooSmall: 'File size is too small (< 4KB)',
+    valErrUf2: 'UF2 file detected. ESPHome requires .bin',
+    valErrElf: 'ELF executable detected. Compile to .bin',
+    valErrMagic: 'Invalid ESP image magic byte (expected 0xE9)',
+    valFailedSummary: 'Binary validation failed. Please inspect errors.',
     uploadNotes: 'Release Notes / Summary (optional)',
     uploadConfirm: 'Publish',
     btnCancel: 'Cancel',
@@ -1108,7 +1122,21 @@ const STRINGS = {
     uploadModalTitle: '펌웨어 게시',
     uploadTarget: '대상 기기',
     uploadFile: '펌웨어 파일',
-    uploadVerDetectedLabel: '게시할 펌웨어 버전',
+    uploadValLabel: '바이너리 검증 결과',
+    valCheckFormat: '파일 형식',
+    valCheckSize: '파일 크기',
+    valCheckMagic: '이미지 매직 바이트',
+    valCheckChip: '대상 아키텍처',
+    valCheckDesc: '앱 디스크립터',
+    valStatusReady: '검증 완료',
+    valStatusReadyWarn: '호환 (일반)',
+    valStatusBlocked: '게시 불가',
+    valErrNotBin: '.bin 확장자의 펌웨어 파일만 업로드할 수 있습니다',
+    valErrTooSmall: '파일 크기가 너무 작습니다 (< 4KB)',
+    valErrUf2: 'UF2 파일은 지원되지 않습니다. .bin을 사용하세요',
+    valErrElf: 'ELF 실행 파일입니다. 컴파일된 .bin을 사용하세요',
+    valErrMagic: '유효하지 않은 ESP 이미지 매직 바이트 (0xE9 필요)',
+    valFailedSummary: '바이너리 검증에 실패하여 게시할 수 없습니다.',
     uploadNotes: '릴리즈 노트 / 변경사항 요약 (선택)',
     uploadConfirm: '게시',
     btnCancel: '취소',
@@ -1179,8 +1207,11 @@ function applyStaticText() {
   $('t-upload-modal-title').textContent = T.uploadModalTitle;
   $('t-upload-node-label').textContent = T.uploadTarget;
   $('t-upload-file-label').textContent = T.uploadFile;
-  const verDet = $('t-upload-ver-detected-label');
-  if (verDet) verDet.textContent = T.uploadVerDetectedLabel;
+  const valLabel = $('t-upload-val-label');
+  if (valLabel) {
+    const span = valLabel.querySelector('span:first-child');
+    if (span) span.textContent = T.uploadValLabel;
+  }
   $('t-upload-notes-label').textContent = T.uploadNotes;
   const upCancel = $('t-upload-cancel-btn');
   if (upCancel) upCancel.textContent = T.btnCancel;
@@ -1645,38 +1676,67 @@ async function saveAutoDeactivateModal() {
   }
 }
 
-async function parseBinaryHeader(file) {
+async function parseBinaryHeader(file, targetPlatform = '') {
+  const checks = {
+    format: { id: 'format', name: T.valCheckFormat, status: 'pass', detail: file.name },
+    size: { id: 'size', name: T.valCheckSize, status: 'pass', detail: formatBytes(file.size) },
+    magic: { id: 'magic', name: T.valCheckMagic, status: 'pass', detail: '0xE9' },
+    chip: { id: 'chip', name: T.valCheckChip, status: 'pass', detail: 'Unknown' },
+    desc: { id: 'desc', name: T.valCheckDesc, status: 'pass', detail: 'None' },
+  };
+
+  // 1. Format Check
+  if (!file.name.toLowerCase().endsWith('.bin')) {
+    checks.format.status = 'fail';
+    checks.format.detail = file.name.split('.').pop().toUpperCase() || 'Unknown';
+    return { valid: false, checks, error: T.valErrNotBin };
+  }
+
+  // 2. Size Check
   if (file.size < 4096) {
-    return { valid: false, error: (LOCALE === 'ko' ? '파일 크기가 너무 작아 유효한 펌웨어가 아닙니다' : 'File is too small to be a valid firmware') + ` (${formatBytes(file.size)} < 4KB)` };
+    checks.size.status = 'fail';
+    checks.size.detail = `${formatBytes(file.size)} (< 4KB)`;
+    return { valid: false, checks, error: T.valErrTooSmall };
   }
   if (file.size > 32 * 1024 * 1024) {
-    return { valid: false, error: T.fileTooBig };
+    checks.size.status = 'fail';
+    checks.size.detail = `${formatBytes(file.size)} (> 32MB)`;
+    return { valid: false, checks, error: T.fileTooBig };
   }
 
   let slice;
   try {
     slice = await file.slice(0, 512).arrayBuffer();
   } catch (err) {
-    return { valid: false, error: 'Could not read file: ' + err.message };
+    checks.format.status = 'fail';
+    checks.format.detail = err.message;
+    return { valid: false, checks, error: 'Read error: ' + err.message };
   }
 
   const bytes = new Uint8Array(slice);
   const view = new DataView(slice);
 
-  // UF2
+  // UF2 / ELF Check
   if (bytes[0] === 0x55 && bytes[1] === 0x46 && bytes[2] === 0x32 && bytes[3] === 0x0A) {
-    return { valid: false, error: LOCALE === 'ko' ? 'UF2 파일이 감지되었습니다. ESPHome OTA는 컴파일된 .bin 파일이 필요합니다.' : 'UF2 file detected. ESPHome OTA requires an application .bin file.' };
+    checks.magic.status = 'fail';
+    checks.magic.detail = 'UF2 Image';
+    return { valid: false, checks, error: T.valErrUf2 };
   }
-  // ELF
   if (bytes[0] === 0x7F && bytes[1] === 0x45 && bytes[2] === 0x4C && bytes[3] === 0x46) {
-    return { valid: false, error: LOCALE === 'ko' ? 'ELF 실행 파일이 감지되었습니다. 컴파일된 .ota.bin 파일을 업로드해주세요.' : 'ELF executable detected. Please upload compiled .ota.bin file.' };
+    checks.magic.status = 'fail';
+    checks.magic.detail = 'ELF Executable';
+    return { valid: false, checks, error: T.valErrElf };
   }
 
-  // ESP Image Magic (0xE9)
+  // 3. Magic Byte Check
   if (bytes[0] !== 0xE9) {
-    return { valid: false, error: (LOCALE === 'ko' ? '유효하지 않은 ESP 이미지 매직 바이트입니다' : 'Invalid image magic byte') + ` (0x${bytes[0].toString(16).toUpperCase().padStart(2, '0')} != 0xE9)` };
+    checks.magic.status = 'fail';
+    checks.magic.detail = `0x${bytes[0].toString(16).toUpperCase().padStart(2, '0')} (!= 0xE9)`;
+    return { valid: false, checks, error: T.valErrMagic };
   }
+  checks.magic.detail = '0xE9 (Valid ESP Magic)';
 
+  // 4. Chip ID Sniffing with ESP32 Sanity Guard (Mirrors metadata.py:108-121)
   const CHIP_IDS = {
     0x0000: 'ESP32',
     0x0002: 'ESP32-S2',
@@ -1688,29 +1748,39 @@ async function parseBinaryHeader(file) {
     0x0012: 'ESP32-P4',
     0x0017: 'ESP32-C5',
   };
-  const chipId = view.getUint16(12, true);
-  const chipFamily = CHIP_IDS[chipId] || null;
 
-  let esphomeVersion = null;
-  let projectName = null;
+  let chipFamily = null;
+  // Sanity Guard: bytes[19..22] == 0x00 and bytes[23] <= 1
+  const isEsp32Header = view.byteLength >= 24 &&
+    bytes[19] === 0 && bytes[20] === 0 && bytes[21] === 0 && bytes[22] === 0 &&
+    bytes[23] <= 1;
+
+  if (isEsp32Header) {
+    const chipId = view.getUint16(12, true);
+    chipFamily = CHIP_IDS[chipId] || null;
+  }
+
+  if (chipFamily) {
+    checks.chip.status = 'pass';
+    checks.chip.detail = chipFamily;
+  } else {
+    // Non-ESP32 (e.g. ESP8266 or generic ESP)
+    const is8266 = (targetPlatform || '').toLowerCase().includes('8266');
+    checks.chip.status = 'warn';
+    checks.chip.detail = is8266 ? 'ESP8266 (Headerless)' : (targetPlatform || 'Generic ESP');
+  }
+
+  // 5. App Descriptor Check (offset 0x20)
   let idfVersion = null;
-
+  let esphomeVer = null;
   if (view.byteLength >= 0xA0) {
     const magic = view.getUint32(0x20, true);
     if (magic === 0xABCD5432) {
-      // 0x30..0x50: ESPHome toolchain release version (32 bytes)
       const verSlice = bytes.subarray(0x30, 0x50);
       let end = verSlice.indexOf(0);
       if (end === -1) end = 32;
-      esphomeVersion = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
+      esphomeVer = new TextDecoder('utf-8').decode(verSlice.subarray(0, end)).trim();
 
-      // 0x50..0x70: project_name (32 bytes)
-      const projSlice = bytes.subarray(0x50, 0x70);
-      let pEnd = projSlice.indexOf(0);
-      if (pEnd === -1) pEnd = 32;
-      projectName = new TextDecoder('utf-8').decode(projSlice.subarray(0, pEnd)).trim();
-
-      // 0x90..0xB0: idf_version (32 bytes)
       const idfSlice = bytes.subarray(0x90, 0xB0);
       let iEnd = idfSlice.indexOf(0);
       if (iEnd === -1) iEnd = 32;
@@ -1718,12 +1788,23 @@ async function parseBinaryHeader(file) {
     }
   }
 
+  if (idfVersion || esphomeVer) {
+    checks.desc.status = 'pass';
+    const parts = [];
+    if (idfVersion) parts.push(`IDF ${idfVersion}`);
+    if (esphomeVer) parts.push(`Build ${esphomeVer}`);
+    checks.desc.detail = parts.join(', ');
+  } else {
+    checks.desc.status = 'warn';
+    checks.desc.detail = 'No descriptor (Standard for ESP8266)';
+  }
+
   return {
     valid: true,
     chipFamily,
-    esphomeVersion,
-    projectName,
     idfVersion,
+    esphomeVer,
+    checks,
     size: file.size,
   };
 }
@@ -1731,10 +1812,6 @@ async function parseBinaryHeader(file) {
 // Upload Modal with Release Notes
 async function openUploadModal(d, file) {
   if (jobRunning) return;
-  if (!file.name.toLowerCase().endsWith('.bin')) {
-    alert(T.notBin);
-    return;
-  }
 
   pendingUpload = { d, file };
   $('upNode').value = d.friendly_name || d.node;
@@ -1744,33 +1821,59 @@ async function openUploadModal(d, file) {
 
   const errorBox = $('upErrorBox');
   const confirmBtn = $('t-upload-confirm-btn');
-  const detectedField = $('upVerDetectedField');
+  const valList = $('upValidationList');
+  const overallBadge = $('upValOverallBadge');
+  const overallText = $('upValOverallText');
+  const overallDot = overallBadge ? overallBadge.querySelector('.pulse-dot') : null;
 
-  const parsed = await parseBinaryHeader(file);
-  const targetVersion = (d.published && d.published.version) || compiledVersion(d) || yamlVersion(d) || '1.0.0';
+  // Parse & Validate
+  const parsed = await parseBinaryHeader(file, d.target_platform || d.chip_family || '');
 
-  if (!parsed.valid) {
-    errorBox.textContent = '❌ ' + parsed.error;
+  // File info summary
+  $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code>`;
+
+  // Render 5 Validation Items
+  const statusIcons = {
+    pass: '<span style="color:var(--ok)">✔</span>',
+    warn: '<span style="color:var(--warn)">⚠️</span>',
+    fail: '<span style="color:var(--err)">❌</span>',
+  };
+
+  const checkKeys = ['format', 'size', 'magic', 'chip', 'desc'];
+  if (valList && parsed.checks) {
+    valList.innerHTML = checkKeys.map((key) => {
+      const item = parsed.checks[key] || { name: key, status: 'pass', detail: '' };
+      return `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>${statusIcons[item.status] || ''} <strong>${escapeHtml(item.name)}</strong></span>
+          <span class="muted tiny">${escapeHtml(item.detail)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const hasFail = parsed.checks ? Object.values(parsed.checks).some((c) => c.status === 'fail') : !parsed.valid;
+  const hasWarn = parsed.checks ? Object.values(parsed.checks).some((c) => c.status === 'warn') : false;
+
+  if (hasFail) {
+    errorBox.textContent = '❌ ' + (parsed.error || T.valFailedSummary);
     errorBox.style.display = 'block';
-    $('upFileInfo').innerHTML = `<span style="color:var(--err)">${escapeHtml(file.name)} (${formatBytes(file.size)})</span>`;
-    detectedField.style.display = 'none';
+    if (overallBadge) overallBadge.className = 'badge-pill badge-warn';
+    if (overallDot) overallDot.className = 'pulse-dot warn';
+    if (overallText) overallText.textContent = T.valStatusBlocked;
     confirmBtn.disabled = true;
   } else {
     errorBox.style.display = 'none';
+    if (hasWarn) {
+      if (overallBadge) overallBadge.className = 'badge-pill badge-purple';
+      if (overallDot) overallDot.className = 'pulse-dot purple';
+      if (overallText) overallText.textContent = T.valStatusReadyWarn;
+    } else {
+      if (overallBadge) overallBadge.className = 'badge-pill badge-ok';
+      if (overallDot) overallDot.className = 'pulse-dot ok';
+      if (overallText) overallText.textContent = T.valStatusReady;
+    }
     confirmBtn.disabled = false;
-
-    const chipFamily = parsed.chipFamily || d.chip_family;
-    const chipTag = chipFamily ? `<span class="chip-platform">${escapeHtml(chipFamily)}</span>` : '';
-    const buildDetails = [];
-    if (parsed.esphomeVersion) buildDetails.push(`ESPHome ${parsed.esphomeVersion}`);
-    if (parsed.idfVersion) buildDetails.push(`IDF ${parsed.idfVersion}`);
-    const buildTag = buildDetails.length > 0 ? `<span class="tiny muted">(${escapeHtml(buildDetails.join(', '))})</span>` : '';
-
-    $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code> ${chipTag} ${buildTag}`;
-
-    detectedField.style.display = 'block';
-    $('upDetectedVerText').textContent = targetVersion;
-    $('upVersion').value = targetVersion;
   }
 
   $('uploadModal').style.display = 'flex';
@@ -1784,10 +1887,9 @@ function closeUploadModal() {
 async function confirmUploadModal() {
   if (!pendingUpload) return;
   const { d, file } = pendingUpload;
-  const version = $('upVersion').value.trim() || '1.0.0';
   const summary = $('upNotes').value.trim();
   closeUploadModal();
-  await executeUpload(d, file, version, summary);
+  await executeUpload(d, file, summary);
 }
 
 function fillNodeSelect(configs) {
@@ -1919,27 +2021,26 @@ function applyDeviceToForm(d) {
 function pickAndPublish(d) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.bin';
   input.onchange = () => {
     if (input.files[0]) openUploadModal(d, input.files[0]);
   };
   input.click();
 }
 
-async function executeUpload(d, file, version, summary) {
+async function executeUpload(d, file, summary) {
   jobRunning = true;
   setJobButtonsDisabled(true);
   try {
     const form = new FormData();
     form.append('node', d.node);
-    form.append('version', version);
     form.append('title', d.friendly_name || d.node);
     form.append('chip_family', formChipFamily(d) || '');
     form.append('summary', summary || '');
     form.append('file', file);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
-    const extra = body.version_overridden ? ` ${T.manualVersionUsed(body.version)}` : '';
-    showToast(T.publishedOk(escapeHtml(d.friendly_name || body.node)) + extra, 'ok');
+    const versionLabel = body.version ? ` (${body.version})` : '';
+    showToast(T.publishedOk(escapeHtml(d.friendly_name || body.node)) + versionLabel, 'ok');
+    loadDevices();
   } catch (err) {
     showToast(escapeHtml(err.message), 'err');
   } finally {
