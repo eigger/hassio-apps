@@ -961,7 +961,6 @@ const STRINGS = {
     valDetailBuildTimeOlder: (dt) => `⚠️ Older than current firmware (built ${dt})`,
     valDetailBuildTimeNewer: (dt) => `Built: ${dt}`,
     valDetailBuildTimeUnknown: 'No build timestamp in binary',
-    buildTimeLabel: 'Built',
     uploadedAtLabel: (dt) => `Uploaded: ${dt}`,
     valStatusReady: 'Verified',
     valStatusReadyWarn: 'Compatible',
@@ -1145,7 +1144,6 @@ const STRINGS = {
     valDetailBuildTimeOlder: (dt) => `⚠️ 현재 게시된 펌웨어보다 오래됨 (빌드: ${dt})`,
     valDetailBuildTimeNewer: (dt) => `빌드: ${dt}`,
     valDetailBuildTimeUnknown: '바이너리에 빌드 타임스탬프 없음',
-    buildTimeLabel: '빌드',
     uploadedAtLabel: (dt) => `업로드: ${dt}`,
     valStatusReady: '검증 완료',
     valStatusReadyWarn: '호환 (일반)',
@@ -2335,7 +2333,7 @@ function firmwareTimestamp(pub) {
   const pt = pub.published_at ? formatPublishedAt(pub.published_at) : null;
   if (bt) {
     return {
-      label: `${T.buildTimeLabel} ${bt}`,
+      label: T.valDetailBuildTimeNewer(bt),
       title: pt ? T.uploadedAtLabel(pt) : '',
     };
   }

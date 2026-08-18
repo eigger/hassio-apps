@@ -13,11 +13,11 @@ from metadata import _parse_build_datetime, parse_app_descriptor, ESP_APP_DESC_M
 
 class TestParseBuildDateTime(unittest.TestCase):
     def test_normal_date(self):
-        assert _parse_build_datetime("Aug 18 2026", "17:04:29") == "2026-08-18T17:04:29"
+        self.assertEqual(_parse_build_datetime("Aug 18 2026", "17:04:29"), "2026-08-18T17:04:29")
 
     def test_space_padded_day(self):
         # GCC __DATE__ pads single-digit days with a space: "Aug  8 2026"
-        assert _parse_build_datetime("Aug  8 2026", "07:04:09") == "2026-08-08T07:04:09"
+        self.assertEqual(_parse_build_datetime("Aug  8 2026", "07:04:09"), "2026-08-08T07:04:09")
 
     def test_all_months(self):
         months = [
@@ -26,22 +26,23 @@ class TestParseBuildDateTime(unittest.TestCase):
             ("Sep", "09"), ("Oct", "10"), ("Nov", "11"), ("Dec", "12"),
         ]
         for name, num in months:
-            result = _parse_build_datetime(f"{name} 15 2026", "12:00:00")
-            assert result == f"2026-{num}-15T12:00:00", f"Failed for month {name}"
+            with self.subTest(month=name):
+                result = _parse_build_datetime(f"{name} 15 2026", "12:00:00")
+                self.assertEqual(result, f"2026-{num}-15T12:00:00")
 
     def test_garbage_date_returns_none(self):
-        assert _parse_build_datetime("not a date", "12:00:00") is None
+        self.assertIsNone(_parse_build_datetime("not a date", "12:00:00"))
 
     def test_empty_strings_return_none(self):
-        assert _parse_build_datetime("", "") is None
-        assert _parse_build_datetime("Aug 18 2026", "") is None
-        assert _parse_build_datetime("", "12:00:00") is None
+        self.assertIsNone(_parse_build_datetime("", ""))
+        self.assertIsNone(_parse_build_datetime("Aug 18 2026", ""))
+        self.assertIsNone(_parse_build_datetime("", "12:00:00"))
 
     def test_bad_time_returns_none(self):
-        assert _parse_build_datetime("Aug 18 2026", "bad") is None
+        self.assertIsNone(_parse_build_datetime("Aug 18 2026", "bad"))
 
     def test_unknown_month_returns_none(self):
-        assert _parse_build_datetime("Xyz 18 2026", "12:00:00") is None
+        self.assertIsNone(_parse_build_datetime("Xyz 18 2026", "12:00:00"))
 
 
 class TestParseAppDescriptor(unittest.TestCase):
@@ -74,27 +75,27 @@ class TestParseAppDescriptor(unittest.TestCase):
     def test_normal_descriptor(self):
         blob = self._make_blob("2026.7.3", "me.proj", "17:04:29", "Aug 18 2026", "v5.1.2")
         result = parse_app_descriptor(blob)
-        assert result["version"] == "2026.7.3"
-        assert result["project_name"] == "me.proj"
-        assert result["idf_version"] == "v5.1.2"
-        assert result["build_time"] == "2026-08-18T17:04:29"
+        self.assertEqual(result["version"], "2026.7.3")
+        self.assertEqual(result["project_name"], "me.proj")
+        self.assertEqual(result["idf_version"], "v5.1.2")
+        self.assertEqual(result["build_time"], "2026-08-18T17:04:29")
 
     def test_space_padded_day(self):
         blob = self._make_blob("1.0.0", "proj", "07:04:09", "Aug  8 2026", "v5.1.2")
         result = parse_app_descriptor(blob)
-        assert result["build_time"] == "2026-08-08T07:04:09"
+        self.assertEqual(result["build_time"], "2026-08-08T07:04:09")
 
     def test_bad_date_no_build_time_key(self):
         blob = self._make_blob("1.0.0", "proj", "12:00:00", "not a date", "v5.1.2")
         result = parse_app_descriptor(blob)
-        assert "build_time" not in result
-        assert "build_time_raw" not in result  # dead code was removed
+        self.assertNotIn("build_time", result)
+        self.assertNotIn("build_time_raw", result)  # dead code was removed
 
     def test_wrong_magic_returns_empty(self):
         blob = bytearray(0xC0)
         blob[0] = 0xE9
         result = parse_app_descriptor(bytes(blob))
-        assert result == {}
+        self.assertEqual(result, {})
 
 
 if __name__ == "__main__":
