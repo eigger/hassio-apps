@@ -3,10 +3,11 @@
 ## 0.9.3
 
 - **Feature: Clear version ownership (User YAML vs Add-on auto-management)**:
-  - Devices declaring `esphome.project:` in their own YAML now own their version completely (manual mode). For these devices, the add-on's generated wrapper omits the `project:` block entirely, stopping automatic version bumps on publish and making the version input read-only with a lock badge (🔒 `YAML`) directing users to edit their YAML directly in ESPHome.
-  - Devices without an explicit `project:` block continue in auto mode (identical to previous behavior): the wrapper injects `esphome.project`, auto-increments after publish, and remains editable in the UI.
+  - Devices declaring `esphome.project:` in their own YAML now own their version completely (manual mode). For these devices, the add-on's generated wrapper omits the `project:` block entirely, stopping automatic version bumps on publish and making the version input read-only with a lock badge (🔒 `YAML`) directing users to edit their YAML directly in ESPHome (both in the main table and in the YAML snippet modal).
+  - Devices without an explicit `project:` block continue in auto mode (identical to previous behavior): the wrapper injects `esphome.project`, auto-increments after publish, and remains editable in the UI. Transitioning between modes (adding or removing `project:` in YAML) is seamlessly supported without latching.
   - Fixed display vs compile priority desync: device list rows now show the device's self-declared version when present instead of letting `registered.json` mask it.
   - Calling `/api/wrapper-version` on manual mode devices is now rejected with HTTP 409 Conflict rather than silently writing a wrapper that would be ignored at compile time.
+  - Unreadable or syntax-error YAML files are safely handled without modifying existing wrappers on disk.
 - **UX: Renamed column and exposed version bumps**:
   - Renamed "YAML Version" column to **"Next build version"** (**"다음 빌드 버전"**) to clarify that it represents the version for the subsequent build.
   - Post-publish version increments are now explicitly logged in the compile job (`next build version: <nxt> (auto-bumped from <ver>)`) or noted as owned by YAML (`version owned by <node>.yaml — not bumped`), and surfaced in manual upload toast notifications.
