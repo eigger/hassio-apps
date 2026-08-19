@@ -581,13 +581,30 @@ class App:
                     )
                 job.log(f"chipFamily: {family} (from {source})")
 
-                version = metadata.effective_project_version(
+                yaml_version = metadata.effective_project_version(
                     self.settings.esphome_config_dir, job.node, config, origin
                 )
-                if version:
-                    job.log(f"version: {version} (esphome.project.version)")
+                bin_version = app_desc.get("project_version")
+                if bin_version:
+                    version = bin_version
+                    version_source = "binary"
+                    job.log(f"version: {version} (read from firmware binary)")
+                    if yaml_version and yaml_version != bin_version:
+                        job.log(
+                            f"⚠️ YAML project.version ({yaml_version}) differs from what the binary "
+                            f"actually reports ({bin_version}) — publishing the binary's value, since "
+                            "that's what the device will report after flashing"
+                        )
+                elif yaml_version:
+                    version = yaml_version
+                    version_source = "project"
+                    job.log(
+                        f"version: {version} (esphome.project.version — binary has no boot-log "
+                        "version string to confirm it against; logger.level: NONE strips it)"
+                    )
                 else:
                     version = esphome_version or "0.0.0"
+                    version_source = "fallback"
                     job.log(
                         f"version: {version} (ESPHome release — no esphome.project block, so the "
                         f"update entity will only fire when ESPHome itself is upgraded)"
@@ -604,6 +621,7 @@ class App:
                     summary=summary,
                     token=token,
                     build_time=app_desc.get("build_time", ""),
+                    version_source=version_source,
                 )
                 slug_name = record.get("slug") or job.node
                 job.log(
@@ -996,9 +1014,24 @@ async def publish_manual(request: web.Request) -> web.Response:
     compiled = own or (
         metadata.wrapper_project_version(app.settings.esphome_config_dir, node) if uses_wrapper else None
     )
+    bin_version = app_desc.get("project_version")
     requested = version
     version_source = "supplied"
-    if compiled:
+    if bin_version:
+        # The binary's own boot-log string is what the device will actually
+        # report post-flash — trust it over a YAML that may have moved on
+        # since this .bin was compiled.
+        version = bin_version
+        version_source = "binary"
+        if compiled and compiled != bin_version:
+            LOG.warning(
+                "Manual publish %s: YAML project.version (%s) differs from what the binary "
+                "reports (%s) — publishing the binary's value",
+                node,
+                compiled,
+                bin_version,
+            )
+    elif compiled:
         version = compiled
         version_source = "project"
     elif requested:
@@ -1009,9 +1042,6 @@ async def publish_manual(request: web.Request) -> web.Response:
         if pub and pub.get("version"):
             version = pub["version"]
             version_source = "published"
-        elif app_desc.get("version"):
-            version = app_desc["version"]
-            version_source = "binary"
         else:
             esphome_version = await app._dashboard_esphome_version()
             version = esphome_version or "1.0.0"
@@ -1058,6 +1088,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         summary=summary,
         token=token,
         build_time=app_desc.get("build_time", ""),
+        version_source=version_source,
     )
     record["version_source"] = version_source
     if requested and requested != version:

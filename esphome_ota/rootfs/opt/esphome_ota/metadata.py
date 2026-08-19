@@ -695,17 +695,42 @@ def eject_device_wrapper(config_dir: Path, node: str) -> tuple[bool, str]:
 
 ESP_APP_DESC_MAGIC = 0xABCD5432
 
-# esp_app_desc_t layout (relative to struct start at blob offset 0x20):
+# esp_app_desc_t layout (relative to struct start at blob offset 0x20 — this
+# add-on only ever sees OTA/app images, i.e. what ``ota.download_ota()`` and
+# the manual-upload form's app-image check hand us, never a factory image):
 #   +0x00  magic        uint32
 #   +0x04  secure_ver   uint32
 #   +0x08  reserv1[2]   uint32×2
-#   +0x10  version[32]  char  ← app version string
-#   +0x30  project_name[32] char
+#   +0x10  version[32]  char  ← ESPHome/ESP-IDF framework version, e.g. "2026.7.4"
+#   +0x30  project_name[32] char  ← the compiled node name (CMake PROJECT_NAME)
 #   +0x50  time[16]     char  ← GCC __TIME__  "HH:MM:SS"
 #   +0x60  date[16]     char  ← GCC __DATE__  "Mmm DD YYYY"
 #   +0x70  idf_ver[32]  char
 #   +0x90  app_elf_sha256[32] bytes
 
+
+# ESPHome's boot-log banner, compiled in only when ``project:`` is set in the
+# device YAML *and* the logger isn't fully disabled:
+#   ESP_LOGI(TAG, "Project %s version %s", ESPHOME_PROJECT_NAME, ESPHOME_PROJECT_VERSION);
+# Both operands are string constants, so the format string and its arguments
+# are all concatenated by the compiler into one ``.rodata`` literal — no
+# ``%s`` survives to runtime. This is the same value the device itself
+# reports as ESPHOME_PROJECT_VERSION, which is what update.http_request
+# string-compares against, so it is the authoritative "what will the device
+# say it's running" answer — the esp_app_desc_t.version field above is only
+# the ESPHome/ESP-IDF *framework* version, not the project version.
+_RE_PROJECT_VERSION = re.compile(
+    rb"Project ([\x20-\x7e]{1,63}?) version ([\x20-\x7e]{1,63})\x00"
+)
+
+# App.pre_setup()'s compiled-in build timestamp: ``__DATE__ __TIME__`` plus a
+# UTC offset, formatted by ESPHome as "YYYY-MM-DD HH:MM:SS +ZZZZ". Present in
+# every ESPHome image regardless of logger level or project: block, and
+# unlike esp_app_desc_t.time/date it survives ESP-IDF's reproducible-build
+# option (which zeroes those two struct fields).
+_RE_LITERAL_BUILD_TIME = re.compile(
+    rb"(20\d\d-[01]\d-[0-3]\d[ T][0-2]\d:[0-5]\d:[0-5]\d(?: ?[+-]\d{4})?)\x00"
+)
 
 _MONTH_MAP = {
     "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
@@ -736,8 +761,43 @@ def _parse_build_datetime(date_str: str, time_str: str) -> str | None:
         return None
 
 
+def _find_literal_build_time(blob: bytes) -> str | None:
+    """Scan for ESPHome's compiled-in "YYYY-MM-DD HH:MM:SS +ZZZZ" literal."""
+    match = _RE_LITERAL_BUILD_TIME.search(blob)
+    if not match:
+        return None
+    return match.group(1).decode("ascii", errors="ignore")
+
+
+def _find_project_version(blob: bytes) -> tuple[str, str] | None:
+    """Scan for the "Project <name> version <version>" boot-log literal.
+
+    Returns ``(project_name, project_version)``, or None when the logger
+    stripped this string out at compile time (e.g. ``logger.level: NONE``).
+    """
+    match = _RE_PROJECT_VERSION.search(blob)
+    if not match:
+        return None
+    name = match.group(1).decode("utf-8", errors="ignore").strip()
+    version = match.group(2).decode("utf-8", errors="ignore").strip()
+    if not name or not version:
+        return None
+    return name, version
+
+
 def parse_app_descriptor(blob: bytes) -> dict[str, str]:
-    """Parse esp_app_desc_t at offset 0x20 if present in ESP32 app images."""
+    """Parse esp_app_desc_t at offset 0x20, plus ESPHome's own boot literals.
+
+    ``build_time`` prefers the struct's __DATE__/__TIME__ fields when a
+    non-reproducible build actually populated them, falling back to
+    ESPHome's compiled-in timestamp literal (which survives reproducible
+    builds — the case for every stock ESPHome release). ``project_version``/
+    ``project_literal_name`` come from the "Project X version Y" boot-log
+    literal, which is the value the device actually reports at runtime and
+    what update.http_request string-compares against — distinct from
+    ``version`` (ESPHome/ESP-IDF framework version) and the struct's
+    ``project_name`` (compiled node name, not ``esphome.project.name``).
+    """
     if len(blob) < 0x20 + 160:
         return {}
     magic = int.from_bytes(blob[0x20:0x24], "little")
@@ -759,9 +819,13 @@ def parse_app_descriptor(blob: bytes) -> dict[str, str]:
             "project_name": project,
             "idf_version": idf_ver,
         }
-        build_dt = _parse_build_datetime(build_date_str, build_time_str)
+        build_dt = _parse_build_datetime(build_date_str, build_time_str) or _find_literal_build_time(blob)
         if build_dt:
             result["build_time"] = build_dt
+
+        literal = _find_project_version(blob)
+        if literal:
+            result["project_literal_name"], result["project_version"] = literal
         return result
     except Exception:
         return {}

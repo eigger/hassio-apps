@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.2
+
+- **Fix: publish the version the device will actually report, not the YAML's**:
+  - ESPHome's boot-log banner (`Project <name> version <version>`) is compiled into every `.rodata` section that has `project:` set and the logger not fully stripped — this is the exact string the device reports as `ESPHOME_PROJECT_VERSION`, which `update.http_request` string-compares against. The add-on now reads it straight out of the uploaded/downloaded binary and publishes *that*, instead of re-reading `esphome.project.version` from the YAML.
+  - Fixes a real desync: if the YAML's version is bumped after a binary was built (or a stale binary gets re-uploaded), the old behavior could publish a manifest version the flashed device would never match, leaving Home Assistant's update entity stuck "available" forever. The binary's own value now always wins; a YAML mismatch is logged, not silently papered over.
+  - Applies to both the dashboard compile-and-publish flow and the manual `.bin` upload flow. Device list rows and the upload modal now show a small **bin** tag / tooltip when the version came from the binary.
+- **Fix: build-time comparison against reproducible builds**:
+  - `esp_app_desc_t`'s `time`/`date` fields are zeroed by ESP-IDF's reproducible-build option, which every stock ESPHome release enables — so the "Firmware Age" check silently fell back to comparing the uploaded *file's* mtime instead of the binary's actual build time, an unreliable proxy (download time, filesystem, browser all vary).
+  - ESPHome's own `App.pre_setup()` still compiles in a `"YYYY-MM-DD HH:MM:SS +ZZZZ"` timestamp literal regardless of the reproducible-build flag; the add-on (server-side `metadata.py` and the client-side upload modal) now scans for it as a fallback. Verified against 29 real ESPHome 2026.7.x builds — 0/29 had usable struct timestamps, 29/29 had the literal.
+  - The upload modal now shows the version that will be published *before* you confirm, and a stale/rollback warning no longer blocks publishing — it's informational, matching how the rest of this add-on treats operator overrides.
+
 ## 0.9.1
 
 - **UX: Firmware Age check in upload modal**:
