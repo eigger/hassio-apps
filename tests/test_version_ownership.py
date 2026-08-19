@@ -78,6 +78,41 @@ packages:
             metadata.own_project_version(self.esphome_config, "nonexistent")
         )
 
+    def test_own_project_version_syntax_error_resilience(self):
+        # Device YAML has a syntax error in wifi block, but valid project: block
+        (self.esphome_config / "broken.yaml").write_text(
+            """\
+esphome:
+  name: broken
+  project:
+    name: "broken.device"
+    version: "3.1.4"
+wifi:
+  ssid: "unterminated string
+""",
+            encoding="utf-8",
+        )
+        # Should extract 3.1.4 via raw fallback instead of silently flipping to None
+        self.assertEqual(
+            metadata.own_project_version(self.esphome_config, "broken"), "3.1.4"
+        )
+
+        # Device YAML with syntax error and existing manual wrapper (no project in wrapper)
+        (self.esphome_config / "broken2.yaml").write_text(
+            """\
+esphome:
+  invalid: [yaml syntax: {unclosed
+""",
+            encoding="utf-8",
+        )
+        packages.write_one_device_wrapper(
+            self.esphome_config, "broken2", "1.0.0", include_project=False
+        )
+        # Should stay in manual mode (is not None)
+        self.assertIsNotNone(
+            metadata.own_project_version(self.esphome_config, "broken2")
+        )
+
     def test_wrapper_generation_modes(self):
         # Auto mode (include_project=True by default)
         written_auto = packages.write_one_device_wrapper(
@@ -105,6 +140,28 @@ packages:
         self.assertIn("ota_slug: manual_node_token456", manual_content)
         self.assertIn("!include ../ota.yaml", manual_content)
 
+    def test_write_device_wrappers_batch_delegation(self):
+        # Batch wrapper generation delegates and handles both auto and manual
+        (self.esphome_config / "node_man.yaml").write_text(
+            'esphome:\n  name: node_man\n  project:\n    name: "t"\n    version: "2.0"\n',
+            encoding="utf-8",
+        )
+        (self.esphome_config / "node_auto.yaml").write_text(
+            "esphome:\n  name: node_auto\n", encoding="utf-8"
+        )
+        devices = [
+            {"node": "node_man", "version": "2.0", "own_project_version": "2.0"},
+            {"node": "node_auto", "version": "1.0.0"},
+        ]
+        written = packages.write_device_wrappers(self.esphome_config, devices)
+        self.assertTrue(len(written) >= 6)
+
+        man_content = (self.esphome_config / "ota_server" / "devices" / "node_man.yaml").read_text(encoding="utf-8")
+        auto_content = (self.esphome_config / "ota_server" / "devices" / "node_auto.yaml").read_text(encoding="utf-8")
+        man_code = [line for line in man_content.splitlines() if not line.startswith("#") and line.strip()]
+        self.assertNotIn("esphome:", man_code)
+        self.assertIn('version: "1.0.0"', auto_content)
+
     def test_bump_version_cases(self):
         cases = [
             ("2026-08-19", "2026-08-19.1"),
@@ -118,6 +175,7 @@ packages:
             ("1.0.0", "1.0.1"),
             ("1.9", "1.10"),
             ("stable", "stable.1"),
+            ("1999.12.31", "1999.12.32"),  # 20xx year limit preserves standard bump
         ]
         for src, expected in cases:
             with self.subTest(src=src, expected=expected):
@@ -210,7 +268,7 @@ packages:
                 else None
             )
         )
-        version_owner = "yaml" if own_version else "addon"
+        version_owner = "yaml" if own_version is not None else "addon"
 
         # Effective display version MUST be 2.0, not 1.0.5 (MISMATCH eliminated)
         self.assertEqual(own_version, "2.0")
@@ -303,6 +361,30 @@ esp32:
         body = await resp.json()
         self.assertEqual(body["version"], "1.0.5")
         self.assertEqual(app_instance.registered["kitchen"]["version"], "1.0.5")
+
+    @unittest_run_loop
+    async def test_snippet_route_ownership(self):
+        # 1. Manual mode snippet
+        (self.esphome_config / "livingroom.yaml").write_text(
+            'esphome:\n  name: livingroom\n  project:\n    name: "me"\n    version: "2.0"\n',
+            encoding="utf-8",
+        )
+        resp = await self.client.get("/api/snippet?node=livingroom")
+        self.assertEqual(resp.status, 200)
+        body = await resp.json()
+        self.assertEqual(body["version"], "2.0")
+        self.assertEqual(body["version_owner"], "yaml")
+        self.assertFalse(body["has_project"])
+
+        # 2. Auto mode snippet
+        (self.esphome_config / "porch.yaml").write_text(
+            "esphome:\n  name: porch\n", encoding="utf-8"
+        )
+        resp = await self.client.get("/api/snippet?node=porch")
+        self.assertEqual(resp.status, 200)
+        body = await resp.json()
+        self.assertEqual(body["version_owner"], "addon")
+        self.assertTrue(body["has_project"])
 
 
 if __name__ == "__main__":

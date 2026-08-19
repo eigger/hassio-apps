@@ -2307,9 +2307,9 @@ async function executeUpload(d, file, summary) {
     form.append('summary', summary || '');
     form.append('file', file);
     const body = await api('api/publish/manual', { method: 'POST', body: form });
-    const versionLabel = body.version ? ` (${body.version})` : '';
+    const versionLabel = body.version ? ` (${escapeHtml(body.version)})` : '';
     const nextLabel = (body.next_version && body.next_version !== body.version)
-      ? ` · ${T.nextBuild}: ${body.next_version}`
+      ? ` · ${escapeHtml(T.nextBuild)}: ${escapeHtml(body.next_version)}`
       : '';
     showToast(T.publishedOk(escapeHtml(d.friendly_name || body.node)) + versionLabel + nextLabel, 'ok');
   } catch (err) {
@@ -2436,17 +2436,28 @@ async function showSnippet(d) {
 
   currentSnippetNode = d.node;
   const body = await api(`api/snippet?node=${encodeURIComponent(d.node)}`);
-  const { snippet, legacy, uses_wrapper, version } = body;
-  if (version) d.project_version = version;
+  const { snippet, legacy, uses_wrapper, version, version_owner } = body;
+  const isYamlOwner = d.version_owner === 'yaml' || version_owner === 'yaml';
+  if (!isYamlOwner && version) d.project_version = version;
+  const dispVersion = isYamlOwner
+    ? (d.own_project_version || d.project_version || version || '1.0.0')
+    : (version || d.project_version || '1.0.0');
+  const ownerTag = isYamlOwner
+    ? ` <span class="chip-tag chip-secure" title="${escapeHtml(T.versionOwnerYamlTitle)}">🔒 ${escapeHtml(T.versionOwnerYaml)}</span>`
+    : '';
+
   detail.hidden = false;
   detail.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
       <b>${T.yamlHeader(d.friendly_name)}</b>
       <button type="button" class="btn-action" style="padding:2px 8px; font-size:12px; line-height:1;" onclick="closeSnippet()" title="${T.btnCancel || 'Close'}">✕</button>
     </div>
-    <div class="field" style="margin-top:10px; max-width:220px">
+    <div class="field" style="margin-top:10px; max-width:260px">
       <label class="tiny muted" for="rowVersion">${T.nextCompileVersion}</label>
-      <input type="text" id="rowVersion" value="${escapeHtml(version || d.project_version || '1.0.0')}">
+      <div class="yaml-ver-wrap">
+        <input type="text" id="rowVersion" value="${escapeHtml(dispVersion)}"${isYamlOwner ? ' readonly class="input-readonly"' : ''}>
+        ${ownerTag}
+      </div>
     </div>
     <div class="howto tiny">${T.yamlHowto}</div>
     ${uses_wrapper === false
@@ -2475,17 +2486,21 @@ async function showSnippet(d) {
       <pre id="snippetLegacyButton">${escapeHtml(legacy.button)}</pre>
     </details>`;
   const input = $('rowVersion');
-  input.title = T.manualVersionHint;
-  input.addEventListener('change', async () => {
-    const next = input.value.trim();
-    if (!next) return;
-    try {
-      await saveWrapperVersion(d, next);
-      flashInputSaved(input);
-    } catch (err) {
-      showToast(escapeHtml(err.message), 'err');
+  if (input) {
+    input.title = isYamlOwner ? T.yamlVersionHintReadonly : T.manualVersionHint;
+    if (!isYamlOwner) {
+      input.addEventListener('change', async () => {
+        const next = input.value.trim();
+        if (!next) return;
+        try {
+          await saveWrapperVersion(d, next);
+          flashInputSaved(input);
+        } catch (err) {
+          showToast(escapeHtml(err.message), 'err');
+        }
+      });
     }
-  });
+  }
   detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 

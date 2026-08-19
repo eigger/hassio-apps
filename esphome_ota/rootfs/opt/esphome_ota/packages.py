@@ -415,48 +415,29 @@ def write_device_wrappers(
     target.mkdir(parents=True, exist_ok=True)
     keep_stems = keep_stems or set()
 
-    kinds = (
-        ("", PACKAGE_FILE),
-        (".update", UPDATE_FILE),
-        (".button", BUTTON_FILE),
-    )
     wanted: set[str] = set()
     written: list[Path] = []
     for item in devices:
         node = item["node"]
-        version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
-        token = item.get("token") or ""
-        slug = f"{node}_{token}" if token else node
         if not NODE_RE.match(node):
             continue
+        version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
+        token = item.get("token") or ""
         include_project = (
             item.get("include_project", True)
             if "include_project" in item
-            else not bool(item.get("own_project_version"))
+            else (item.get("own_project_version") is None)
         )
-        project_block = (
-            PROJECT_BLOCK.format(project_name=project_name(node), version=version)
-            if include_project
-            else ""
+        paths = write_one_device_wrapper(
+            esphome_config_dir,
+            node,
+            version,
+            token=token,
+            include_project=include_project,
         )
-        for suffix, shared in kinds:
-            wrapper_name = f"{node}{suffix}.yaml"
-            wanted.add(wrapper_name)
-            path = target / wrapper_name
-            path.write_text(
-                DEVICE_WRAPPER.format(
-                    header=HEADER,
-                    node=node,
-                    slug=slug,
-                    project_block=project_block,
-                    package_dir=PACKAGE_DIR,
-                    devices_dir=DEVICES_DIR,
-                    wrapper_name=wrapper_name,
-                    shared_include=f"../{shared}",
-                ),
-                encoding="utf-8",
-            )
-            written.append(path)
+        written.extend(paths)
+        for p in paths:
+            wanted.add(p.name)
 
     for existing in target.glob("*.yaml"):
         if existing.name in wanted:

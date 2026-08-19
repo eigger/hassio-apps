@@ -509,7 +509,7 @@ class App:
                     or local_row.get("chip_family"),
                     "project_version": project_version,
                     "own_project_version": own_version,
-                    "version_owner": "yaml" if own_version else "addon",
+                    "version_owner": "yaml" if own_version is not None else "addon",
                     "device_version": dash.get("device_version", ""),
                     "has_binary": bool(dash.get("has_binary")),
                     "published": record,
@@ -650,7 +650,10 @@ class App:
                     job.log(f"version owned by {job.node}.yaml — not bumped")
                 else:
                     nxt = (self.registered.get(job.node) or {}).get("version")
-                    job.log(f"next build version: {nxt} (auto-bumped from {version})")
+                    if nxt and nxt != version:
+                        job.log(f"next build version: {nxt} (auto-bumped from {version})")
+                    else:
+                        job.log(f"next build version: {nxt or version}")
                 self._schedule_auto_deactivate(job.node)
                 job.status = "completed"
             except Exception as err:  # noqa: BLE001 - surfaced to the UI verbatim
@@ -737,10 +740,16 @@ async def snippet(request: web.Request) -> web.Response:
     node = request.query.get("node", "")
     if not node:
         return web.json_response({"error": "node required"}, status=400)
-    override = packages.normalize_version(request.query.get("version", ""))
-    if not override and node in app.registered:
-        override = packages.normalize_version(app.registered[node].get("version") or "")
-    version = app.write_device_wrapper(node, override)
+    own = metadata.own_project_version(app.settings.esphome_config_dir, node)
+    if own is not None:
+        version = own
+        version_owner = "yaml"
+    else:
+        override = packages.normalize_version(request.query.get("version", ""))
+        if not override and node in app.registered:
+            override = packages.normalize_version(app.registered[node].get("version") or "")
+        version = app.write_device_wrapper(node, override)
+        version_owner = "addon"
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
     return web.json_response(
@@ -750,8 +759,9 @@ async def snippet(request: web.Request) -> web.Response:
                 node, published_version, has_wrapper=True
             ),
             "uses_wrapper": True,
-            "has_project": True,
+            "has_project": own is None,
             "version": version,
+            "version_owner": version_owner,
         }
     )
 
@@ -1129,7 +1139,7 @@ async def publish_manual(request: web.Request) -> web.Response:
     LOG.info("Manually published %s (%s, %s bytes, %s, slug=%s)", node, chip_family, record["size"], version, record.get("slug"))
     app.advance_registered_version(node, version)
     if own is not None:
-        record["next_version"] = version
+        record["next_version"] = own
     else:
         record["next_version"] = (app.registered.get(node) or {}).get("version") or version
     app._schedule_auto_deactivate(node)
