@@ -277,9 +277,9 @@ DEVICE_WRAPPER = """\
 #   packages:
 #     ota: !include {package_dir}/{devices_dir}/{wrapper_name}
 #
-# Sets ota_device and ota_slug from the registered token and esphome.project so
-# the device YAML does not need either. Version is raised after a publish so the
-# next compile is a new update.
+# Sets ota_device and ota_slug from the registered token. In auto mode, also
+# sets esphome.project so the device YAML does not need it. In manual mode
+# (device YAML declares project:), the project block is omitted here.
 substitutions:
   ota_device: {node}
   ota_slug: {slug}
@@ -296,12 +296,32 @@ esphome:
 
 """
 
+DATE_SEP_RE = re.compile(
+    r"^(20\d\d([-.])(0?[1-9]|1[0-2])\2(0?[1-9]|[12]\d|3[01]))(?:\.(\d+))?$"
+)
+DATE_COMPACT_RE = re.compile(
+    r"^(20\d\d(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01]))(?:\.(\d+))?$"
+)
+
 
 def bump_version(version: str) -> str:
-    """Increment the last numeric run: 1.0.0 → 1.0.1, 2025.8.0 → 2025.8.1."""
+    """Increment the last numeric run or append a sequence to date versions.
+
+    Date shapes (e.g. 2026-08-19, 2026.7.4, 20260819) get .1 appended (or the
+    existing sequence incremented: 2026-08-19.1 → 2026-08-19.2) rather than
+    incrementing the day number. Non-date versions increment the last numeric
+    run: 1.0.0 → 1.0.1, 1.9 → 1.10, v260819 rev.4 → v260819 rev.5.
+    """
     text = (version or "").strip().replace('"', "")
     if not text:
         return "1.0.0"
+    m = DATE_SEP_RE.match(text) or DATE_COMPACT_RE.match(text)
+    if m:
+        base = m.group(1)
+        seq = m.groups()[-1]
+        if seq is not None:
+            return f"{base}.{int(seq) + 1}"
+        return f"{base}.1"
     parts = re.split(r"(\d+)", text)
     for i in range(len(parts) - 1, -1, -1):
         if parts[i].isdigit():
@@ -342,6 +362,7 @@ def write_one_device_wrapper(
     node: str,
     version: str,
     token: str = "",
+    include_project: bool = True,
 ) -> list[Path]:
     """Write the three wrappers for one published/snippet device. Does not touch others."""
     if not NODE_RE.match(node):
@@ -349,7 +370,11 @@ def write_one_device_wrapper(
     target = esphome_config_dir / PACKAGE_DIR / DEVICES_DIR
     target.mkdir(parents=True, exist_ok=True)
     version = (version or "1.0.0").replace('"', "") or "1.0.0"
-    project_block = PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+    project_block = (
+        PROJECT_BLOCK.format(project_name=project_name(node), version=version)
+        if include_project
+        else ""
+    )
     slug = f"{node}_{token}" if token else node
     written: list[Path] = []
     for suffix, shared in (
@@ -390,41 +415,29 @@ def write_device_wrappers(
     target.mkdir(parents=True, exist_ok=True)
     keep_stems = keep_stems or set()
 
-    kinds = (
-        ("", PACKAGE_FILE),
-        (".update", UPDATE_FILE),
-        (".button", BUTTON_FILE),
-    )
     wanted: set[str] = set()
     written: list[Path] = []
     for item in devices:
         node = item["node"]
-        version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
-        token = item.get("token") or ""
-        slug = f"{node}_{token}" if token else node
         if not NODE_RE.match(node):
             continue
-        project_block = PROJECT_BLOCK.format(
-            project_name=project_name(node), version=version
+        version = (item.get("version") or "1.0.0").replace('"', "") or "1.0.0"
+        token = item.get("token") or ""
+        include_project = (
+            item.get("include_project", True)
+            if "include_project" in item
+            else (item.get("own_project_version") is None)
         )
-        for suffix, shared in kinds:
-            wrapper_name = f"{node}{suffix}.yaml"
-            wanted.add(wrapper_name)
-            path = target / wrapper_name
-            path.write_text(
-                DEVICE_WRAPPER.format(
-                    header=HEADER,
-                    node=node,
-                    slug=slug,
-                    project_block=project_block,
-                    package_dir=PACKAGE_DIR,
-                    devices_dir=DEVICES_DIR,
-                    wrapper_name=wrapper_name,
-                    shared_include=f"../{shared}",
-                ),
-                encoding="utf-8",
-            )
-            written.append(path)
+        paths = write_one_device_wrapper(
+            esphome_config_dir,
+            node,
+            version,
+            token=token,
+            include_project=include_project,
+        )
+        written.extend(paths)
+        for p in paths:
+            wanted.add(p.name)
 
     for existing in target.glob("*.yaml"):
         if existing.name in wanted:

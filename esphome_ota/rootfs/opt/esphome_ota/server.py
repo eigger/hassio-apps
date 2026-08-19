@@ -381,11 +381,29 @@ class App:
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        packages.write_one_device_wrapper(self.settings.esphome_config_dir, node, ver, token=token)
+        # If the YAML exists on disk but cannot be parsed (syntax/IO error), do not overwrite existing wrappers.
+        # If the wrapper does not exist yet, create it so snippet/injection does not leave broken include references.
+        if (
+            metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node)
+            and packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
+        ):
+            return ver
+        owns = metadata.own_project_version(self.settings.esphome_config_dir, node) is not None
+        packages.write_one_device_wrapper(
+            self.settings.esphome_config_dir,
+            node,
+            ver,
+            token=token,
+            include_project=not owns,
+        )
         return ver
 
     def advance_registered_version(self, node: str, published_version: str) -> None:
         """After a publish, raise the wrapper so the next compile is a new update."""
+        if metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node):
+            return
+        if metadata.own_project_version(self.settings.esphome_config_dir, node) is not None:
+            return
         rec = self.registered.get(node)
         current = (rec or {}).get("version") or published_version
         nxt = (
@@ -466,11 +484,18 @@ class App:
                 or (record.get("title") if record else None)
                 or node
             )
-            own_version = local_row.get("own_project_version")
-            project_version = rec.get("version") or own_version or (
-                metadata.wrapper_project_version(self.settings.esphome_config_dir, node)
-                if packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
-                else None
+            own_version = (
+                local_row.get("own_project_version")
+                if node in local
+                else metadata.own_project_version(self.settings.esphome_config_dir, node)
+            )
+            project_version = own_version if own_version is not None else (
+                rec.get("version")
+                or (
+                    metadata.wrapper_project_version(self.settings.esphome_config_dir, node)
+                    if packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
+                    else None
+                )
             )
             has_yaml = bool(node in local or metadata.find_configuration(self.settings.esphome_config_dir, node))
             injected = metadata.is_injected(self.settings.esphome_config_dir, node)
@@ -493,6 +518,7 @@ class App:
                     or local_row.get("chip_family"),
                     "project_version": project_version,
                     "own_project_version": own_version,
+                    "version_owner": "yaml" if own_version is not None else "addon",
                     "device_version": dash.get("device_version", ""),
                     "has_binary": bool(dash.get("has_binary")),
                     "published": record,
@@ -606,7 +632,7 @@ class App:
                     version = esphome_version or "0.0.0"
                     version_source = "fallback"
                     job.log(
-                        f"version: {version} (ESPHome release — no esphome.project block, so the "
+                        f"⚠️ version: {version} (ESPHome release — no esphome.project block, so the "
                         f"update entity will only fire when ESPHome itself is upgraded)"
                     )
 
@@ -629,6 +655,14 @@ class App:
                     f"{self.resolved_base_url}/local/{self.settings.publish_dir}/{slug_name}.json"
                 )
                 self.advance_registered_version(job.node, version)
+                if metadata.own_project_version(self.settings.esphome_config_dir, job.node) is not None:
+                    job.log(f"version owned by {job.node}.yaml — not bumped")
+                else:
+                    nxt = (self.registered.get(job.node) or {}).get("version")
+                    if nxt and nxt != version:
+                        job.log(f"next build version: {nxt} (auto-bumped from {version})")
+                    else:
+                        job.log(f"next build version: {nxt or version}")
                 self._schedule_auto_deactivate(job.node)
                 job.status = "completed"
             except Exception as err:  # noqa: BLE001 - surfaced to the UI verbatim
@@ -718,7 +752,8 @@ async def snippet(request: web.Request) -> web.Response:
     override = packages.normalize_version(request.query.get("version", ""))
     if not override and node in app.registered:
         override = packages.normalize_version(app.registered[node].get("version") or "")
-    version = app.write_device_wrapper(node, override)
+    written_version = app.write_device_wrapper(node, override)
+    own = metadata.own_project_version(app.settings.esphome_config_dir, node)
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
     return web.json_response(
@@ -728,8 +763,9 @@ async def snippet(request: web.Request) -> web.Response:
                 node, published_version, has_wrapper=True
             ),
             "uses_wrapper": True,
-            "has_project": True,
-            "version": version,
+            "has_project": own is None,
+            "version": own if own is not None else written_version,
+            "version_owner": "yaml" if own is not None else "addon",
         }
     )
 
@@ -776,6 +812,16 @@ async def wrapper_version(request: web.Request) -> web.Response:
         return web.json_response({"error": "invalid version"}, status=400)
     if node not in app.registered:
         return web.json_response({"error": "register this device first"}, status=404)
+    if metadata.own_project_version(app.settings.esphome_config_dir, node) is not None:
+        return web.json_response(
+            {
+                "error": (
+                    f"version is owned by {node}.yaml (esphome.project.version); "
+                    "edit it directly in ESPHome"
+                )
+            },
+            status=409,
+        )
     rec = app.register_device(node, version)
     app.write_device_wrapper(node, version)
     return web.json_response({"node": node, "version": rec["version"], "wrapper": True})
@@ -1010,7 +1056,7 @@ async def publish_manual(request: web.Request) -> web.Response:
         merged, uses_wrapper = metadata.merge_config(
             app.settings.esphome_config_dir, config, origin, skip_wrapper_node=node, cache=cache
         )
-    own = metadata.project_version(merged)
+    own = metadata.own_project_version(app.settings.esphome_config_dir, node)
     compiled = own or (
         metadata.wrapper_project_version(app.settings.esphome_config_dir, node) if uses_wrapper else None
     )
@@ -1096,6 +1142,10 @@ async def publish_manual(request: web.Request) -> web.Response:
         record["requested_version"] = requested
     LOG.info("Manually published %s (%s, %s bytes, %s, slug=%s)", node, chip_family, record["size"], version, record.get("slug"))
     app.advance_registered_version(node, version)
+    if own is not None:
+        record["next_version"] = own
+    else:
+        record["next_version"] = (app.registered.get(node) or {}).get("version") or version
     app._schedule_auto_deactivate(node)
     return web.json_response(record)
 
