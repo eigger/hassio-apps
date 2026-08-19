@@ -381,19 +381,35 @@ class App:
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        owns = metadata.own_project_version(self.settings.esphome_config_dir, node) is not None
+        own = metadata.own_project_version(self.settings.esphome_config_dir, node)
+        has_yaml = metadata.find_configuration(self.settings.esphome_config_dir, node) is not None
+        existing_wrapper = self.settings.esphome_config_dir / metadata._WRAPPER_DIR / f"{node}.yaml"
+        prev_manual = (
+            has_yaml
+            and existing_wrapper.is_file()
+            and metadata.wrapper_project_version(self.settings.esphome_config_dir, node) is None
+        )
+        is_manual = (own is not None) or prev_manual
         packages.write_one_device_wrapper(
             self.settings.esphome_config_dir,
             node,
             ver,
             token=token,
-            include_project=not owns,
+            include_project=not is_manual,
         )
         return ver
 
     def advance_registered_version(self, node: str, published_version: str) -> None:
         """After a publish, raise the wrapper so the next compile is a new update."""
-        if metadata.own_project_version(self.settings.esphome_config_dir, node) is not None:
+        own = metadata.own_project_version(self.settings.esphome_config_dir, node)
+        has_yaml = metadata.find_configuration(self.settings.esphome_config_dir, node) is not None
+        existing_wrapper = self.settings.esphome_config_dir / metadata._WRAPPER_DIR / f"{node}.yaml"
+        prev_manual = (
+            has_yaml
+            and existing_wrapper.is_file()
+            and metadata.wrapper_project_version(self.settings.esphome_config_dir, node) is None
+        )
+        if (own is not None) or prev_manual:
             return
         rec = self.registered.get(node)
         current = (rec or {}).get("version") or published_version
@@ -740,16 +756,11 @@ async def snippet(request: web.Request) -> web.Response:
     node = request.query.get("node", "")
     if not node:
         return web.json_response({"error": "node required"}, status=400)
+    override = packages.normalize_version(request.query.get("version", ""))
+    if not override and node in app.registered:
+        override = packages.normalize_version(app.registered[node].get("version") or "")
+    written_version = app.write_device_wrapper(node, override)
     own = metadata.own_project_version(app.settings.esphome_config_dir, node)
-    if own is not None:
-        version = own
-        version_owner = "yaml"
-    else:
-        override = packages.normalize_version(request.query.get("version", ""))
-        if not override and node in app.registered:
-            override = packages.normalize_version(app.registered[node].get("version") or "")
-        version = app.write_device_wrapper(node, override)
-        version_owner = "addon"
     published = app.publisher.published(node)
     published_version = published.get("version") if published else None
     return web.json_response(
@@ -760,8 +771,8 @@ async def snippet(request: web.Request) -> web.Response:
             ),
             "uses_wrapper": True,
             "has_project": own is None,
-            "version": version,
-            "version_owner": version_owner,
+            "version": own if own is not None else written_version,
+            "version_owner": "yaml" if own is not None else "addon",
         }
     )
 

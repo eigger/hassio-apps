@@ -78,40 +78,57 @@ packages:
             metadata.own_project_version(self.esphome_config, "nonexistent")
         )
 
-    def test_own_project_version_syntax_error_resilience(self):
-        # Device YAML has a syntax error in wifi block, but valid project: block
-        (self.esphome_config / "broken.yaml").write_text(
+    def test_framework_version_not_matched_as_project_version(self):
+        # Device YAML has esp32.framework.version but no esphome.project block
+        (self.esphome_config / "framework_node.yaml").write_text(
             """\
 esphome:
-  name: broken
-  project:
-    name: "broken.device"
-    version: "3.1.4"
-wifi:
-  ssid: "unterminated string
+  name: framework_node
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    version: 5.1.2
 """,
             encoding="utf-8",
         )
-        # Should extract 3.1.4 via raw fallback instead of silently flipping to None
-        self.assertEqual(
-            metadata.own_project_version(self.esphome_config, "broken"), "3.1.4"
+        self.assertIsNone(
+            metadata.own_project_version(self.esphome_config, "framework_node")
         )
 
-        # Device YAML with syntax error and existing manual wrapper (no project in wrapper)
-        (self.esphome_config / "broken2.yaml").write_text(
-            """\
-esphome:
-  invalid: [yaml syntax: {unclosed
-""",
+    def test_transient_syntax_error_preserves_manual_wrapper(self):
+        settings = server.Settings(
+            www_root=self.www_root,
+            esphome_config_dir=self.esphome_config,
+            publish_dir="esphome_ota",
+            base_url="http://ha.local:8123",
+        )
+        app = server.App(settings)
+
+        # 1. Device originally created in manual mode
+        (self.esphome_config / "dev.yaml").write_text(
+            'esphome:\n  name: dev\n  project:\n    name: "t"\n    version: "2.0"\n',
             encoding="utf-8",
         )
-        packages.write_one_device_wrapper(
-            self.esphome_config, "broken2", "1.0.0", include_project=False
+        app.write_device_wrapper("dev", "2.0")
+        wrapper_file = self.esphome_config / "ota_server" / "devices" / "dev.yaml"
+        self.assertTrue(wrapper_file.is_file())
+        self.assertIsNone(metadata.wrapper_project_version(self.esphome_config, "dev"))
+
+        # 2. User introduces syntax error in dev.yaml while editing
+        (self.esphome_config / "dev.yaml").write_text(
+            "esphome:\n  name: dev\ninvalid: [yaml syntax: {unclosed\n",
+            encoding="utf-8",
         )
-        # Should stay in manual mode (is not None)
-        self.assertIsNotNone(
-            metadata.own_project_version(self.esphome_config, "broken2")
-        )
+
+        # 3. Re-writing wrapper during syntax error must NOT inject project: (preserve manual mode)
+        app.write_device_wrapper("dev", "2.0")
+        self.assertIsNone(metadata.wrapper_project_version(self.esphome_config, "dev"))
+
+        # 4. advance_registered_version must NOT bump version during syntax error
+        app.registered["dev"] = {"version": "2.0", "title": "Dev"}
+        app.advance_registered_version("dev", "2.0")
+        self.assertEqual(app.registered["dev"]["version"], "2.0")
 
     def test_wrapper_generation_modes(self):
         # Auto mode (include_project=True by default)
@@ -363,12 +380,16 @@ esp32:
         self.assertEqual(app_instance.registered["kitchen"]["version"], "1.0.5")
 
     @unittest_run_loop
-    async def test_snippet_route_ownership(self):
-        # 1. Manual mode snippet
+    async def test_snippet_route_ownership_and_wrapper_generation(self):
+        # 1. Manual mode device snippet onboarding:
+        # User already declared project: in YAML. Wrapper does not exist yet.
         (self.esphome_config / "livingroom.yaml").write_text(
             'esphome:\n  name: livingroom\n  project:\n    name: "me"\n    version: "2.0"\n',
             encoding="utf-8",
         )
+        wrapper_file = self.esphome_config / "ota_server" / "devices" / "livingroom.yaml"
+        self.assertFalse(wrapper_file.is_file())
+
         resp = await self.client.get("/api/snippet?node=livingroom")
         self.assertEqual(resp.status, 200)
         body = await resp.json()
@@ -376,7 +397,14 @@ esp32:
         self.assertEqual(body["version_owner"], "yaml")
         self.assertFalse(body["has_project"])
 
-        # 2. Auto mode snippet
+        # Wrapper file MUST exist on disk after calling snippet route
+        self.assertTrue(wrapper_file.is_file())
+        # And must NOT contain project block in manual mode
+        wrapper_content = wrapper_file.read_text(encoding="utf-8")
+        code_lines = [line for line in wrapper_content.splitlines() if not line.startswith("#") and line.strip()]
+        self.assertNotIn("esphome:", code_lines)
+
+        # 2. Auto mode snippet:
         (self.esphome_config / "porch.yaml").write_text(
             "esphome:\n  name: porch\n", encoding="utf-8"
         )
@@ -385,6 +413,9 @@ esp32:
         body = await resp.json()
         self.assertEqual(body["version_owner"], "addon")
         self.assertTrue(body["has_project"])
+        porch_wrapper = self.esphome_config / "ota_server" / "devices" / "porch.yaml"
+        self.assertTrue(porch_wrapper.is_file())
+        self.assertIn("esphome:\n  project:", porch_wrapper.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

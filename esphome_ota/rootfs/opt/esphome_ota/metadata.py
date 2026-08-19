@@ -419,37 +419,12 @@ def own_project_version(
     filename = find_configuration(config_dir, node)
     if not filename:
         return None
-    path = config_dir / filename
     config = read_config(config_dir, filename)
-    if config:
-        origin = config_dir / filename
-        merged, _ = merge_config(
-            config_dir, config, origin, skip_wrapper_node=node, cache=cache
-        )
-        return project_version(merged)
-
-    # Fallback for transient YAML syntax errors: if the file exists on disk,
-    # inspect raw text for esphome.project.version so a typo during editing
-    # does not silently flip manual mode to auto mode and rewrite the wrapper.
-    try:
-        content = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-    m = re.search(
-        r"(?ms)^esphome:.*?^\s+project:.*?^\s+version:\s*[\"']?([^\"'\r\n#]+)[\"']?",
-        content,
+    origin = config_dir / filename
+    merged, _ = merge_config(
+        config_dir, config, origin, skip_wrapper_node=node, cache=cache
     )
-    if m:
-        return m.group(1).strip()
-
-    # If wrapper on disk exists and was already in manual mode (no project block),
-    # preserve manual mode during transient parse failure.
-    wrapper_path = config_dir / _WRAPPER_DIR / f"{node}.yaml"
-    if wrapper_path.is_file() and wrapper_project_version(config_dir, node) is None:
-        return ""
-
-    return None
+    return project_version(merged)
 
 
 def effective_project_version(
