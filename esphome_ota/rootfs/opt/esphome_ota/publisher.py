@@ -67,6 +67,7 @@ class Publisher:
         summary: str = "",
         token: str = "",
         build_time: str = "",
+        version_source: str = "",
     ) -> dict[str, Any]:
         self.ensure_dirs()
         digest = hashlib.md5(blob).hexdigest()  # noqa: S324 - ESPHome's OTA checksum is MD5
@@ -100,6 +101,8 @@ class Publisher:
         }
         if build_time:
             manifest["build_time"] = build_time
+        if version_source:
+            manifest["version_source"] = version_source
         manifest_bytes = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
         # Manifest in both places:
         self._atomic_write(self.dir / f"{slug}.json", manifest_bytes)
@@ -119,6 +122,8 @@ class Publisher:
         }
         if build_time:
             record["build_time"] = build_time
+        if version_source:
+            record["version_source"] = version_source
         LOG.info("Published %s (slug=%s, %s, %s bytes, %s)", node, slug, chip_family, len(blob), digest[:8])
         return record
 
@@ -244,6 +249,8 @@ class Publisher:
         }
         if manifest.get("build_time"):
             result["build_time"] = manifest["build_time"]
+        if manifest.get("version_source"):
+            result["version_source"] = manifest["version_source"]
         return result
 
     def list_published(self, registered: dict[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:

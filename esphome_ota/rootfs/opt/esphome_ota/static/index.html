@@ -197,6 +197,19 @@
     letter-spacing: -0.01em;
     font-feature-settings: "tnum";
   }
+  .version-source-bin {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--ok);
+    border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+    border-radius: 4px;
+    padding: 0 4px;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
   .fw-line-badges {
     gap: 6px;
   }
@@ -776,6 +789,10 @@
       <label id="t-upload-file-label">Firmware File</label>
       <div id="upFileInfo" class="tiny" style="font-weight:600; padding:6px 8px; background:var(--card-subtle); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:6px;"></div>
     </div>
+    <div class="field" style="margin-bottom:10px">
+      <label id="t-upload-version-label">Version to publish</label>
+      <div id="upVersionInfo" class="tiny" style="font-weight:600; padding:6px 8px; background:var(--card-subtle); border-radius:6px; border:1px solid var(--line); display:flex; align-items:center; gap:6px;"></div>
+    </div>
     <!-- Binary Validation Checklist -->
     <div class="field" id="upValidationField" style="margin-bottom:12px;">
       <label id="t-upload-val-label" style="display:flex; justify-content:space-between; align-items:center;">
@@ -951,6 +968,17 @@ const STRINGS = {
     uploadModalTitle: 'Publish Firmware',
     uploadTarget: 'Target Device',
     uploadFile: 'Firmware File',
+    uploadVersionLabel: 'Version to publish',
+    versionFromBinary: (v) => `${v} — read from the firmware binary`,
+    versionFromYaml: (v) => `${v} — from esphome.project.version (binary has no boot-log version string)`,
+    versionFromFallback: (v) => `${v} — no project.version found; will use this ESPHome release`,
+    versionMismatchNote: (yaml) => `⚠️ YAML says ${yaml} — the binary will win`,
+    versionUnknown: 'Could not read a version from this file yet',
+    versionSourceBinary: 'Read from the firmware binary (boot-log version string)',
+    versionSourceProject: 'From esphome.project.version — binary had no boot-log version string',
+    versionSourceSupplied: 'Manually entered at publish time',
+    versionSourcePublished: 'Carried over from the previously published firmware',
+    versionSourceFallback: 'ESPHome release version — no esphome.project block found',
     uploadValLabel: 'Binary Validation',
     valCheckFormat: 'File Format',
     valCheckSize: 'File Size',
@@ -1136,6 +1164,17 @@ const STRINGS = {
     uploadModalTitle: '펌웨어 게시',
     uploadTarget: '대상 기기',
     uploadFile: '펌웨어 파일',
+    uploadVersionLabel: '게시될 버전',
+    versionFromBinary: (v) => `${v} — 펌웨어 바이너리에서 추출됨`,
+    versionFromYaml: (v) => `${v} — esphome.project.version 사용 (바이너리에 버전 문자열 없음)`,
+    versionFromFallback: (v) => `${v} — project.version 없음, ESPHome 릴리즈 버전 사용 예정`,
+    versionMismatchNote: (yaml) => `⚠️ YAML에는 ${yaml}로 되어 있지만, 바이너리 값이 우선 적용됩니다`,
+    versionUnknown: '아직 이 파일에서 버전을 읽지 못했습니다',
+    versionSourceBinary: '펌웨어 바이너리에서 읽음 (부팅 로그 버전 문자열)',
+    versionSourceProject: 'esphome.project.version 사용 — 바이너리에 버전 문자열 없음',
+    versionSourceSupplied: '게시 시 수동 입력됨',
+    versionSourcePublished: '이전에 게시된 펌웨어에서 유지됨',
+    versionSourceFallback: 'ESPHome 릴리즈 버전 — esphome.project 블록 없음',
     uploadValLabel: '바이너리 검증 결과',
     valCheckFormat: '파일 형식',
     valCheckSize: '파일 크기',
@@ -1235,6 +1274,7 @@ function applyStaticText() {
   $('t-upload-modal-title').textContent = T.uploadModalTitle;
   $('t-upload-node-label').textContent = T.uploadTarget;
   $('t-upload-file-label').textContent = T.uploadFile;
+  $('t-upload-version-label').textContent = T.uploadVersionLabel;
   const valLabel = $('t-upload-val-label');
   if (valLabel) {
     const span = valLabel.querySelector('span:first-child');
@@ -1359,7 +1399,7 @@ function row(d) {
     firmwareHtml = `
       <div class="fw-col">
         <div class="fw-line fw-line-title">
-          <span class="fw-version-num">${escapeHtml(pub.version)}</span>
+          <span class="fw-version-num" title="${escapeHtml(versionSourceTitle(pub))}">${escapeHtml(pub.version)}${pub.version_source === 'binary' ? ' <span class="version-source-bin" title="' + escapeHtml(T.versionSourceBinary) + '">bin</span>' : ''}</span>
           ${activeChip}
           ${staleBadge}
         </div>
@@ -1389,7 +1429,7 @@ function row(d) {
     firmwareHtml = `
       <div class="fw-col">
         <div class="fw-line fw-line-title">
-          <span class="fw-version-num">${escapeHtml(pub.version)}</span>
+          <span class="fw-version-num" title="${escapeHtml(versionSourceTitle(pub))}">${escapeHtml(pub.version)}${pub.version_source === 'binary' ? ' <span class="version-source-bin" title="' + escapeHtml(T.versionSourceBinary) + '">bin</span>' : ''}</span>
           ${inactiveChip}
           ${staleBadge}
         </div>
@@ -1820,9 +1860,11 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
   let idfVersion = null;
   let esphomeVer = null;
   let buildTime = null;
+  let hasAppDesc = false;
   if (view.byteLength >= 0xA0) {
     const magic = view.getUint32(0x20, true);
     if (magic === 0xABCD5432) {
+      hasAppDesc = true;
       const verSlice = bytes.subarray(0x30, 0x50);
       let end = verSlice.indexOf(0);
       if (end === -1) end = 32;
@@ -1833,7 +1875,9 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
       if (iEnd === -1) iEnd = 32;
       idfVersion = new TextDecoder('utf-8').decode(idfSlice.subarray(0, iEnd)).trim();
 
-      // Build time from __TIME__ (0x70) and __DATE__ (0x80)
+      // Build time from __TIME__ (0x70) and __DATE__ (0x80) — only populated
+      // on a non-reproducible ESP-IDF build; every stock ESPHome build zeroes
+      // these, so this is usually empty (see the literal-scan fallback below).
       const timeSlice = bytes.subarray(0x70, 0x80);
       let tEnd = timeSlice.indexOf(0); if (tEnd === -1) tEnd = 16;
       const timeStr = new TextDecoder('utf-8').decode(timeSlice.subarray(0, tEnd)).trim();
@@ -1841,6 +1885,22 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
       let dEnd = dateSlice.indexOf(0); if (dEnd === -1) dEnd = 16;
       const dateStr = new TextDecoder('utf-8').decode(dateSlice.subarray(0, dEnd)).trim();
       buildTime = parseBuildDateTime(dateStr, timeStr);
+    }
+  }
+
+  // 5b. Full-file scan for ESPHome's own literals: the "Project X version Y"
+  // boot banner (the value the device will actually report post-flash — what
+  // this add-on now publishes as the manifest version) and the compiled-in
+  // build timestamp that survives reproducible builds. These can sit
+  // anywhere past the first 512 bytes, so this reads the whole file.
+  let projectVersion = null;
+  let projectLiteralName = null;
+  if (hasAppDesc) {
+    const literals = await scanFirmwareLiterals(file);
+    projectVersion = literals.projectVersion;
+    projectLiteralName = literals.projectLiteralName;
+    if (!buildTime && literals.literalBuildTime) {
+      buildTime = literals.literalBuildTime;
     }
   }
 
@@ -1856,10 +1916,13 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
   }
 
   // 6. Version-age safety check:
-  // 1) Prefer build_time when both sides have it
+  // 1) Prefer build_time when both sides have it (struct fields, else the
+  //    literal timestamp fallback above)
   // 2) Fallback to local file mtime vs published_at
-  if (buildTime && publishedBuildTime) {
-    if (buildTime < publishedBuildTime) {
+  const buildEpoch = buildTimeEpoch(buildTime);
+  const publishedBuildEpoch = buildTimeEpoch(publishedBuildTime);
+  if (buildEpoch != null && publishedBuildEpoch != null) {
+    if (buildEpoch < publishedBuildEpoch) {
       checks.buildtime.status = 'warn';
       checks.buildtime.detail = T.valDetailBuildTimeOlder(formatBuildTime(publishedBuildTime));
     } else {
@@ -1895,6 +1958,8 @@ async function parseBinaryHeader(file, targetPlatform = '', publishedBuildTime =
     idfVersion,
     esphomeVer,
     buildTime,
+    projectVersion,
+    projectLiteralName,
     checks,
     size: file.size,
   };
@@ -1914,6 +1979,57 @@ function parseBuildDateTime(dateStr, timeStr) {
     if (isNaN(h) || isNaN(m) || isNaN(s)) return null;
     return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   } catch { return null; }
+}
+
+// esp_app_desc_t.time/date are only populated on a non-reproducible ESP-IDF
+// build. Every stock ESPHome build zeroes them (CONFIG_APP_REPRODUCIBLE_BUILD),
+// so App.pre_setup()'s own compiled-in "YYYY-MM-DD HH:MM:SS +ZZZZ" literal is
+// the timestamp that actually shows up in practice — mirrors
+// metadata._find_literal_build_time() server-side.
+const RE_LITERAL_BUILD_TIME = /(20\d\d-[01]\d-[0-3]\d[ T][0-2]\d:[0-5]\d:[0-5]\d(?: ?[+-]\d{4})?)\x00/;
+// ESP_LOGI(TAG, "Project %s version %s", ...) boot banner — only present when
+// project: is set and the logger wasn't fully stripped. Mirrors
+// metadata._find_project_version() server-side.
+const RE_PROJECT_VERSION = /Project ([\x20-\x7e]{1,63}?) version ([\x20-\x7e]{1,63})\x00/;
+
+// Scans the *whole* file for the two literals above — they can sit anywhere
+// in .rodata, well past the first 512 bytes the header checks use.
+async function scanFirmwareLiterals(file) {
+  let text;
+  try {
+    const buf = await file.arrayBuffer();
+    // iso-8859-1 maps each byte to one code unit 1:1 — lossless for a raw
+    // byte-pattern regex scan, unlike utf-8 which would choke on the binary.
+    text = new TextDecoder('iso-8859-1').decode(buf);
+  } catch {
+    return { literalBuildTime: null, projectLiteralName: null, projectVersion: null };
+  }
+  const timeMatch = RE_LITERAL_BUILD_TIME.exec(text);
+  const projMatch = RE_PROJECT_VERSION.exec(text);
+  return {
+    literalBuildTime: timeMatch ? timeMatch[1] : null,
+    projectLiteralName: projMatch ? projMatch[1] : null,
+    projectVersion: projMatch ? projMatch[2] : null,
+  };
+}
+
+// Normalizes both build_time shapes ("YYYY-MM-DDTHH:MM:SS" from the struct,
+// "YYYY-MM-DD HH:MM:SS +ZZZZ" from the literal) into strict ISO-8601 so
+// `Date.parse` behaves the same across browsers — the bare "+ZZZZ" offset
+// form isn't part of the ECMA-262 date grammar and some engines reject it.
+function normalizeBuildTime(s) {
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\s?([+-]\d{2})(\d{2}))?$/.exec(String(s).trim());
+  if (!m) return null;
+  const [, date, time, offH, offM] = m;
+  return offH ? `${date}T${time}${offH}:${offM}` : `${date}T${time}`;
+}
+
+function buildTimeEpoch(s) {
+  const iso = normalizeBuildTime(s);
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : null;
 }
 
 // Upload Modal with Release Notes
@@ -1945,6 +2061,25 @@ async function openUploadModal(d, file) {
 
   // File info summary
   $('upFileInfo').innerHTML = `${escapeHtml(file.name)} <code>${formatBytes(file.size)}</code>`;
+
+  // Version to publish — mirrors the server's own priority (server.py
+  // publish_manual): the binary's boot-log version always wins when present,
+  // since that's what the device will actually report after flashing.
+  const upVersionInfo = $('upVersionInfo');
+  if (upVersionInfo) {
+    const yamlVer = d.own_project_version || null;
+    if (parsed.projectVersion) {
+      let label = T.versionFromBinary(parsed.projectVersion);
+      if (yamlVer && yamlVer !== parsed.projectVersion) {
+        label += ` · ${T.versionMismatchNote(yamlVer)}`;
+      }
+      upVersionInfo.textContent = label;
+    } else if (yamlVer) {
+      upVersionInfo.textContent = T.versionFromYaml(yamlVer);
+    } else {
+      upVersionInfo.textContent = T.versionFromFallback(status.esphome_version || '?');
+    }
+  }
 
   // Render 5 Validation Items
   const statusIcons = {
@@ -2354,9 +2489,11 @@ function formatDateTime(value) {
 function formatPublishedAt(iso) { return formatDateTime(iso) ?? iso; }
 const formatMillis = formatDateTime;
 
-// build_time is a local-time ISO string without timezone (from GCC __DATE__/__TIME__).
-// Browsers parse "YYYY-MM-DDTHH:MM:SS" as local time, which is what we want.
-const formatBuildTime = (x) => (x ? formatDateTime(x) : null);
+// build_time is either a naive local-time string (from GCC __DATE__/__TIME__,
+// no offset — browsers parse "YYYY-MM-DDTHH:MM:SS" as local time, which is
+// what we want) or ESPHome's own "YYYY-MM-DD HH:MM:SS +ZZZZ" literal with an
+// explicit offset. normalizeBuildTime() puts either shape into strict ISO-8601.
+const formatBuildTime = (x) => { const iso = normalizeBuildTime(x); return iso ? formatDateTime(iso) : null; };
 
 // Returns { label, title } for the firmware timestamp cell.
 // Prefers build_time; falls back to published_at.
@@ -2376,6 +2513,20 @@ function firmwareTimestamp(pub) {
 function firmwareTimestampHtml(pub) {
   const ts = firmwareTimestamp(pub);
   return `<span${ts.title ? ` title="${escapeHtml(ts.title)}"` : ''}>${escapeHtml(ts.label)}</span>`;
+}
+
+// Tooltip explaining where the published version number came from — mirrors
+// the version_source values server.py stamps on the manifest (publisher.py).
+const VERSION_SOURCE_TITLES = {
+  binary: () => T.versionSourceBinary,
+  project: () => T.versionSourceProject,
+  supplied: () => T.versionSourceSupplied,
+  published: () => T.versionSourcePublished,
+  fallback: () => T.versionSourceFallback,
+};
+function versionSourceTitle(pub) {
+  const fn = pub && VERSION_SOURCE_TITLES[pub.version_source];
+  return fn ? fn() : '';
 }
 
 function setJobButtonsDisabled(disabled) {
