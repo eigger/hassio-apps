@@ -407,6 +407,26 @@ def wrapper_project_version(config_dir: Path, node: str) -> str | None:
     return project_version(read_yaml_file(config_dir / _WRAPPER_DIR / f"{node}.yaml"))
 
 
+def own_project_version(
+    config_dir: Path,
+    node: str,
+    cache: dict[Path, dict[str, Any]] | None = None,
+) -> str | None:
+    """Device YAML's self-declared esphome.project.version, ignoring generated wrappers.
+
+    Returns None when the add-on owns the version (auto mode).
+    """
+    filename = find_configuration(config_dir, node)
+    if not filename:
+        return None
+    config = read_config(config_dir, filename)
+    origin = config_dir / filename
+    merged, _ = merge_config(
+        config_dir, config, origin, skip_wrapper_node=node, cache=cache
+    )
+    return project_version(merged)
+
+
 def effective_project_version(
     config_dir: Path,
     node: str,
@@ -418,8 +438,10 @@ def effective_project_version(
 
     A wrapper file on disk is not enough — legacy configs that still use
     ``substitutions.ota_device`` + ``!include ota_server/ota.yaml`` never
-    compile that wrapper, so they report ``ESPHOME_VERSION``. Wrappers
-    always carry ``esphome.project`` so included devices report that.
+    compile that wrapper, so they report ``ESPHOME_VERSION``. In auto mode,
+    wrappers carry ``esphome.project`` so included devices report that; in
+    manual mode (device declares its own ``project:``), the wrapper omits it
+    and the device YAML's own declaration is used.
     """
     origin = origin or config_dir / f"{node}.yaml"
     merged, uses_wrapper = merge_config(
