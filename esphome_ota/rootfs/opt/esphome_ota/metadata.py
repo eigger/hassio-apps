@@ -183,20 +183,30 @@ def _substitute(value: str, substitutions: dict[str, Any]) -> str:
     return re.sub(r"\$\{([^}]+)\}|\$([a-zA-Z_]\w*)", replace, value)
 
 
-def read_yaml_file(path: Path) -> dict[str, Any]:
-    """Best-effort parse of one YAML file. Returns {} when it cannot be read."""
+def read_yaml_file(path: Path) -> dict[str, Any] | None:
+    """Best-effort parse of one YAML file. Returns None when it cannot be read."""
     try:
         with path.open("r", encoding="utf-8") as handle:
             data = yaml.load(handle, Loader=_Loader)
     except (OSError, yaml.YAMLError) as err:
         LOG.debug("Could not parse %s: %s", path, err)
+        return None
+    if data is None:
         return {}
     return data if isinstance(data, dict) else {}
 
 
-def read_config(config_dir: Path, configuration: str) -> dict[str, Any]:
-    """Best-effort parse of a device YAML. Returns {} when it cannot be read."""
+def read_config(config_dir: Path, configuration: str) -> dict[str, Any] | None:
+    """Best-effort parse of a device YAML. Returns None when it cannot be read."""
     return read_yaml_file(config_dir / configuration)
+
+
+def is_yaml_unreadable(config_dir: Path, node: str) -> bool:
+    """True when the device YAML exists on disk but cannot be parsed."""
+    filename = find_configuration(config_dir, node)
+    if not filename:
+        return False
+    return read_config(config_dir, filename) is None
 
 
 def project_version(config: dict[str, Any]) -> str | None:
@@ -234,7 +244,7 @@ def _load_include(
     rel: str,
     origin: Path,
     seen: set[Path],
-    cache: dict[Path, dict[str, Any]],
+    cache: dict[Path, dict[str, Any] | None],
 ) -> tuple[dict[str, Any], Path] | None:
     path = _include_path(config_dir, origin, rel)
     if path is None or path in seen:
@@ -242,7 +252,10 @@ def _load_include(
     seen.add(path)
     if path not in cache:
         cache[path] = read_yaml_file(path)
-    return cache[path], path
+    data = cache[path]
+    if data is None:
+        return None
+    return data, path
 
 
 def _norm_include(rel: str) -> str:
@@ -404,13 +417,14 @@ _WRAPPER_DIR = Path("ota_server") / "devices"
 
 def wrapper_project_version(config_dir: Path, node: str) -> str | None:
     """Version the generated wrapper injects — what a compiled device actually reports."""
-    return project_version(read_yaml_file(config_dir / _WRAPPER_DIR / f"{node}.yaml"))
+    data = read_yaml_file(config_dir / _WRAPPER_DIR / f"{node}.yaml")
+    return project_version(data) if data is not None else None
 
 
 def own_project_version(
     config_dir: Path,
     node: str,
-    cache: dict[Path, dict[str, Any]] | None = None,
+    cache: dict[Path, dict[str, Any] | None] | None = None,
 ) -> str | None:
     """Device YAML's self-declared esphome.project.version, ignoring generated wrappers.
 
@@ -420,6 +434,8 @@ def own_project_version(
     if not filename:
         return None
     config = read_config(config_dir, filename)
+    if config is None:
+        return None
     origin = config_dir / filename
     merged, _ = merge_config(
         config_dir, config, origin, skip_wrapper_node=node, cache=cache
@@ -530,6 +546,8 @@ def scan_esphome_dir(config_dir: Path) -> tuple[list[dict[str, Any]], set[str]]:
 
         config = cache[path] if path in cache else read_yaml_file(path)
         cache[path] = config
+        if config is None:
+            continue
         merged, uses_wrapper = merge_config(
             config_dir, config, path, skip_wrapper_node=node, cache=cache
         )

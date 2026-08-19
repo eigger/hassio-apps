@@ -381,35 +381,24 @@ class App:
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        own = metadata.own_project_version(self.settings.esphome_config_dir, node)
-        has_yaml = metadata.find_configuration(self.settings.esphome_config_dir, node) is not None
-        existing_wrapper = self.settings.esphome_config_dir / metadata._WRAPPER_DIR / f"{node}.yaml"
-        prev_manual = (
-            has_yaml
-            and existing_wrapper.is_file()
-            and metadata.wrapper_project_version(self.settings.esphome_config_dir, node) is None
-        )
-        is_manual = (own is not None) or prev_manual
+        # If the YAML exists on disk but cannot be parsed (syntax/IO error), do not touch wrappers.
+        if metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node):
+            return ver
+        owns = metadata.own_project_version(self.settings.esphome_config_dir, node) is not None
         packages.write_one_device_wrapper(
             self.settings.esphome_config_dir,
             node,
             ver,
             token=token,
-            include_project=not is_manual,
+            include_project=not owns,
         )
         return ver
 
     def advance_registered_version(self, node: str, published_version: str) -> None:
         """After a publish, raise the wrapper so the next compile is a new update."""
-        own = metadata.own_project_version(self.settings.esphome_config_dir, node)
-        has_yaml = metadata.find_configuration(self.settings.esphome_config_dir, node) is not None
-        existing_wrapper = self.settings.esphome_config_dir / metadata._WRAPPER_DIR / f"{node}.yaml"
-        prev_manual = (
-            has_yaml
-            and existing_wrapper.is_file()
-            and metadata.wrapper_project_version(self.settings.esphome_config_dir, node) is None
-        )
-        if (own is not None) or prev_manual:
+        if metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node):
+            return
+        if metadata.own_project_version(self.settings.esphome_config_dir, node) is not None:
             return
         rec = self.registered.get(node)
         current = (rec or {}).get("version") or published_version

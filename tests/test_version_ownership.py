@@ -114,21 +114,57 @@ esp32:
         wrapper_file = self.esphome_config / "ota_server" / "devices" / "dev.yaml"
         self.assertTrue(wrapper_file.is_file())
         self.assertIsNone(metadata.wrapper_project_version(self.esphome_config, "dev"))
+        initial_mtime = wrapper_file.stat().st_mtime_ns
 
         # 2. User introduces syntax error in dev.yaml while editing
         (self.esphome_config / "dev.yaml").write_text(
             "esphome:\n  name: dev\ninvalid: [yaml syntax: {unclosed\n",
             encoding="utf-8",
         )
+        self.assertTrue(metadata.is_yaml_unreadable(self.esphome_config, "dev"))
 
-        # 3. Re-writing wrapper during syntax error must NOT inject project: (preserve manual mode)
+        # 3. write_device_wrapper during syntax error must NOT modify wrapper file
         app.write_device_wrapper("dev", "2.0")
+        self.assertEqual(wrapper_file.stat().st_mtime_ns, initial_mtime)
         self.assertIsNone(metadata.wrapper_project_version(self.esphome_config, "dev"))
 
         # 4. advance_registered_version must NOT bump version during syntax error
         app.registered["dev"] = {"version": "2.0", "title": "Dev"}
         app.advance_registered_version("dev", "2.0")
         self.assertEqual(app.registered["dev"]["version"], "2.0")
+
+    def test_mode_switching_manual_to_auto(self):
+        settings = server.Settings(
+            www_root=self.www_root,
+            esphome_config_dir=self.esphome_config,
+            publish_dir="esphome_ota",
+            base_url="http://ha.local:8123",
+        )
+        app = server.App(settings)
+
+        # 1. Device originally created in manual mode
+        (self.esphome_config / "node1.yaml").write_text(
+            'esphome:\n  name: node1\n  project:\n    name: "t"\n    version: "2.0"\n',
+            encoding="utf-8",
+        )
+        app.write_device_wrapper("node1", "2.0")
+        self.assertIsNone(metadata.wrapper_project_version(self.esphome_config, "node1"))
+
+        # 2. User removes project: block from node1.yaml to return control to add-on
+        (self.esphome_config / "node1.yaml").write_text(
+            "esphome:\n  name: node1\n",
+            encoding="utf-8",
+        )
+        self.assertIsNone(metadata.own_project_version(self.esphome_config, "node1"))
+
+        # 3. Re-writing wrapper must restore project: block in auto mode (no latching)
+        app.write_device_wrapper("node1", "1.0.0")
+        self.assertEqual(metadata.wrapper_project_version(self.esphome_config, "node1"), "1.0.0")
+
+        # 4. advance_registered_version bumps version normally in auto mode
+        app.registered["node1"] = {"version": "1.0.0", "title": "Node 1"}
+        app.advance_registered_version("node1", "1.0.0")
+        self.assertEqual(app.registered["node1"]["version"], "1.0.1")
 
     def test_wrapper_generation_modes(self):
         # Auto mode (include_project=True by default)
