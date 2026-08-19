@@ -293,12 +293,12 @@ def _overlay(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
 
 def merge_config(
     config_dir: Path,
-    config: dict[str, Any],
+    config: dict[str, Any] | None,
     origin: Path,
     seen: set[Path] | None = None,
     depth: int = 0,
     skip_wrapper_node: str | None = None,
-    cache: dict[Path, dict[str, Any]] | None = None,
+    cache: dict[Path, dict[str, Any] | None] | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """Follow ``!include`` packages and merge top-level keys. This file wins.
 
@@ -446,9 +446,9 @@ def own_project_version(
 def effective_project_version(
     config_dir: Path,
     node: str,
-    config: dict[str, Any],
+    config: dict[str, Any] | None,
     origin: Path | None = None,
-    cache: dict[Path, dict[str, Any]] | None = None,
+    cache: dict[Path, dict[str, Any] | None] | None = None,
 ) -> str | None:
     """Version the compiled firmware reports: device ``project:``, else the wrapper if used.
 

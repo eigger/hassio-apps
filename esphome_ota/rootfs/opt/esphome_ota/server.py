@@ -381,8 +381,12 @@ class App:
         if node in self.registered:
             self.registered[node]["version"] = ver
             self.save_registry()
-        # If the YAML exists on disk but cannot be parsed (syntax/IO error), do not touch wrappers.
-        if metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node):
+        # If the YAML exists on disk but cannot be parsed (syntax/IO error), do not overwrite existing wrappers.
+        # If the wrapper does not exist yet, create it so snippet/injection does not leave broken include references.
+        if (
+            metadata.is_yaml_unreadable(self.settings.esphome_config_dir, node)
+            and packages.device_wrapper_exists(self.settings.esphome_config_dir, node)
+        ):
             return ver
         owns = metadata.own_project_version(self.settings.esphome_config_dir, node) is not None
         packages.write_one_device_wrapper(

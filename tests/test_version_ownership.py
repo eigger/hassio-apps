@@ -133,6 +133,28 @@ esp32:
         app.advance_registered_version("dev", "2.0")
         self.assertEqual(app.registered["dev"]["version"], "2.0")
 
+    def test_unreadable_yaml_creates_wrapper_if_none_exists(self):
+        settings = server.Settings(
+            www_root=self.www_root,
+            esphome_config_dir=self.esphome_config,
+            publish_dir="esphome_ota",
+            base_url="http://ha.local:8123",
+        )
+        app = server.App(settings)
+
+        # YAML exists with syntax error and wrapper does NOT exist yet
+        (self.esphome_config / "newbroken.yaml").write_text(
+            "esphome:\n  name: newbroken\ninvalid: {syntax: [unclosed\n",
+            encoding="utf-8",
+        )
+        wrapper_file = self.esphome_config / "ota_server" / "devices" / "newbroken.yaml"
+        self.assertFalse(wrapper_file.is_file())
+
+        # Calling write_device_wrapper (e.g. from Apply OTA or snippet) must create wrapper
+        app.write_device_wrapper("newbroken", "1.0.0")
+        self.assertTrue(wrapper_file.is_file())
+        self.assertIn("ota_device: newbroken", wrapper_file.read_text(encoding="utf-8"))
+
     def test_mode_switching_manual_to_auto(self):
         settings = server.Settings(
             www_root=self.www_root,
