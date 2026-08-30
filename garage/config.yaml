@@ -9,8 +9,6 @@ url: https://github.com/eigger/hassio-apps/tree/master/garage
 # starts building it.
 arch:
   - amd64
-startup: application
-boot: auto
 init: false
 # Next.js uses absolute /_next and /api paths, so HA Ingress (subpath) breaks the UI.
 # Open the app on the host port instead — same as the upstream docker-compose stack.
