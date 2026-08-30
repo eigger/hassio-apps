@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.7.1
+
+- **Dropped `build.yaml`**: the Supervisor now warns that it is deprecated. Its two settings — the base image and the upstream image tags — were already the `ARG` defaults in the Dockerfile, and with no build config the Supervisor stops passing `BUILD_FROM` and leaves those defaults alone. Nothing about the built image changes.
+
 ## 1.3.7
 
 - **Ingress**:
