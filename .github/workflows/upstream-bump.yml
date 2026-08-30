@@ -2,11 +2,11 @@
 name: Upstream bump
 
 # The apps here only repackage upstream release images, so keeping them current
-# means rewriting a pinned tag in Dockerfile/build.yaml/README plus the add-on
+# means rewriting a pinned tag in the Dockerfile and README plus the add-on
 # version. That covers the add-on base image as well: it pins libcrypto3/libssl3
 # to an exact version, so a stale base breaks `apk add` against the current Alpine
-# index. Dependabot can't see any of those pins (they live behind Docker ARGs and
-# in build.yaml), so this job does it and opens the PR.
+# index. Dependabot can't see any of those pins — they live behind Docker ARGs —
+# so this job does it and opens the PR.
 
 on:
   schedule:

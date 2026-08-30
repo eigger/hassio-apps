@@ -3,12 +3,12 @@
 
 Each app in this repo is packaging only: the Dockerfile copies prebuilt upstream
 images in rather than building from source, so "updating the app" means bumping a
-tag in `<addon>/Dockerfile`, `<addon>/build.yaml`, the README, and the add-on
-version in `<addon>/config.yaml`.
+tag wherever it is written down — `<addon>/Dockerfile`, the README, any build
+config an app still has — plus the add-on version in `<addon>/config.yaml`.
 
-Dependabot cannot do that here — its Docker ecosystem only reads literal `FROM`
-lines, and these Dockerfiles resolve their images through `ARG` (plus build.yaml,
-which Dependabot doesn't know about at all). Hence this script.
+Dependabot cannot do that here: its Docker ecosystem only reads literal `FROM`
+lines, and these Dockerfiles resolve every image through `ARG`. Hence this script,
+which rewrites the tag in each file that carries it.
 
     pins.py check              verify every pin in the repo is self-consistent
     pins.py bump --addon NAME  pull the newest tags and rewrite the pins
