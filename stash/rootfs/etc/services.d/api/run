@@ -1,11 +1,12 @@
 #!/command/with-contenv bashio
-# ==============================================================================
-# Wait for Postgres, ensure role/db, then start Stash API
-# ==============================================================================
 set -euo pipefail
 
+# Export everything the setup step wrote — the API reads the optional integration
+# keys straight from the environment.
+set -a
 # shellcheck disable=SC1091
 source /data/secrets/runtime.env
+set +a
 
 bashio::log.info "Waiting for PostgreSQL"
 for _ in $(seq 1 60); do
@@ -20,7 +21,6 @@ if ! pg_isready -h 127.0.0.1 -p 5432 -U postgres >/dev/null 2>&1; then
   exit 1
 fi
 
-# Create role + database on first boot (idempotent)
 su-exec postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
@@ -38,11 +38,15 @@ SQL
 mkdir -p /data/uploads
 ln -sfn /data/uploads /opt/app/api/uploads
 
-export DATABASE_URL JWT_SECRET NODE_ENV PORT
-
 cd /opt/app/api
 bashio::log.info "Running Prisma migrations"
-./node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma
+# Upstream added apps/api/prisma.config.ts in 1.x; older pinned images don't ship it,
+# so only pass --config when the file is actually in the image.
+prisma_args=(migrate deploy --schema apps/api/prisma/schema.prisma)
+if [[ -f apps/api/prisma.config.ts ]]; then
+  prisma_args+=(--config apps/api/prisma.config.ts)
+fi
+./node_modules/.bin/prisma "${prisma_args[@]}"
 
 bashio::log.info "Starting Stash API"
 exec node apps/api/dist/index.js

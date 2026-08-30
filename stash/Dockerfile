@@ -1,6 +1,6 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.0
-ARG APP_API_IMAGE=ghcr.io/eigger/stash-api:0.3.1
-ARG APP_WEB_IMAGE=ghcr.io/eigger/stash-web:0.3.1
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.3
+ARG APP_API_IMAGE=ghcr.io/eigger/stash-api:0.7.5
+ARG APP_WEB_IMAGE=ghcr.io/eigger/stash-web:0.7.5
 
 # hadolint ignore=DL3006
 FROM ${APP_API_IMAGE} AS app-api
@@ -12,17 +12,20 @@ FROM ${BUILD_FROM}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Node runtime from the published API image + app payloads
 COPY --from=app-api /usr/local/bin/node /usr/local/bin/node
 COPY --from=app-api /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=app-api /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=app-api /app /opt/app/api
 COPY --from=app-web /app /opt/app/web
+# Upstream's entrypoint rewrites the build output for the base path the app will be
+# served under — Ingress decides that per installation, so it can only run here.
+COPY --from=app-web /usr/local/bin/docker-entrypoint.sh /opt/app/web-entrypoint.sh
 
 RUN apk add --no-cache \
     curl \
+    libgcc \
+    libstdc++ \
     nginx \
-    openssl \
     postgresql16 \
     postgresql16-client \
     postgresql16-contrib \

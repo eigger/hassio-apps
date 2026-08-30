@@ -19,11 +19,22 @@ http {
     "" close;
   }
 
-  # Same routing as upstream Caddyfile: /api + /health → API, else → Web
+  # Same routing as upstream Caddyfile: /api + /health → API, else → Web.
+  #
+  # Two front doors reach this server: Home Assistant Ingress, which strips its
+  # /api/hassio_ingress/<token> prefix before forwarding, and the published host port,
+  # where the browser asks for exactly the prefixed URLs the page was built with. The
+  # rewrite below folds both into one shape, and the web upstream gets the prefix put
+  # back on because the app only answers under its base path.
+  #
+  # The prefix is filled in at start-up (rootfs/etc/cont-init.d/10-setup.sh) — the token
+  # is assigned per installation, so it cannot be baked into the image.
   server {
     listen 3080 default_server;
     listen [::]:3080 default_server;
     server_name _;
+
+    %%STRIP_INGRESS_PREFIX%%
 
     location /api/ {
       proxy_http_version 1.1;
@@ -50,7 +61,7 @@ http {
       proxy_set_header X-Forwarded-Proto $scheme;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
-      proxy_pass http://127.0.0.1:3000;
+      proxy_pass http://127.0.0.1:3000%%INGRESS_PATH%%$uri$is_args$args;
     }
   }
 }
