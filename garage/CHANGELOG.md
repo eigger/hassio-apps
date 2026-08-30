@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.9
+
+- Follow upstream to `garage-api`/`garage-web` **1.3.9** ([release notes](https://github.com/eigger/garage/releases/tag/v1.3.9))
+  - Fixes the offline shell cache, which had been failing silently since 1.3.8: `trailingSlash` turned the service worker's `/login` entry into a redirect, and `cache.addAll` drops the whole list when one entry is redirected.
+
 ## 1.3.8
 
 - **Fix the 404 after logging in through Ingress**: Home Assistant registers exactly one ingress route, `/api/hassio_ingress/{token}/{path:.*}`, so the trailing slash is required — while Next normalised the base path root to the slash-less form. `router.push("/")` therefore produced a URL outside the route and Home Assistant answered 404 before the request ever reached the app, which is why only the login screen worked.
