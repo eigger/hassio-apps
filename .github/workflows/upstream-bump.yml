@@ -28,7 +28,7 @@ jobs:
         addon: [garage]
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Look for a newer upstream release
         id: bump
