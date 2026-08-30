@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.0
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.3
 ARG APP_API_IMAGE=ghcr.io/eigger/garage-api:1.3.6
 ARG APP_WEB_IMAGE=ghcr.io/eigger/garage-web:1.3.6
 
@@ -23,7 +23,6 @@ RUN apk add --no-cache \
     libgcc \
     libstdc++ \
     nginx \
-    openssl \
     postgresql16 \
     postgresql16-client \
     postgresql16-contrib \
