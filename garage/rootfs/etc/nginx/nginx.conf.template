@@ -19,6 +19,14 @@ http {
     "" close;
   }
 
+  # The web app answers at its base path with no trailing slash: asking for "<base>/"
+  # earns a 308 to "<base>", and under Ingress that redirect leaves Home Assistant's
+  # ingress route and 404s. So the root request maps to nothing and the prefix alone
+  # is proxied; every other path is appended as-is.
+  map $uri $web_path {
+    %%WEB_ROOT_MAP%%default $uri;
+  }
+
   # Same routing as upstream Caddyfile: /api + /health → API, else → Web.
   #
   # Two front doors reach this server: Home Assistant Ingress, which strips its
@@ -61,7 +69,7 @@ http {
       proxy_set_header X-Forwarded-Proto $scheme;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
-      proxy_pass http://127.0.0.1:3000%%INGRESS_PATH%%$uri$is_args$args;
+      proxy_pass http://127.0.0.1:3000%%INGRESS_PATH%%$web_path$is_args$args;
     }
   }
 }

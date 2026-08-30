@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- **Dropped `build.yaml`**:
+  - The Supervisor warns on every build that it is deprecated and wants the build parameters in the Dockerfile.
+  - Its only setting, the base image, was already the `ARG BUILD_FROM` default there. With no build config the Supervisor stops passing `BUILD_FROM` and leaves that default alone, so the built image is unchanged.
+
 ## 0.9.3
 
 - **Feature: Clear version ownership (User YAML vs Add-on auto-management)**:

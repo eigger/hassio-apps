@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.7.2
+
+- **Fix the Ingress panel showing 404**: the web app answers at its base path *without* a trailing slash, so proxying the root request to `<base>/` earned a `308` to `<base>` — a redirect that leaves Home Assistant's ingress route and 404s. nginx now proxies the prefix alone for the root request; every other path is unchanged.
+
 ## 1.3.7.1
 
 - **Dropped `build.yaml`**: the Supervisor now warns that it is deprecated. Its two settings — the base image and the upstream image tags — were already the `ARG` defaults in the Dockerfile, and with no build config the Supervisor stops passing `BUILD_FROM` and leaves those defaults alone. Nothing about the built image changes.
