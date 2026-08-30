@@ -42,7 +42,7 @@ jobs:
 
       - name: Open pull request
         if: steps.bump.outputs.updated == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: bot/${{ matrix.addon }}-upstream
           delete-branch: true
