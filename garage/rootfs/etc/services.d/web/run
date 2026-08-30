@@ -18,6 +18,10 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 
-bashio::log.info "Starting Garage Web"
+bashio::log.info "Starting Garage Web${BASE_PATH:+ under ${BASE_PATH}}"
 cd /opt/app/web
-exec node apps/web/server.js
+# Upstream ships the build with a /__BASE_PATH__ placeholder and rewrites it at start-up
+# for whatever path the app is served under — here that is the Ingress entry resolved in
+# cont-init. It keeps the untouched copy around, so a changed entry re-applies cleanly.
+export APP_ROOT=/opt/app/web
+exec /opt/app/web-entrypoint.sh node apps/web/server.js

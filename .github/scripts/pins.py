@@ -45,7 +45,11 @@ TRACKED = {
 }
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
-TEXT_SUFFIXES = {".yaml", ".yml", ".md", ".sh", ".conf", ".json", ""}
+TEXT_SUFFIXES = {".yaml", ".yml", ".md", ".sh", ".conf", ".json", ".template", ""}
+# The changelog records the tags of past releases. Those are history, not pins: reading
+# them makes an app look like it pins two versions, and rewriting them would falsify what
+# an earlier release actually shipped.
+HISTORY_FILES = {"CHANGELOG.md"}
 
 
 def version_key(version: str) -> tuple[int, ...]:
@@ -113,6 +117,8 @@ def text_files(addon: Path) -> list[Path]:
     files = []
     for path in sorted(addon.rglob("*")):
         if not path.is_file() or path.name.startswith("."):
+            continue
+        if path.name in HISTORY_FILES:
             continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue

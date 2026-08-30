@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.7
+
+- **Ingress**:
+  - The app now has a sidebar entry and is reachable through Home Assistant's own external URL — the host port only ever worked on the LAN.
+  - Needed an upstream change (eigger/garage#84, released in 1.3.7): `next build` bakes the base path in, but HA assigns `/api/hassio_ingress/<token>/` per installation. Upstream now builds with a placeholder and rewrites it at start-up; this app resolves its Ingress entry from the Supervisor and passes it in.
+  - nginx folds both front doors into one shape: Ingress arrives with the prefix stripped, a browser on the host port asks for the prefixed URLs the page carries.
+  - The host port (default 3081) stays published, so nothing that worked before stops working. If the Supervisor lookup fails, the app still starts on the host port and logs why.
+- **Upstream images 1.3.6 → 1.3.7**
+
 ## 1.3.6.1
 
 - **Fix the build failing on `apk add openssl`**:

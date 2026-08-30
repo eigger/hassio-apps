@@ -38,6 +38,41 @@ if [[ -z "${JWT_SECRET:-}" ]]; then
   echo "JWT_SECRET=${JWT_SECRET}" >> "${SECRETS_FILE}"
 fi
 
+# Home Assistant serves Ingress at /api/hassio_ingress/<token>/, and the token is handed
+# out per installation — so the web app's base path can only be settled here, at start-up.
+# Asking the Supervisor directly (rather than through bashio) keeps this working across
+# the addon/app helper rename in bashio.
+supervisor_ingress_entry() {
+  local endpoint
+  for endpoint in addons apps; do
+    curl -fsSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN:-}" \
+      "http://supervisor/${endpoint}/self/info" 2>/dev/null \
+      | jq -r '.data.ingress_entry // empty' \
+      | grep . && return 0
+  done
+  return 1
+}
+
+INGRESS_PATH="$(supervisor_ingress_entry || true)"
+if [[ -z "${INGRESS_PATH}" ]]; then
+  bashio::log.warning "Could not read the Ingress entry from the Supervisor"
+  bashio::log.warning "Serving from the root path — Ingress will not render, use the host port"
+else
+  bashio::log.info "Ingress entry: ${INGRESS_PATH}"
+fi
+
+# nginx has to know the prefix too: Ingress arrives with it stripped, while a browser on
+# the host port asks for the prefixed URLs the page carries. Fold both into one shape.
+if [[ -n "${INGRESS_PATH}" ]]; then
+  STRIP_RULES="rewrite ^${INGRESS_PATH}\$ / last; rewrite ^${INGRESS_PATH}(/.*)\$ \$1 last;"
+else
+  STRIP_RULES=""
+fi
+
+sed -e "s|%%INGRESS_PATH%%|${INGRESS_PATH}|g" \
+    -e "s|%%STRIP_INGRESS_PREFIX%%|${STRIP_RULES}|g" \
+    /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+
 RUNTIME_ENV=/data/secrets/runtime.env
 umask 077
 cat > "${RUNTIME_ENV}" <<EOF
@@ -48,6 +83,7 @@ JWT_SECRET=${JWT_SECRET}
 DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}
 NODE_ENV=production
 PORT=8080
+BASE_PATH=${INGRESS_PATH}
 EOF
 
 mkdir -p /var/run/s6/container_environment
