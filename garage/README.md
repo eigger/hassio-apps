@@ -28,7 +28,9 @@ The host port stays published, so both doors work at once. Ingress arrives with 
 prefix stripped, while a browser on the host port asks for the prefixed URLs the page
 carries — nginx folds the two into one shape and puts the prefix back on for the web app.
 
-Default host port is **3081** so it does not collide with Stash (**3080**).
+There is no **Open Web UI** button any more: it resolved to `<host>:3081`, which is
+precisely what does not work from outside. Default host port is still **3081** so it does
+not collide with Stash (**3080**) — reach it by typing the URL.
 
 Upstream images: `ghcr.io/eigger/garage-api:1.3.7`, `ghcr.io/eigger/garage-web:1.3.7`
 
