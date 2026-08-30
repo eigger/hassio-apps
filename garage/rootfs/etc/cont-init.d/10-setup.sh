@@ -4,6 +4,13 @@
 # ==============================================================================
 set -euo pipefail
 
+# The add-on base image pins libcrypto3/libssl3 to its own snapshot, so pulling the
+# openssl package in fails to resolve against the current Alpine index. Random bytes
+# were the only thing it was used for, and busybox's od covers that.
+rand_hex() {
+  od -An -N "${1}" -tx1 /dev/urandom | tr -d ' \n'
+}
+
 bashio::log.info "Preparing Garage data directories"
 
 mkdir -p /data/postgres /data/uploads /data/secrets
@@ -18,8 +25,8 @@ if [[ ! -f "${SECRETS_FILE}" ]]; then
   {
     echo "POSTGRES_USER=garage"
     echo "POSTGRES_DB=garage"
-    echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
-    echo "JWT_SECRET=$(openssl rand -hex 32)"
+    echo "POSTGRES_PASSWORD=$(rand_hex 16)"
+    echo "JWT_SECRET=$(rand_hex 32)"
   } > "${SECRETS_FILE}"
 fi
 
@@ -27,22 +34,8 @@ fi
 source "${SECRETS_FILE}"
 
 if [[ -z "${JWT_SECRET:-}" ]]; then
-  JWT_SECRET="$(openssl rand -hex 32)"
+  JWT_SECRET="$(rand_hex 32)"
   echo "JWT_SECRET=${JWT_SECRET}" >> "${SECRETS_FILE}"
-fi
-
-# Optional integrations, same env vars as upstream's docker-compose.prod.yml.
-# Left empty the API falls back to mock data (Opinet / EV chargers) and web push
-# reminders stay off, so none of these are required to run the app.
-OPINET_API_KEY="$(bashio::config 'opinet_api_key' '')"
-EV_CHARGER_API_KEY="$(bashio::config 'ev_charger_api_key' '')"
-VAPID_PUBLIC_KEY="$(bashio::config 'vapid_public_key' '')"
-VAPID_PRIVATE_KEY="$(bashio::config 'vapid_private_key' '')"
-VAPID_SUBJECT="$(bashio::config 'vapid_subject' '')"
-if bashio::config.true 'cheonan_card_enabled'; then
-  CHEONAN_CARD_ENABLED="true"
-else
-  CHEONAN_CARD_ENABLED=""
 fi
 
 RUNTIME_ENV=/data/secrets/runtime.env
@@ -55,12 +48,6 @@ JWT_SECRET=${JWT_SECRET}
 DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}
 NODE_ENV=production
 PORT=8080
-OPINET_API_KEY=${OPINET_API_KEY}
-CHEONAN_CARD_ENABLED=${CHEONAN_CARD_ENABLED}
-EV_CHARGER_API_KEY=${EV_CHARGER_API_KEY}
-VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
-VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
-VAPID_SUBJECT=${VAPID_SUBJECT}
 EOF
 
 mkdir -p /var/run/s6/container_environment

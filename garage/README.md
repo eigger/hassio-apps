@@ -23,18 +23,15 @@ Upstream images: `ghcr.io/eigger/garage-api:1.3.6`, `ghcr.io/eigger/garage-web:1
 Nothing is built from source here — the app copies the upstream release images in and
 runs them next to Postgres and nginx, so the app version tracks the upstream version.
 A scheduled workflow ([upstream-bump.yml](../.github/workflows/upstream-bump.yml)) opens
-a PR whenever upstream publishes a newer tag.
+a PR whenever upstream — or the add-on base image — publishes a newer tag.
 
 ## Options
 
-All optional, all blank by default — the app runs without any of them.
-
-| Option | Upstream env | What it does |
-|---|---|---|
-| `opinet_api_key` | `OPINET_API_KEY` | Real nearby fuel prices; falls back to mock data when unset |
-| `cheonan_card_enabled` | `CHEONAN_CARD_ENABLED` | 천안사랑카드 stations — needs the Opinet key too |
-| `ev_charger_api_key` | `EV_CHARGER_API_KEY` | 한국환경공단 EV charger data (data.go.kr); mock data when unset |
-| `vapid_public_key` / `vapid_private_key` / `vapid_subject` | `VAPID_*` | Web Push reminders (`npx web-push generate-vapid-keys`) |
+None. Garage manages its integration keys itself — Opinet, 천안사랑카드, the EV
+charger API and Web Push (VAPID, generated with a button) all live in the app's
+**/integrations** screen. The API resolves them through `getSetting()`, which
+prefers the value in its own database and only falls back to the environment, so
+an add-on option would be ignored as soon as anything is saved in the UI.
 
 ## Architecture
 

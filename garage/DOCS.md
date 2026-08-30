@@ -12,14 +12,14 @@ Data persists under `/data`. Ingress is not used (Next.js absolute paths break u
 
 ## Options
 
-Every option is optional and empty by default; the app is fully usable without them.
-They map 1:1 onto the env vars upstream's `docker-compose.prod.yml` passes to the API:
-`opinet_api_key` (`OPINET_API_KEY`), `cheonan_card_enabled` (`CHEONAN_CARD_ENABLED`),
-`ev_charger_api_key` (`EV_CHARGER_API_KEY`) and `vapid_public_key` /
-`vapid_private_key` / `vapid_subject` (`VAPID_*`, for web push reminders).
+There are none, on purpose. Integration keys — Opinet, 천안사랑카드, the EV charger
+API, and the Web Push (VAPID) pair, which the app can generate for you — belong in
+Garage's own **/integrations** screen. Those values are stored in its database and
+take priority over anything in the environment, so configuring them twice would
+only create a second, silently ignored copy.
 
-Changing an option restarts the app and rewrites `/data/secrets/runtime.env`;
-the generated Postgres password and JWT secret are kept.
+The Postgres password and JWT secret are generated on first start and kept under
+`/data/secrets`.
 
 ## Requirements
 

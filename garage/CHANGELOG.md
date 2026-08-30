@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.6.1
+
+- **Fix the build failing on `apk add openssl`**:
+  - Base image `21.0.0` → **`21.0.3`**: it pinned `libcrypto3`/`libssl3` at `3.5.7-r0`, three releases behind the Alpine index, whose `openssl 3.5.8-r0` demands the matching `3.5.8` libraries — apk could not resolve it. `21.0.3` pins `3.5.8-r0`.
+  - Dropped the `openssl` package anyway: it is the only one that has to move in exact lockstep with the base's pinned libraries, so the next security release would break the build again until the base catches up. It was used for `openssl rand -hex` alone, and secrets now come from `/dev/urandom` via busybox `od`.
+  - The base image is now tracked by the bump bot too, so it cannot fall behind again unnoticed.
+- **Integration options removed**:
+  - Garage keeps Opinet, 천안사랑카드, EV charger and Web Push (VAPID) keys in its own **/integrations** screen, and `getSetting()` prefers the database value over the environment.
+  - An add-on option would therefore be ignored the moment anything is saved in the UI — and it would have parked the VAPID private key in the add-on config as well. The app stays the single place to set them.
+
 ## 1.3.6
 
 - **App re-enabled**:

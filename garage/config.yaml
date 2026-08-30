@@ -1,6 +1,6 @@
 ---
 name: Garage
-version: "1.3.6"
+version: "1.3.6.1"
 slug: garage
 description: Self-hosted car management — maintenance, fuel, OBD/GPS (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/garage
@@ -20,20 +20,7 @@ ports_description:
   3080/tcp: Garage UI (nginx → web + /api); default host port 3081
 map:
   - addon_config:rw
-# Optional integrations, matching the env vars upstream's docker-compose.prod.yml
-# passes to the API. All blank by default: the app falls back to mock data and the
-# reminder push notifications simply stay off.
-options:
-  opinet_api_key: ""
-  cheonan_card_enabled: false
-  ev_charger_api_key: ""
-  vapid_public_key: ""
-  vapid_private_key: ""
-  vapid_subject: "mailto:admin@example.com"
-schema:
-  opinet_api_key: password?
-  cheonan_card_enabled: bool?
-  ev_charger_api_key: password?
-  vapid_public_key: str?
-  vapid_private_key: password?
-  vapid_subject: str?
+# No options or schema on purpose: Garage manages every integration key itself, in
+# its /integrations screen. The API reads them through getSetting(), which prefers
+# the value stored in its own database and only falls back to the environment — so
+# an option here would be silently ignored the moment someone saves in the UI.
