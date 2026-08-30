@@ -20,9 +20,7 @@ ports_description:
   3080/tcp: Garage UI (nginx → web + /api); default host port 3081
 map:
   - addon_config:rw
-# No options: Garage manages every integration key itself, in its /integrations
-# screen. The API reads them through getSetting(), which prefers the value stored
-# in its own database and only falls back to the environment — so an option here
-# would be silently ignored the moment someone saves anything in the UI.
-options: {}
-schema: {}
+# No options or schema on purpose: Garage manages every integration key itself, in
+# its /integrations screen. The API reads them through getSetting(), which prefers
+# the value stored in its own database and only falls back to the environment — so
+# an option here would be silently ignored the moment someone saves in the UI.
