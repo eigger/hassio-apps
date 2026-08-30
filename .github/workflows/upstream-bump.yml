@@ -28,7 +28,7 @@ jobs:
         addon: [garage]
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Look for a newer upstream release
         id: bump
@@ -42,7 +42,7 @@ jobs:
 
       - name: Open pull request
         if: steps.bump.outputs.updated == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: bot/${{ matrix.addon }}-upstream
           delete-branch: true

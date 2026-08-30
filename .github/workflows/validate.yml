@@ -12,7 +12,7 @@ jobs:
     name: Image pins
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Every app pins one tag per image, and its version tracks upstream
         run: python3 .github/scripts/pins.py check
 
@@ -27,7 +27,7 @@ jobs:
         # those on purpose. Nothing there is broken, so it is left alone.
         addon: [garage]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: frenck/action-addon-linter@v2
         with:
           path: ./${{ matrix.addon }}
