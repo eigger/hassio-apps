@@ -65,12 +65,16 @@ fi
 # the host port asks for the prefixed URLs the page carries. Fold both into one shape.
 if [[ -n "${INGRESS_PATH}" ]]; then
   STRIP_RULES="rewrite ^${INGRESS_PATH}\$ / last; rewrite ^${INGRESS_PATH}(/.*)\$ \$1 last;"
+  # Without the prefix the base path is the origin root, and "/" is already right.
+  WEB_ROOT_MAP='"/" ""; '
 else
   STRIP_RULES=""
+  WEB_ROOT_MAP=""
 fi
 
 sed -e "s|%%INGRESS_PATH%%|${INGRESS_PATH}|g" \
     -e "s|%%STRIP_INGRESS_PREFIX%%|${STRIP_RULES}|g" \
+    -e "s|%%WEB_ROOT_MAP%%|${WEB_ROOT_MAP}|g" \
     /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 RUNTIME_ENV=/data/secrets/runtime.env
