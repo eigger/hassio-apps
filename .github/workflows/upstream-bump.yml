@@ -1,0 +1,66 @@
+---
+name: Upstream bump
+
+# The apps here only repackage upstream release images, so keeping them current
+# means rewriting a pinned tag in Dockerfile/build.yaml/README plus the add-on
+# version. Dependabot can't see those pins (they live behind Docker ARGs and in
+# build.yaml), so this job does it and opens the PR.
+
+on:
+  schedule:
+    # Daily, off the hour — GitHub drops scheduled runs at popular minutes.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: ${{ matrix.addon }}
+    runs-on: ubuntu-latest
+    if: github.repository == 'eigger/hassio-apps'
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with TRACKED in .github/scripts/pins.py
+        addon: [garage]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Look for a newer upstream release
+        id: bump
+        run: python3 .github/scripts/pins.py bump --addon ${{ matrix.addon }}
+
+      # A PR opened with GITHUB_TOKEN does not trigger other workflows, so the
+      # validation runs here instead of waiting for a check on the PR.
+      - name: Validate pins
+        if: steps.bump.outputs.updated == 'true'
+        run: python3 .github/scripts/pins.py check
+
+      - name: Open pull request
+        if: steps.bump.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bot/${{ matrix.addon }}-upstream
+          delete-branch: true
+          commit-message: >-
+            chore(${{ matrix.addon }}): follow upstream to
+            ${{ steps.bump.outputs.version }}
+          title: >-
+            chore(${{ matrix.addon }}): follow upstream to
+            ${{ steps.bump.outputs.version }}
+          body: |
+            Upstream published a newer release, so the pinned images and the
+            add-on version move from `${{ steps.bump.outputs.previous }}` to
+            `${{ steps.bump.outputs.version }}`.
+
+            Opened by [`upstream-bump.yml`](.github/workflows/upstream-bump.yml).
+            Packaging is not verified by this job — check the upstream release
+            notes for changed env vars, migrations, or start-up commands before
+            merging.
+          labels: |
+            dependencies
+            ${{ matrix.addon }}

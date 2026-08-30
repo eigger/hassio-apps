@@ -7,10 +7,11 @@ Home Assistant [App](https://www.home-assistant.io/apps/) repository (formerly a
 | App | Description |
 |-----|-------------|
 | [ESPHome OTA Publisher](esphome_ota/) | Serve ESPHome firmware for `http_request` OTA via `/local` — no ports opened |
+| [Garage](garage/) | Self-hosted car management (Postgres + API + Web all-in-one, upstream release images) — `amd64` only |
 
 Temporarily disabled (folders kept, prefixed with `.` so the Supervisor no longer
 discovers them for new installs — already-installed users are unaffected):
-Tesseract OCR, Stash, Garage.
+Tesseract OCR, Stash.
 
 ## Install
 

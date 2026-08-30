@@ -1,8 +1,10 @@
 #!/command/with-contenv bashio
 set -euo pipefail
 
+set -a
 # shellcheck disable=SC1091
 source /data/secrets/runtime.env
+set +a
 
 export NODE_ENV=production
 export PORT=3000

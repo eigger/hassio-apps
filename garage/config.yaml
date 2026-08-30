@@ -1,0 +1,41 @@
+---
+name: Garage
+version: "1.3.6"
+slug: garage
+description: Self-hosted car management — maintenance, fuel, OBD/GPS (all-in-one)
+url: https://github.com/eigger/hassio-apps/tree/master/garage
+# Upstream publishes ghcr.io/eigger/garage-{api,web} for linux/amd64 only, and this
+# app copies those images straight in — so aarch64 cannot be offered until upstream
+# starts building it.
+arch:
+  - amd64
+startup: application
+boot: auto
+init: false
+# Next.js uses absolute /_next and /api paths, so HA Ingress (subpath) breaks the UI.
+# Open the app on the host port instead — same as the upstream docker-compose stack.
+webui: http://[HOST]:[PORT:3080]/
+panel_icon: mdi:car
+ports:
+  3080/tcp: 3081
+ports_description:
+  3080/tcp: Garage UI (nginx → web + /api); default host port 3081
+map:
+  - addon_config:rw
+# Optional integrations, matching the env vars upstream's docker-compose.prod.yml
+# passes to the API. All blank by default: the app falls back to mock data and the
+# reminder push notifications simply stay off.
+options:
+  opinet_api_key: ""
+  cheonan_card_enabled: false
+  ev_charger_api_key: ""
+  vapid_public_key: ""
+  vapid_private_key: ""
+  vapid_subject: "mailto:admin@example.com"
+schema:
+  opinet_api_key: password?
+  cheonan_card_enabled: bool?
+  ev_charger_api_key: password?
+  vapid_public_key: str?
+  vapid_private_key: password?
+  vapid_subject: str?
