@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.8
+
+- **Fix the 404 after logging in through Ingress**: Home Assistant registers exactly one ingress route, `/api/hassio_ingress/{token}/{path:.*}`, so the trailing slash is required — while Next normalised the base path root to the slash-less form. `router.push("/")` therefore produced a URL outside the route and Home Assistant answered 404 before the request ever reached the app, which is why only the login screen worked.
+- Fixed upstream in 1.3.8 with `trailingSlash: true`, plus two client paths that bypassed the base path (the post-restore jump to `/login`, and the Hyundai OAuth redirect URI).
+- **Reverted the nginx root workaround** added in 1.3.7.2: it only covered the server half of the same mismatch, and with upstream fixed the plain path is right again.
+
 ## 1.3.7.2
 
 - **Fix the Ingress panel showing 404**: the web app answers at its base path *without* a trailing slash, so proxying the root request to `<base>/` earned a `308` to `<base>` — a redirect that leaves Home Assistant's ingress route and 404s. nginx now proxies the prefix alone for the root request; every other path is unchanged.
