@@ -1,0 +1,15 @@
+---
+version: 2
+updates:
+  # Only the workflow actions are Dependabot's job here. The apps' container
+  # images are pinned through Docker ARGs and build.yaml, which Dependabot's
+  # docker ecosystem does not parse — .github/workflows/upstream-bump.yml
+  # tracks those instead.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    labels:
+      - dependencies
