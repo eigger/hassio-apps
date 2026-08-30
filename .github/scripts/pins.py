@@ -42,6 +42,11 @@ TRACKED = {
         "release_url": "https://github.com/eigger/garage/releases/tag/v{version}",
         "track_base": True,
     },
+    "stash": {
+        "images": ["eigger/stash-api", "eigger/stash-web"],
+        "release_url": "https://github.com/eigger/stash/releases/tag/v{version}",
+        "track_base": True,
+    },
 }
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
