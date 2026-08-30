@@ -2,5 +2,5 @@
 build_from:
   amd64: ghcr.io/hassio-addons/base:21.0.3
 args:
-  APP_API_IMAGE: ghcr.io/eigger/garage-api:1.3.6
-  APP_WEB_IMAGE: ghcr.io/eigger/garage-web:1.3.6
+  APP_API_IMAGE: ghcr.io/eigger/garage-api:1.3.7
+  APP_WEB_IMAGE: ghcr.io/eigger/garage-web:1.3.7

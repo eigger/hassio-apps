@@ -1,6 +1,6 @@
 ---
 name: Garage
-version: "1.3.6.1"
+version: "1.3.7"
 slug: garage
 description: Self-hosted car management — maintenance, fuel, OBD/GPS (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/garage
@@ -10,10 +10,16 @@ url: https://github.com/eigger/hassio-apps/tree/master/garage
 arch:
   - amd64
 init: false
-# Next.js uses absolute /_next and /api paths, so HA Ingress (subpath) breaks the UI.
-# Open the app on the host port instead — same as the upstream docker-compose stack.
-webui: http://[HOST]:[PORT:3080]/
+# Upstream 1.3.7 lets the web app run under a path prefix decided at start-up, so the
+# UI can be served through Ingress — that is the only way in from Home Assistant's own
+# external URL. The host port stays published for direct LAN access.
+ingress: true
+ingress_port: 3080
+# No webui: the button resolves to <host>:3081, which is exactly what did not work from
+# outside the LAN. The sidebar entry is the way in; the host port is still published for
+# anyone who wants to reach it directly.
 panel_icon: mdi:car
+panel_title: Garage
 ports:
   3080/tcp: 3081
 ports_description:
