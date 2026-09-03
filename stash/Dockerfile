@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.3
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.4
 ARG APP_API_IMAGE=ghcr.io/eigger/stash-api:0.7.5
 ARG APP_WEB_IMAGE=ghcr.io/eigger/stash-web:0.7.5
 
