@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.5.1
+
+- Base image `21.0.3` → **`21.0.4`**
+
 ## 0.7.5
 
 - **App re-enabled**:
