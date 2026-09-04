@@ -21,6 +21,11 @@ COPY --from=app-web /app /opt/app/web
 # served under — Ingress decides that per installation, so it can only run here.
 COPY --from=app-web /usr/local/bin/docker-entrypoint.sh /opt/app/web-entrypoint.sh
 
+# Prisma 5 on Alpine only probes /lib for libssl.so. The HA base keeps OpenSSL 3
+# under /usr/lib, so without this link it defaults to openssl-1.1.x and migrate
+# crashes. apk add openssl is not used: it has to match the base's pinned
+# libcrypto3/libssl3, and that is what broke the Garage build. Stash/Garage/Kibble
+# skip this because they run Prisma 7, which searches /usr/lib itself.
 RUN apk add --no-cache \
     curl \
     libgcc \
@@ -34,7 +39,11 @@ RUN apk add --no-cache \
     /run/nginx \
     /run/postgresql \
   && chown -R nginx:nginx /run/nginx \
-  && chown -R postgres:postgres /run/postgresql
+  && chown -R postgres:postgres /run/postgresql \
+  && test -e /usr/lib/libssl.so.3 \
+  && test -e /usr/lib/libcrypto.so.3 \
+  && ln -sf /usr/lib/libssl.so.3 /lib/libssl.so.3 \
+  && ln -sf /usr/lib/libcrypto.so.3 /lib/libcrypto.so.3
 
 COPY rootfs /
 
