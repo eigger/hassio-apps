@@ -47,6 +47,16 @@ TRACKED = {
         "release_url": "https://github.com/eigger/stash/releases/tag/v{version}",
         "track_base": True,
     },
+    "drop": {
+        "images": ["eigger/drop-api", "eigger/drop-web"],
+        "release_url": "https://github.com/eigger/drop/releases/tag/v{version}",
+        "track_base": True,
+    },
+    "kibble": {
+        "images": ["eigger/kibble-api", "eigger/kibble-web"],
+        "release_url": "https://github.com/eigger/kibble/releases/tag/v{version}",
+        "track_base": True,
+    },
 }
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")

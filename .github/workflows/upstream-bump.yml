@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         # Keep in sync with TRACKED in .github/scripts/pins.py
-        addon: [garage, stash]
+        addon: [garage, stash, drop, kibble]
     steps:
       - name: Check out
         uses: actions/checkout@v7
