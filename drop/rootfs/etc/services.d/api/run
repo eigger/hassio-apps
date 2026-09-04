@@ -1,0 +1,52 @@
+#!/command/with-contenv bashio
+set -euo pipefail
+
+# Export everything the setup step wrote — the API reads UPLOAD_DIR and the upload cap
+# straight from the environment.
+set -a
+# shellcheck disable=SC1091
+source /data/secrets/runtime.env
+set +a
+
+bashio::log.info "Waiting for PostgreSQL"
+for _ in $(seq 1 60); do
+  if pg_isready -h 127.0.0.1 -p 5432 -U postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+if ! pg_isready -h 127.0.0.1 -p 5432 -U postgres >/dev/null 2>&1; then
+  bashio::log.fatal "PostgreSQL did not become ready"
+  exit 1
+fi
+
+su-exec postgres psql -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${POSTGRES_USER}') THEN
+    CREATE ROLE ${POSTGRES_USER} LOGIN PASSWORD '${POSTGRES_PASSWORD}';
+  ELSE
+    ALTER ROLE ${POSTGRES_USER} WITH LOGIN PASSWORD '${POSTGRES_PASSWORD}';
+  END IF;
+END
+\$\$;
+SELECT 'CREATE DATABASE ${POSTGRES_DB} OWNER ${POSTGRES_USER}'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_DB}')\gexec
+SQL
+
+mkdir -p "${UPLOAD_DIR}"
+
+cd /opt/app/api
+bashio::log.info "Running Prisma migrations"
+# Drop is still on Prisma 5, which keeps the datasource URL in schema.prisma and ships no
+# prisma.config.ts. Pass --config only when an image actually carries one, so the day
+# upstream moves to Prisma 7 this keeps working — the same check stash and garage use.
+prisma_args=(migrate deploy --schema apps/api/prisma/schema.prisma)
+if [[ -f apps/api/prisma.config.ts ]]; then
+  prisma_args+=(--config apps/api/prisma.config.ts)
+fi
+./node_modules/.bin/prisma "${prisma_args[@]}"
+
+bashio::log.info "Starting Drop API"
+exec node apps/api/dist/index.js

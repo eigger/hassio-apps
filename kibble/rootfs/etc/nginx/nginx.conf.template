@@ -1,0 +1,86 @@
+worker_processes auto;
+error_log /dev/stderr warn;
+pid /run/nginx/nginx.pid;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  access_log /dev/stdout combined;
+  sendfile on;
+  keepalive_timeout 65;
+
+  map $http_upgrade $connection_upgrade {
+    default upgrade;
+    "" close;
+  }
+
+  # Same routing as upstream Caddyfile: /api + /health → API, else → Web.
+  #
+  # Two front doors reach this server: Home Assistant Ingress, which strips its
+  # /api/hassio_ingress/<token> prefix before forwarding, and the published host port,
+  # where the browser asks for exactly the prefixed URLs the page was built with. The
+  # rewrite below folds both into one shape, and the web upstream gets the prefix put
+  # back on because the app only answers under its base path.
+  #
+  # The prefix is filled in at start-up (rootfs/etc/cont-init.d/10-setup.sh) — the token
+  # is assigned per installation, so it cannot be baked into the image.
+  server {
+    listen 3080 default_server;
+    listen [::]:3080 default_server;
+    server_name _;
+
+    %%STRIP_INGRESS_PREFIX%%
+
+    # The headers upstream's Caddyfile sets, minus X-Frame-Options: Ingress renders the
+    # app inside a Home Assistant iframe, and DENY would blank the panel. No HSTS either
+    # — the host port is plain http on the LAN; turn that on at the TLS proxy instead.
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Permissions-Policy "camera=(), geolocation=(), microphone=()" always;
+    server_tokens off;
+
+    # Caddy imposes no request body limit and neither does this: the API is the one
+    # place that knows the caps (500 MB per chunked upload, 20 MB per multipart part),
+    # and a 413 from nginx would land as an opaque failure part-way through a restore.
+    client_max_body_size 0;
+    client_body_timeout 300s;
+
+    location /api/ {
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+      # Stream both ways instead of spooling to disk — backup archives and photo batches
+      # are large enough that buffering one would fill the container's writable layer.
+      proxy_request_buffering off;
+      proxy_buffering off;
+      proxy_read_timeout 3600s;
+      proxy_send_timeout 3600s;
+      proxy_pass http://127.0.0.1:8080;
+    }
+
+    location = /health {
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_pass http://127.0.0.1:8080;
+    }
+
+    location / {
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+      proxy_pass http://127.0.0.1:3000%%INGRESS_PATH%%$uri$is_args$args;
+    }
+  }
+}

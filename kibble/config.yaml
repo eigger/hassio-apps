@@ -1,0 +1,33 @@
+---
+name: Kibble
+version: "0.8.0"
+slug: kibble
+description: Self-hosted pet care journal — events, medications, reminders (all-in-one)
+url: https://github.com/eigger/hassio-apps/tree/master/kibble
+# Upstream publishes ghcr.io/eigger/kibble-{api,web} for linux/amd64 only, and this
+# app copies those images straight in — so aarch64 cannot be offered until upstream
+# starts building it.
+arch:
+  - amd64
+init: false
+# Upstream 0.8.0 lets the web app run under a path prefix decided at start-up, so the
+# UI can be served through Ingress — that is the only way in from Home Assistant's own
+# external URL. The host port stays published for direct LAN access.
+ingress: true
+ingress_port: 3080
+# No webui: the button resolves to <host>:3083, which is exactly what does not work from
+# outside the LAN. The sidebar entry is the way in; the host port is still published for
+# anyone who wants to reach it directly.
+panel_icon: mdi:paw
+panel_title: Kibble
+ports:
+  3080/tcp: 3083
+ports_description:
+  3080/tcp: Kibble UI (nginx → web + /api); default host port 3083
+map:
+  - addon_config:rw
+# No options or schema on purpose: Kibble manages its own keys — the Kakao map key and
+# the Web Push (VAPID) pair — in its /integrations screen. The API reads them through
+# getSetting(), which prefers the value stored in its own database and only falls back
+# to the environment, so an option here would be silently ignored the moment someone
+# saves in the UI. Same reasoning as Garage.

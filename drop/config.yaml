@@ -1,0 +1,31 @@
+---
+name: Drop
+version: "0.5.0"
+slug: drop
+description: Self-hosted file sharing between phone and PC (all-in-one)
+url: https://github.com/eigger/hassio-apps/tree/master/drop
+# Upstream publishes ghcr.io/eigger/drop-{api,web} for linux/amd64 only, and this
+# app copies those images straight in — so aarch64 cannot be offered until upstream
+# starts building it.
+arch:
+  - amd64
+init: false
+# Upstream 0.5.0 lets the web app run under a path prefix decided at start-up, so the
+# UI can be served through Ingress — that is the only way in from Home Assistant's own
+# external URL. The host port stays published for direct LAN access.
+ingress: true
+ingress_port: 3080
+# No webui: the button resolves to <host>:3082, which is exactly what does not work from
+# outside the LAN. The sidebar entry is the way in; the host port is still published for
+# anyone who wants to reach it directly.
+panel_icon: mdi:tray-arrow-down
+panel_title: Drop
+ports:
+  3080/tcp: 3082
+ports_description:
+  3080/tcp: Drop UI (nginx → web + /api); default host port 3082
+map:
+  - addon_config:rw
+# No options or schema on purpose: everything Drop can be configured with lives in its
+# own Settings screen, and the Postgres password and JWT secret are generated on first
+# start under /data/secrets.
