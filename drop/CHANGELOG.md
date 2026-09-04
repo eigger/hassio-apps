@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0.1
+
+- **Fix Prisma migrations crashing on start**: Prisma 5 on Alpine only looks for
+  `libssl.so` in `/lib`. The HA base keeps OpenSSL 3 under `/usr/lib`, so detection
+  failed, the CLI defaulted to `openssl-1.1.x`, and `migrate deploy` died parsing
+  `Error loading shared library libssl.so.1.1`. The libraries were already in the
+  image; they are now linked into `/lib` where Prisma 5 can see them. Stash, Garage
+  and Kibble do not need this — they run Prisma 7, which searches `/usr/lib` itself.
+  `apk add openssl` is still avoided: it has to match the base's pinned `libcrypto3`
+  / `libssl3` exactly, and that is what broke the Garage build.
+
 ## 0.5.0
 
 - Initial all-in-one app packaging, modelled on Stash and Garage: one container running
