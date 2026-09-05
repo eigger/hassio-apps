@@ -31,7 +31,7 @@ nginx folds the two into one shape and puts the prefix back on for the web app.
 
 Default host port is **3083** (Stash **3080**, Garage **3081**, Drop **3082**).
 
-Upstream images: `ghcr.io/eigger/kibble-api:0.8.0`, `ghcr.io/eigger/kibble-web:0.8.0`
+Upstream images: `ghcr.io/eigger/kibble-api:0.12.2`, `ghcr.io/eigger/kibble-web:0.12.2`
 
 Nothing is built from source here — the app copies the upstream release images in and
 runs them next to Postgres and nginx, so the app version tracks the upstream version.

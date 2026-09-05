@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.2
+
+- Follow upstream to `kibble-api`/`kibble-web` **0.12.2** ([release notes](https://github.com/eigger/kibble/releases/tag/v0.12.2))
+
 ## 0.8.0
 
 - Initial all-in-one app packaging, modelled on Stash and Garage: one container running

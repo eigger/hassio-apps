@@ -1,6 +1,6 @@
 ---
 name: Kibble
-version: "0.8.0"
+version: "0.12.2"
 slug: kibble
 description: Self-hosted pet care journal — events, medications, reminders (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/kibble
