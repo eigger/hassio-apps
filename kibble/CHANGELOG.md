@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.3
+
+- Follow upstream to `kibble-api`/`kibble-web` **0.17.3** ([release notes](https://github.com/eigger/kibble/releases/tag/v0.17.3))
+
 ## 0.12.2
 
 - Follow upstream to `kibble-api`/`kibble-web` **0.12.2** ([release notes](https://github.com/eigger/kibble/releases/tag/v0.12.2))
