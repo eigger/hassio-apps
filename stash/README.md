@@ -29,7 +29,7 @@ nginx folds the two into one shape and puts the prefix back on for the web app.
 
 Default host port is **3080** (Garage uses **3081**).
 
-Upstream images: `ghcr.io/eigger/stash-api:0.7.5`, `ghcr.io/eigger/stash-web:0.7.5`
+Upstream images: `ghcr.io/eigger/stash-api:0.8.1`, `ghcr.io/eigger/stash-web:0.8.1`
 
 Nothing is built from source here — the app copies the upstream release images in and
 runs them next to Postgres and nginx, so the app version tracks the upstream version.
