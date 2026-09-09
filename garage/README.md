@@ -32,7 +32,7 @@ There is no **Open Web UI** button any more: it resolved to `<host>:3081`, which
 precisely what does not work from outside. Default host port is still **3081** so it does
 not collide with Stash (**3080**) — reach it by typing the URL.
 
-Upstream images: `ghcr.io/eigger/garage-api:1.3.9`, `ghcr.io/eigger/garage-web:1.3.9`
+Upstream images: `ghcr.io/eigger/garage-api:1.5.0`, `ghcr.io/eigger/garage-web:1.5.0`
 
 Nothing is built from source here — the app copies the upstream release images in and
 runs them next to Postgres and nginx, so the app version tracks the upstream version.

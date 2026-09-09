@@ -1,6 +1,6 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.4
-ARG APP_API_IMAGE=ghcr.io/eigger/garage-api:1.3.9
-ARG APP_WEB_IMAGE=ghcr.io/eigger/garage-web:1.3.9
+ARG APP_API_IMAGE=ghcr.io/eigger/garage-api:1.5.0
+ARG APP_WEB_IMAGE=ghcr.io/eigger/garage-web:1.5.0
 
 # hadolint ignore=DL3006
 FROM ${APP_API_IMAGE} AS app-api
