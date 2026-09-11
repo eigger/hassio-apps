@@ -1,6 +1,6 @@
 ---
 name: Stash
-version: "0.8.1"
+version: "0.8.1.1"
 slug: stash
 description: Self-hosted home inventory & barcode manager (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/stash

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1.1
+
+- Base image `21.0.4` → **`21.0.5`**
+
 ## 0.8.1
 
 - Follow upstream to `stash-api`/`stash-web` **0.8.1** ([release notes](https://github.com/eigger/stash/releases/tag/v0.8.1))
