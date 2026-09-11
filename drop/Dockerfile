@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.4
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.5
 ARG APP_API_IMAGE=ghcr.io/eigger/drop-api:0.5.0
 ARG APP_WEB_IMAGE=ghcr.io/eigger/drop-web:0.5.0
 

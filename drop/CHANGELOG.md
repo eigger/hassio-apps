@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0.2
+
+- Base image `21.0.4` → **`21.0.5`**
+
 ## 0.5.0.1
 
 - **Fix Prisma migrations crashing on start**: Prisma 5 on Alpine only looks for

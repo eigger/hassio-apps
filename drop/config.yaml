@@ -1,6 +1,6 @@
 ---
 name: Drop
-version: "0.5.0.1"
+version: "0.5.0.2"
 slug: drop
 description: Self-hosted file sharing between phone and PC (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/drop
