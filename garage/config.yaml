@@ -1,6 +1,6 @@
 ---
 name: Garage
-version: "1.5.0"
+version: "1.5.0.1"
 slug: garage
 description: Self-hosted car management — maintenance, fuel, OBD/GPS (all-in-one)
 url: https://github.com/eigger/hassio-apps/tree/master/garage
