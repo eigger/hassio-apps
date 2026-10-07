@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.28.2.1
+
+- Base image `21.0.7` → **`21.0.8`**
+
 ## 0.28.2
 
 - Follow upstream to `kibble-api`/`kibble-web` **0.28.2** ([release notes](https://github.com/eigger/kibble/releases/tag/v0.28.2))
