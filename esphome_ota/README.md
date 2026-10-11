@@ -1,5 +1,16 @@
 # ESPHome OTA Publisher
 
+> [!WARNING]
+> ### ⚠️ DEPRECATED — Repository Moved
+> **This add-on is now deprecated in `hassio-apps`.**
+> Ongoing maintenance and all future releases have moved to a dedicated repository:
+> 👉 **[eigger/hass-esphome-ota](https://github.com/eigger/hass-esphome-ota)**
+>
+> **Migration Steps:**
+> 1. Go to Home Assistant **Settings → Apps (or Add-ons) → ⋮ → Repositories**.
+> 2. Add repository: `https://github.com/eigger/hass-esphome-ota`
+> 3. Install **ESPHome OTA Publisher** from the new repository and migrate your settings.
+
 [한국어 문서](README.ko.md)
 
 For ESPHome devices that ESPHome's own local/mDNS OTA can't reach — typically

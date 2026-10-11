@@ -1,5 +1,16 @@
 # ESPHome OTA Publisher
 
+> [!WARNING]
+> ### ⚠️ 지원 종료 안내 (DEPRECATED) — 저장소 이전
+> **본 저장소(`hassio-apps`)의 `esphome_ota` 애드온은 지원이 종료(DEPRECATED)되었습니다.**
+> 향후 지속적인 유지보수와 최신 기능 업데이트는 아래 독립 저장소로 이전되었습니다:
+> 👉 **[eigger/hass-esphome-ota](https://github.com/eigger/hass-esphome-ota)**
+>
+> **이전(마이그레이션) 방법:**
+> 1. Home Assistant **설정 → 앱(또는 애드온) → 우측 상단 메뉴(⋮) → 저장소(Repositories)**로 이동합니다.
+> 2. 저장소 URL 추가: `https://github.com/eigger/hass-esphome-ota`
+> 3. 신규 저장소에서 **ESPHome OTA Publisher**를 설치하고 설정을 이전하세요.
+
 [English](README.md)
 
 ESPHome 자체의 로컬/mDNS OTA가 닿지 않는 기기용입니다 — 보통 집 네트워크

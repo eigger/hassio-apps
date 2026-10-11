@@ -1,9 +1,10 @@
 ---
-name: ESPHome OTA Publisher
-version: "0.9.4"
+name: "[DEPRECATED] ESPHome OTA Publisher"
+version: "0.9.5"
 slug: esphome_ota
-description: Publish ESPHome firmware for http_request OTA — pulled straight from the ESPHome Device Builder add-on, served by Home Assistant on /local
-url: https://github.com/eigger/hassio-apps/tree/master/esphome_ota
+stage: deprecated
+description: "[DEPRECATED] Moved to https://github.com/eigger/hass-esphome-ota — Publish ESPHome firmware for http_request OTA"
+url: https://github.com/eigger/hass-esphome-ota
 arch:
   - amd64
   - aarch64

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.5
+
+- **Deprecation Notice / Repository Migration**:
+  - This add-on is now **DEPRECATED** in `hassio-apps`.
+  - Development, maintenance, and future updates have moved to the dedicated standalone repository:
+    👉 **[eigger/hass-esphome-ota](https://github.com/eigger/hass-esphome-ota)**
+  - Marked `stage: deprecated` in the add-on configuration. Please migrate by adding `https://github.com/eigger/hass-esphome-ota` under Home Assistant **Settings → Apps/Add-ons → Repositories**.
+
 ## 0.9.4
 
 - **Dropped `build.yaml`**:

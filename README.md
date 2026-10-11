@@ -6,7 +6,7 @@ Home Assistant [App](https://www.home-assistant.io/apps/) repository (formerly a
 
 | App | Description |
 |-----|-------------|
-| [ESPHome OTA Publisher](esphome_ota/) | Serve ESPHome firmware for `http_request` OTA via `/local` — no ports opened |
+| [ESPHome OTA Publisher](esphome_ota/) *(Deprecated)* | **Moved to [eigger/hass-esphome-ota](https://github.com/eigger/hass-esphome-ota)** — Serve ESPHome firmware for `http_request` OTA via `/local` |
 | [Garage](garage/) | Self-hosted car management (Postgres + API + Web all-in-one, upstream release images), via Ingress or host port — `amd64` only |
 | [Stash](stash/) | Self-hosted home inventory & barcode manager (same all-in-one packaging), via Ingress or host port — `amd64` only |
 | [Drop](drop/) | Self-hosted file sharing between phone and PC (same all-in-one packaging), via Ingress or host port — `amd64` only |
