@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.4.1
+
+- Base image `21.0.8` → **`21.0.9`**
+
 ## 1.5.4
 
 - Follow upstream to `garage-api`/`garage-web` **1.5.4** ([release notes](https://github.com/eigger/garage/releases/tag/v1.5.4))
