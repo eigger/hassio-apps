@@ -1,6 +1,6 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.9
-ARG APP_API_IMAGE=ghcr.io/eigger/kibble-api:0.32.1
-ARG APP_WEB_IMAGE=ghcr.io/eigger/kibble-web:0.32.1
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.10
+ARG APP_API_IMAGE=ghcr.io/eigger/kibble-api:0.33.0
+ARG APP_WEB_IMAGE=ghcr.io/eigger/kibble-web:0.33.0
 
 # hadolint ignore=DL3006
 FROM ${APP_API_IMAGE} AS app-api
