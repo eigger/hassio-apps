@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.9
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.10
 ARG APP_API_IMAGE=ghcr.io/eigger/garage-api:1.5.4
 ARG APP_WEB_IMAGE=ghcr.io/eigger/garage-web:1.5.4
 
