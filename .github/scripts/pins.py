@@ -12,6 +12,7 @@ which rewrites the tag in each file that carries it.
 
     pins.py check              verify every pin in the repo is self-consistent
     pins.py bump --addon NAME  pull the newest tags and rewrite the pins
+    pins.py list               apps found in the repo, for the workflow matrices
 
 No third-party dependencies: it runs on a stock `ubuntu-latest` python3.
 """
@@ -33,31 +34,32 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # newer libraries — which is how the garage build broke at 1.3.6.
 BASE_IMAGE = "hassio-addons/base"
 
-# Apps whose pins are tracked. `images` must all publish the same tag (upstream
-# builds and releases them together) and drive the add-on version; `track_base`
-# additionally follows the base image, which only bumps the packaging revision.
-TRACKED = {
-    "garage": {
-        "images": ["eigger/garage-api", "eigger/garage-web"],
-        "release_url": "https://github.com/eigger/garage/releases/tag/v{version}",
-        "track_base": True,
-    },
-    "stash": {
-        "images": ["eigger/stash-api", "eigger/stash-web"],
-        "release_url": "https://github.com/eigger/stash/releases/tag/v{version}",
-        "track_base": True,
-    },
-    "drop": {
-        "images": ["eigger/drop-api", "eigger/drop-web"],
-        "release_url": "https://github.com/eigger/drop/releases/tag/v{version}",
-        "track_base": True,
-    },
-    "kibble": {
-        "images": ["eigger/kibble-api", "eigger/kibble-web"],
-        "release_url": "https://github.com/eigger/kibble/releases/tag/v{version}",
-        "track_base": True,
-    },
-}
+# Apps are discovered, not listed: every top-level folder with a config.yaml is an
+# app (folders starting with "." are disabled). Adding or removing an app is just
+# adding or removing its folder — no list to update here or in the workflows.
+#
+# A tracked app is one whose Dockerfile pins GHCR images other than the add-on base
+# image. Those `images` must all publish the same tag (upstream builds and releases
+# them together) and drive the add-on version; the base image, when pinned, is
+# followed too and only bumps the packaging revision. Both are read from the
+# Dockerfile; `release_url` assumes upstream lives at github.com/eigger/<app>.
+IMAGE_PIN = re.compile(r"ghcr\.io/([\w./-]+):\S+")
+
+
+def tracked_config(addon: Path) -> dict:
+    dockerfile = addon / "Dockerfile"
+    if not dockerfile.is_file():
+        return {}
+    pinned = IMAGE_PIN.findall(dockerfile.read_text(encoding="utf-8"))
+    images = sorted({i for i in pinned if i != BASE_IMAGE})
+    if not images:
+        return {}
+    return {
+        "images": images,
+        "release_url": f"https://github.com/eigger/{addon.name}/releases/tag/v{{version}}",
+        "track_base": BASE_IMAGE in pinned,
+    }
+
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 TEXT_SUFFIXES = {".yaml", ".yml", ".md", ".sh", ".conf", ".json", ".template", ""}
@@ -213,7 +215,7 @@ def next_revision(version: str) -> str:
 def cmd_check() -> int:
     problems: list[str] = []
     for addon in addon_dirs():
-        tracked = TRACKED.get(addon.name, {})
+        tracked = tracked_config(addon)
         for image in list(tracked.get("images", [])) + [BASE_IMAGE]:
             per_file = pinned_tags(addon, image)
             tags = {tag for tagset in per_file.values() for tag in tagset}
@@ -254,13 +256,20 @@ def cmd_check() -> int:
 # ---------------------------------------------------------------------------- bump
 
 
+def cmd_list() -> int:
+    apps = [a.name for a in addon_dirs()]
+    tracked = [a.name for a in addon_dirs() if tracked_config(a)]
+    print(json.dumps({"apps": apps, "tracked": tracked}))
+    return _emit(apps=json.dumps(apps), tracked=json.dumps(tracked))
+
+
 def cmd_bump(name: str) -> int:
-    tracked = TRACKED.get(name)
-    if not tracked:
-        raise SystemExit(f"{name} is not tracked; add it to TRACKED in {__file__}")
     addon = REPO_ROOT / name
     if not addon.is_dir():
         raise SystemExit(f"{addon} does not exist")
+    tracked = tracked_config(addon)
+    if not tracked:
+        raise SystemExit(f"{name} pins no upstream GHCR image, nothing to track")
 
     notes: list[str] = []
     title = ""
@@ -333,9 +342,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="verify the pins in the repo are consistent")
+    sub.add_parser("list", help="print the apps as JSON (all, and the tracked ones)")
     bump = sub.add_parser("bump", help="rewrite an app's pins to the newest tags")
-    bump.add_argument("--addon", required=True, choices=sorted(TRACKED))
+    bump.add_argument("--addon", required=True)
     args = parser.parse_args()
+    if args.command == "list":
+        return cmd_list()
     return cmd_check() if args.command == "check" else cmd_bump(args.addon)
 
 

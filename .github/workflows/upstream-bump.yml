@@ -19,15 +19,26 @@ permissions:
   pull-requests: write
 
 jobs:
+  discover:
+    name: Find apps
+    runs-on: ubuntu-latest
+    if: github.repository == 'eigger/hassio-apps'
+    outputs:
+      tracked: ${{ steps.list.outputs.tracked }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: python3 .github/scripts/pins.py list
+
   bump:
     name: ${{ matrix.addon }}
+    needs: discover
     runs-on: ubuntu-latest
     if: github.repository == 'eigger/hassio-apps'
     strategy:
       fail-fast: false
       matrix:
-        # Keep in sync with TRACKED in .github/scripts/pins.py
-        addon: [garage, stash, drop, kibble]
+        addon: ${{ fromJSON(needs.discover.outputs.tracked) }}
     steps:
       - name: Check out
         uses: actions/checkout@v7
