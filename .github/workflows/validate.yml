@@ -8,6 +8,18 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The app list comes from the folders themselves, so adding or removing an app
+  # needs no edit here.
+  discover:
+    name: Find apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.list.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: python3 .github/scripts/pins.py list
+
   pins:
     name: Image pins
     runs-on: ubuntu-latest
@@ -18,11 +30,12 @@ jobs:
 
   addon:
     name: Add-on config (${{ matrix.addon }})
+    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        addon: [garage, stash, drop, kibble]
+        addon: ${{ fromJSON(needs.discover.outputs.apps) }}
     steps:
       - uses: actions/checkout@v7
       - uses: frenck/action-addon-linter@v2
