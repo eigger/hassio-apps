@@ -1,6 +1,0 @@
-Flask==3.0.3
-numpy==1.26.4
-pillow==10.3.0
-pytesseract==0.3.10
-requests==2.31.0
-opencv-python-headless==4.5.5.64
