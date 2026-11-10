@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.10
+ARG BUILD_FROM=ghcr.io/hassio-addons/base:21.0.11
 ARG APP_API_IMAGE=ghcr.io/eigger/kibble-api:0.34.0
 ARG APP_WEB_IMAGE=ghcr.io/eigger/kibble-web:0.34.0
 
